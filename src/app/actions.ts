@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { loginWithEmail, logout, requireUser } from "@/lib/auth";
+import { loginWithPassword, logout, requireUser } from "@/lib/auth";
+import {
+  registerUser,
+  resendVerification,
+  requestPasswordReset,
+  resetPassword,
+  changePassword,
+  AccountError,
+} from "@/lib/accounts";
 import { prisma } from "@/lib/db";
 import {
   agregarProcesoPorRadicado,
@@ -12,26 +20,137 @@ import {
 } from "@/lib/sync";
 import { RamaError } from "@/lib/rama";
 
-type ActionState = { error?: string; ok?: string };
+type ActionState = { error?: string; ok?: string; needsVerify?: string };
 
-const loginSchema = z.object({
-  email: z.string().email("Correo invalido"),
-  name: z.string().optional(),
-});
+const passwordSchema = z
+  .string()
+  .min(8, "La contraseña debe tener al menos 8 caracteres")
+  .regex(/[A-Za-z]/, "Debe incluir al menos una letra")
+  .regex(/[0-9]/, "Debe incluir al menos un número");
 
+// ---------- Login ----------
 export async function loginAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const parsed = loginSchema.safeParse({
+  const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
+  if (!email || !password) return { error: "Ingresa correo y contraseña." };
+
+  const res = await loginWithPassword(email, password);
+  if (res.status === "invalid") return { error: "Correo o contraseña incorrectos." };
+  if (res.status === "unverified")
+    return {
+      error: "Tu correo aún no está verificado. Revisa tu bandeja.",
+      needsVerify: res.email,
+    };
+  redirect("/dashboard");
+}
+
+// ---------- Registro ----------
+const registerSchema = z.object({
+  firstName: z.string().min(1, "Ingresa tu nombre"),
+  lastName: z.string().min(1, "Ingresa tu apellido"),
+  email: z.string().email("Correo inválido"),
+  password: passwordSchema,
+});
+
+export async function registerAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  // Honeypot anti-bot: campo oculto que un humano nunca llena.
+  if (String(formData.get("website") ?? "") !== "") {
+    return { ok: "Revisa tu correo para verificar tu cuenta." };
+  }
+  const parsed = registerSchema.safeParse({
+    firstName: formData.get("firstName"),
+    lastName: formData.get("lastName"),
     email: formData.get("email"),
-    name: formData.get("name") || undefined,
+    password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos invalidos" };
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  await loginWithEmail(parsed.data.email, parsed.data.name);
-  redirect("/dashboard");
+  try {
+    await registerUser(parsed.data);
+    return {
+      ok: "¡Listo! Te enviamos un correo para verificar tu cuenta. Revisa tu bandeja (y spam).",
+    };
+  } catch (err) {
+    if (err instanceof AccountError) return { error: err.message };
+    return { error: "No se pudo crear la cuenta. Intenta de nuevo." };
+  }
+}
+
+export async function resendVerificationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const email = String(formData.get("email") ?? "");
+  if (email) await resendVerification(email);
+  return { ok: "Si la cuenta existe y no está verificada, te reenviamos el correo." };
+}
+
+// ---------- Olvidé mi contraseña ----------
+export async function forgotAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const email = String(formData.get("email") ?? "");
+  if (email) await requestPasswordReset(email);
+  return {
+    ok: "Si existe una cuenta con ese correo, te enviamos un enlace para restablecer la contraseña.",
+  };
+}
+
+// ---------- Restablecer con token ----------
+const resetSchema = z.object({
+  token: z.string().min(10, "Token inválido"),
+  password: passwordSchema,
+});
+
+export async function resetAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = resetSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const ok = await resetPassword(parsed.data.token, parsed.data.password);
+  if (!ok) return { error: "El enlace es inválido o ya venció. Solicita uno nuevo." };
+  return { ok: "Contraseña actualizada. Ya puedes iniciar sesión." };
+}
+
+// ---------- Cambio de contraseña (autenticado) ----------
+const changeSchema = z.object({
+  current: z.string().min(1, "Ingresa tu contraseña actual"),
+  password: passwordSchema,
+});
+
+export async function changePasswordAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = changeSchema.safeParse({
+    current: formData.get("current"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  try {
+    await changePassword(user.id, parsed.data.current, parsed.data.password);
+    return { ok: "Contraseña actualizada correctamente." };
+  } catch (err) {
+    if (err instanceof AccountError) return { error: err.message };
+    return { error: "No se pudo cambiar la contraseña." };
+  }
 }
 
 export async function logoutAction() {

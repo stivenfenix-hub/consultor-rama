@@ -1,15 +1,12 @@
 import "server-only";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 
 /**
- * Auth MINIMA para el starter: identifica al abogado por su correo (sin
- * contrasena) y guarda una cookie de sesion firmada con HMAC.
- *
- * ⚠️  Esto NO es seguro para produccion. Antes de salir a prod reemplazalo por
- * un flujo real: codigo OTP por correo, magic link o passkeys (p. ej. con
- * better-auth, Auth.js o Clerk). Ver README.
+ * Sesion por cookie firmada (HMAC) + autenticacion por contrasena (bcrypt).
+ * El registro, la verificacion de correo y el reset estan en accounts.ts.
  */
 
 const COOKIE = "session";
@@ -31,30 +28,21 @@ function verify(signed: string | undefined): string | null {
     .createHmac("sha256", SECRET)
     .update(value)
     .digest("hex");
-  // Comparacion en tiempo constante
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   return value;
 }
 
-/** Inicia (o crea) la sesion del abogado a partir de su correo. */
-export async function loginWithEmail(emailRaw: string, name?: string) {
-  const email = emailRaw.trim().toLowerCase();
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: name ? { name } : {},
-    create: { email, name },
-  });
+export async function createSession(userId: string) {
   const jar = await cookies();
-  jar.set(COOKIE, sign(user.id), {
+  jar.set(COOKIE, sign(userId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: MAX_AGE,
   });
-  return user;
 }
 
 export async function logout() {
@@ -62,7 +50,6 @@ export async function logout() {
   jar.delete(COOKIE);
 }
 
-/** Devuelve el usuario actual o null. */
 export async function getCurrentUser() {
   const jar = await cookies();
   const userId = verify(jar.get(COOKIE)?.value);
@@ -70,9 +57,39 @@ export async function getCurrentUser() {
   return prisma.user.findUnique({ where: { id: userId } });
 }
 
-/** Igual que getCurrentUser pero lanza si no hay sesion. */
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
   return user;
+}
+
+export async function hashPassword(plain: string) {
+  return bcrypt.hash(plain, 10);
+}
+
+/**
+ * Resultado de intentar iniciar sesion.
+ * - ok: credenciales correctas y correo verificado -> crea la sesion.
+ * - unverified: credenciales correctas pero falta verificar el correo.
+ * - invalid: correo o contrasena incorrectos.
+ */
+export type LoginResult =
+  | { status: "ok" }
+  | { status: "unverified"; email: string }
+  | { status: "invalid" };
+
+export async function loginWithPassword(
+  emailRaw: string,
+  password: string,
+): Promise<LoginResult> {
+  const email = emailRaw.trim().toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email } });
+  // Siempre comparamos contra un hash para no filtrar si el correo existe.
+  const hash =
+    user?.passwordHash ?? "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidin";
+  const okPass = await bcrypt.compare(password, hash);
+  if (!user || !user.passwordHash || !okPass) return { status: "invalid" };
+  if (!user.emailVerified) return { status: "unverified", email };
+  await createSession(user.id);
+  return { status: "ok" };
 }

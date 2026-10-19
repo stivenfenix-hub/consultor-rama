@@ -11,14 +11,8 @@ export default async function LoginPage() {
       <div className="center">
         <div className="card">
           <h1>Consultor de Procesos</h1>
-          <p className="muted small">
-            Ingresa con tu correo para seguir tus procesos judiciales.
-          </p>
+          <p className="muted small">Ingresa a tu cuenta para seguir tus procesos judiciales.</p>
           <LoginForm />
-          <p className="muted small" style={{ marginTop: 16 }}>
-            Demo: el ingreso es solo por correo (sin contrasena). Reemplazar por
-            OTP/magic-link antes de produccion.
-          </p>
         </div>
       </div>
     </div>

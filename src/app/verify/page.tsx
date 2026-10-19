@@ -1,0 +1,43 @@
+import Link from "next/link";
+import { verifyEmailToken } from "@/lib/accounts";
+
+export default async function VerifyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
+  const { token } = await searchParams;
+  const ok = token ? await verifyEmailToken(token) : false;
+
+  return (
+    <div className="container">
+      <div className="center">
+        <div className="card" style={{ textAlign: "center" }}>
+          {ok ? (
+            <>
+              <h1>✅ Correo verificado</h1>
+              <p className="muted">Tu cuenta quedó activada. Ya puedes iniciar sesión.</p>
+              <Link href="/login" className="btn" style={{ marginTop: 10 }}>
+                Iniciar sesión
+              </Link>
+            </>
+          ) : (
+            <>
+              <h1>Enlace inválido</h1>
+              <p className="muted">
+                El enlace de verificación no es válido o ya venció.
+              </p>
+              <p className="muted small" style={{ marginTop: 10 }}>
+                Inicia sesión para que te reenviemos uno nuevo, o{" "}
+                <Link href="/register">crea tu cuenta</Link>.
+              </p>
+              <Link href="/login" className="btn secondary" style={{ marginTop: 10 }}>
+                Ir a iniciar sesión
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

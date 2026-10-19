@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
   { href: "/dashboard/procesos", label: "Procesos", icon: "⚖️" },
+  { href: "/dashboard/configuracion", label: "Configuración", icon: "⚙️" },
 ];
 
 export function AppShell({

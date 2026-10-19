@@ -12,11 +12,30 @@ datasource db {
 }
 
 model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  firstName     String?
+  lastName      String?
+  passwordHash  String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  cases         Case[]
+  tokens        Token[]
+}
+
+// Tokens de un solo uso para verificar correo y restablecer contrasena.
+// Se guarda el HASH del token; el valor en claro solo viaja en el enlace.
+model Token {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String // "verify" | "reset"
+  tokenHash String   @unique
+  expiresAt DateTime
   createdAt DateTime @default(now())
-  cases     Case[]
+
+  @@index([userId])
 }
 
 model Case {
