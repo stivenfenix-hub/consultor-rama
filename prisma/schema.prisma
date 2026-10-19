@@ -1,0 +1,78 @@
+// Esquema de datos del consultor de procesos.
+// Modelo: un abogado (User) sigue varios procesos (Case); cada proceso tiene
+// muchas actuaciones (Actuacion) tomadas del API de la Rama Judicial.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  cases     Case[]
+}
+
+model Case {
+  id        String @id @default(cuid())
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+
+  // Identificadores de la Rama
+  radicado  String // llaveProceso: los 23 digitos
+  idProceso String // id interno de la Rama, llave para Detalle y Actuaciones
+
+  // Datos del proceso (del endpoint Detalle)
+  despacho       String?
+  departamento   String?
+  ponente        String?
+  tipoProceso    String?
+  claseProceso   String?
+  subclaseProceso String?
+  recurso        String?
+  ubicacion      String?
+  sujetos        String? // "sujetosProcesales" tal cual lo devuelve la Rama
+  esPrivado      Boolean @default(false)
+  fechaProceso   DateTime?
+
+  // Control de sincronizacion
+  lastSyncedAt       DateTime?
+  lastActuacionDate  DateTime?
+  lastActuacionId    String? // idRegActuacion mas reciente conocido
+  unseenCount        Int      @default(0) // actuaciones nuevas sin revisar
+  lastError          String?
+
+  createdAt   DateTime    @default(now())
+  actuaciones Actuacion[]
+
+  // Un abogado no repite el mismo idProceso
+  @@unique([userId, idProceso])
+  @@index([userId])
+}
+
+model Actuacion {
+  id     String @id @default(cuid())
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+
+  idRegActuacion String // id unico de la actuacion en la Rama (== externalId de Litiga)
+  consActuacion  Int?
+  actuacion      String? // nombre
+  anotacion      String? // descripcion
+  fechaActuacion DateTime?
+  fechaRegistro  DateTime?
+  conDocumentos  Boolean  @default(false)
+
+  seenAt     DateTime? // null = el abogado aun no la ha visto (es "nueva")
+  createdAt  DateTime  @default(now())
+
+  // Evita duplicar la misma actuacion del mismo proceso
+  @@unique([caseId, idRegActuacion])
+  @@index([caseId])
+}

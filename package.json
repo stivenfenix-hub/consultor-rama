@@ -1,0 +1,33 @@
+{
+  "name": "consultor-rama",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma para que abogados registren procesos y consulten/actualicen sus actuaciones directamente desde el API publico de la Rama Judicial (CPNU).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "cron": "tsx scripts/cron-worker.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "next": "^15.5.0",
+    "nodemailer": "^6.10.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^6.4.24",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "node-cron": "^3.0.3",
+    "prisma": "^6.5.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0"
+  }
+}
