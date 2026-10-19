@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { logoutAction } from "@/app/actions";
-import { AddCaseForm } from "./add-case-form";
+import { getDashboardStats } from "@/lib/dashboard";
+import { Donut, StatTile, BucketBar } from "@/components/charts";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -14,66 +14,118 @@ function fmt(d: Date | null | undefined) {
   });
 }
 
-export default async function Dashboard() {
+export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const cases = await prisma.case.findMany({
+  const stats = await getDashboardStats(user.id);
+
+  const recientes = await prisma.case.findMany({
     where: { userId: user.id },
-    orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
+    orderBy: { lastActuacionDate: "desc" },
+    take: 8,
+    include: {
+      actuaciones: { orderBy: { fechaActuacion: "desc" }, take: 1 },
+    },
   });
 
   return (
-    <>
-      <div className="topbar">
-        <span className="brand">⚖️ Consultor de Procesos</span>
-        <div className="row">
-          <span className="muted small">{user.name ?? user.email}</span>
-          <form action={logoutAction}>
-            <button className="btn secondary small" type="submit">
-              Salir
-            </button>
-          </form>
-        </div>
+    <div className="page">
+      <div className="page-head">
+        <h1>Dashboard</h1>
+        <Link href="/dashboard/procesos" className="btn">
+          + Agregar proceso
+        </Link>
       </div>
 
-      <div className="container">
+      {/* Tarjetas de resumen */}
+      <section className="stat-grid">
+        <StatTile label="Procesos activos" value={stats.totalProcesos} />
+        <StatTile
+          label="Actuaciones este mes"
+          value={stats.actuacionesEsteMes}
+          accent="var(--accent)"
+        />
+        <StatTile label="Procesos nuevos este mes" value={stats.nuevosEsteMes} />
+        <StatTile
+          label="Actuaciones sin ver"
+          value={stats.sinVer}
+          accent={stats.sinVer > 0 ? "var(--green)" : undefined}
+        />
+      </section>
+
+      {/* Antigüedad de la última actuación */}
+      <section className="card">
+        <h2>Antigüedad de la última actuación</h2>
+        <p className="muted small" style={{ marginTop: -6 }}>
+          Procesos por tiempo desde su última actuación
+        </p>
+        <BucketBar
+          items={[
+            { label: "0–6 meses", value: stats.buckets.b0_6, color: "var(--green)" },
+            { label: "6–12 meses", value: stats.buckets.b6_12, color: "var(--amber)" },
+            { label: "Más de 12 meses", value: stats.buckets.b12, color: "var(--red)" },
+            { label: "Sin actuación", value: stats.buckets.sin, color: "var(--muted)" },
+          ]}
+        />
+      </section>
+
+      {/* Gráficos */}
+      <section className="chart-grid">
         <div className="card">
-          <h2>Agregar proceso por radicado</h2>
-          <AddCaseForm />
+          <h2>Procesos por clase</h2>
+          <Donut data={stats.porClase} />
         </div>
+        <div className="card">
+          <h2>Procesos por departamento</h2>
+          <Donut data={stats.porDepartamento} />
+        </div>
+      </section>
 
-        <h1>Mis procesos ({cases.length})</h1>
-        {cases.length === 0 && (
-          <p className="muted">
-            Aun no sigues ningun proceso. Agrega uno con su radicado de 23
-            digitos.
-          </p>
-        )}
-
-        {cases.map((c) => (
-          <Link key={c.id} href={`/dashboard/${c.id}`} className="case">
-            <div className="row wrap">
-              <span className="radicado">{c.radicado}</span>
-              {c.unseenCount > 0 && (
-                <span className="badge new">{c.unseenCount} nuevas</span>
-              )}
-              {c.esPrivado && <span className="badge">privado</span>}
-              <div className="spacer" />
-              <span className="muted small">
-                Ult. actuacion: {fmt(c.lastActuacionDate)}
-              </span>
-            </div>
-            <div className="muted small" style={{ marginTop: 6 }}>
-              {c.despacho ?? "Despacho no disponible"}
-              {c.departamento ? ` · ${c.departamento}` : ""}
-            </div>
-            {c.lastError && (
-              <div className="error small">Error ultima sync: {c.lastError}</div>
-            )}
+      {/* Tabla de recientes */}
+      <section className="card">
+        <div className="row">
+          <h2 style={{ margin: 0 }}>Procesos con actuación reciente</h2>
+          <div className="spacer" />
+          <Link href="/dashboard/procesos" className="small">
+            Ver todos
           </Link>
-        ))}
-      </div>
-    </>
+        </div>
+        {recientes.length === 0 ? (
+          <p className="muted small" style={{ marginTop: 12 }}>
+            Aún no sigues procesos.{" "}
+            <Link href="/dashboard/procesos">Agrega el primero</Link>.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Radicado</th>
+                  <th>Fecha última actuación</th>
+                  <th>Última actuación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recientes.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <Link
+                        href={`/dashboard/procesos/${c.id}`}
+                        className="radicado"
+                      >
+                        {c.radicado}
+                      </Link>
+                    </td>
+                    <td className="muted">{fmt(c.lastActuacionDate)}</td>
+                    <td>{c.actuaciones[0]?.actuacion ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

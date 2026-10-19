@@ -28,7 +28,7 @@ export function CaseActions({
   };
 
   return (
-    <div className="row">
+    <div className="row wrap">
       <button
         className="btn"
         disabled={pending}
@@ -54,7 +54,7 @@ export function CaseActions({
           if (!confirm("¿Eliminar este proceso de tu seguimiento?")) return;
           run("del", async () => {
             await eliminarProcesoAction(caseId);
-            router.push("/dashboard");
+            router.push("/dashboard/procesos");
           });
         }}
       >

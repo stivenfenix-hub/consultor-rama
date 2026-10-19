@@ -56,6 +56,7 @@ export async function agregarProcesoAction(
   try {
     const creados = await agregarProcesoPorRadicado(user.id, parsed.data);
     revalidatePath("/dashboard");
+    revalidatePath("/dashboard/procesos");
     return { ok: `Proceso agregado (${creados.length} registro(s)).` };
   } catch (err) {
     if (err instanceof RamaError) return { error: err.message };
@@ -78,7 +79,8 @@ export async function refrescarProcesoAction(caseId: string) {
     // el error queda guardado en caso.lastError
   }
   revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/${caseId}`);
+  revalidatePath("/dashboard/procesos");
+  revalidatePath(`/dashboard/procesos/${caseId}`);
 }
 
 export async function marcarVistasAction(caseId: string) {
@@ -88,7 +90,8 @@ export async function marcarVistasAction(caseId: string) {
   });
   if (!caso) return;
   await marcarVistas(caseId);
-  revalidatePath(`/dashboard/${caseId}`);
+  revalidatePath(`/dashboard/procesos/${caseId}`);
+  revalidatePath("/dashboard/procesos");
   revalidatePath("/dashboard");
 }
 
@@ -96,5 +99,6 @@ export async function eliminarProcesoAction(caseId: string) {
   const user = await requireUser();
   await prisma.case.deleteMany({ where: { id: caseId, userId: user.id } });
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  revalidatePath("/dashboard/procesos");
+  redirect("/dashboard/procesos");
 }

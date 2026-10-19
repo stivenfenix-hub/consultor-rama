@@ -14,12 +14,12 @@ export function AddCaseForm() {
   return (
     <form ref={ref} action={formAction}>
       <div className="row wrap">
-        <div style={{ flex: 1, minWidth: 260 }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
           <input
             name="radicado"
             type="text"
             inputMode="numeric"
-            placeholder="11001020300020200000100 (23 digitos)"
+            placeholder="11001020300020200000100 (23 dígitos)"
             required
           />
         </div>
