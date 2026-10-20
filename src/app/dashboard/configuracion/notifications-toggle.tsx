@@ -1,17 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const arr = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-  return arr;
-}
+import {
+  pushSupported,
+  isSubscribed,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/push-client";
 
 export function NotificationsToggle() {
   const [supported, setSupported] = useState(true);
@@ -20,79 +15,35 @@ export function NotificationsToggle() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const ok =
-      "serviceWorker" in navigator &&
-      "PushManager" in window &&
-      "Notification" in window;
+    const ok = pushSupported();
     setSupported(ok);
-    if (!ok) return;
-    navigator.serviceWorker.ready
-      .then(async (reg) => {
-        const sub = await reg.pushManager.getSubscription();
-        setSubscribed(!!sub);
-      })
-      .catch(() => {});
+    if (ok) isSubscribed().then(setSubscribed);
   }, []);
 
   const activar = async () => {
     setBusy(true);
     setMsg(null);
-    try {
-      if (!VAPID) {
-        setMsg("Falta configurar la clave pública de notificaciones (VAPID).");
-        return;
-      }
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") {
-        setMsg("No diste permiso de notificaciones.");
-        return;
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID),
-      });
-      const r = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(sub),
-      });
-      if (r.ok) {
-        setSubscribed(true);
-        setMsg("¡Notificaciones activadas en este dispositivo!");
-      } else {
-        setMsg("No se pudo guardar la suscripción.");
-      }
-    } catch (e) {
-      setMsg(
-        "No se pudieron activar. " + (e instanceof Error ? e.message : ""),
-      );
-    } finally {
-      setBusy(false);
+    const r = await subscribeToPush();
+    if (r === "ok") {
+      setSubscribed(true);
+      setMsg("¡Notificaciones activadas en este dispositivo!");
+    } else if (r === "denied") {
+      setMsg("No diste permiso de notificaciones.");
+    } else if (r === "nokey") {
+      setMsg("Falta configurar la clave pública de notificaciones (VAPID).");
+    } else {
+      setMsg("No se pudieron activar en este dispositivo.");
     }
+    setBusy(false);
   };
 
   const desactivar = async () => {
     setBusy(true);
     setMsg(null);
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetch("/api/push/unsubscribe", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
-        await sub.unsubscribe();
-      }
-      setSubscribed(false);
-      setMsg("Notificaciones desactivadas en este dispositivo.");
-    } catch {
-      // ignore
-    } finally {
-      setBusy(false);
-    }
+    await unsubscribeFromPush();
+    setSubscribed(false);
+    setMsg("Notificaciones desactivadas en este dispositivo.");
+    setBusy(false);
   };
 
   if (!supported) {

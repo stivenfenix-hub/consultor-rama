@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NotificationsPrompt } from "@/components/notifications-prompt";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
@@ -143,6 +144,8 @@ export function AppShell({
           </Link>
         ))}
       </nav>
+
+      <NotificationsPrompt />
     </div>
   );
 }
