@@ -16,6 +16,13 @@ const ADMIN_NAV = [
   { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "🎨" },
 ];
 
+// Barra inferior solo en móvil.
+const BOTTOM_NAV = [
+  { href: "/dashboard", label: "Inicio", icon: "🏠" },
+  { href: "/dashboard/procesos", label: "Procesos", icon: "⚖️" },
+  { href: "/dashboard/configuracion", label: "Configuración", icon: "⚙️" },
+];
+
 export function AppShell({
   userLabel,
   logoUrl,
@@ -107,6 +114,20 @@ export function AppShell({
         </header>
         <main className="app-main">{children}</main>
       </div>
+
+      {/* Barra de navegación inferior (solo móvil) */}
+      <nav className="bottom-nav">
+        {BOTTOM_NAV.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`bottom-item ${isActive(item.href) ? "active" : ""}`}
+          >
+            <span className="bottom-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
