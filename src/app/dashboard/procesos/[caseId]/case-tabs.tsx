@@ -23,6 +23,7 @@ export type Doc = {
   tipo: string | null;
   fecha: string;
 };
+export type Grabacion = { fecha: string; actuacion: string; url: string };
 export type Sync = {
   inicio: string;
   origen: string;
@@ -46,12 +47,14 @@ export function CaseTabs({
   actuaciones,
   partes,
   documentos,
+  grabaciones,
   syncLogs,
 }: {
   datos: Datos;
   actuaciones: Act[];
   partes: Parte[];
   documentos: Doc[];
+  grabaciones: Grabacion[];
   syncLogs: Sync[];
 }) {
   const [tab, setTab] = useState<TabKey>("resumen");
@@ -189,10 +192,33 @@ export function CaseTabs({
 
         {tab === "grabaciones" && (
           <>
-            <h2>Grabaciones</h2>
-            <p className="muted small">
-              No hay grabaciones de audiencias disponibles para este proceso.
-            </p>
+            <h2>Grabaciones ({grabaciones.length})</h2>
+            {grabaciones.length === 0 ? (
+              <p className="muted small">
+                No se encontraron enlaces a grabaciones en las actuaciones de
+                este proceso. (El juzgado suele pegar el enlace de la audiencia
+                dentro de una actuación cuando la publica.)
+              </p>
+            ) : (
+              grabaciones.map((g, i) => (
+                <div key={i} className="doc-row">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="name">🎙️ {g.actuacion}</div>
+                    <div className="muted small" style={{ wordBreak: "break-all" }}>
+                      {g.fecha} · {g.url}
+                    </div>
+                  </div>
+                  <a
+                    className="btn secondary small"
+                    href={g.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Abrir
+                  </a>
+                </div>
+              ))
+            )}
           </>
         )}
 

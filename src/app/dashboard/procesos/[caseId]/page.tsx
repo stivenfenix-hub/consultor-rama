@@ -37,6 +37,35 @@ function parsePartes(
     });
 }
 
+// Detecta enlaces a grabaciones dentro del texto de las actuaciones.
+const URL_RE = /https?:\/\/[^\s<>"')]+/gi;
+const MEDIA_HOST =
+  /(youtube\.com|youtu\.be|drive\.google|meet\.google|docs\.google|teams\.microsoft|zoom\.us|vimeo\.com|onedrive|1drv\.ms|dropbox\.com)/i;
+const MEDIA_EXT = /\.(mp4|mp3|wav|m4a|mov|avi|mkv|ogg|webm)(\?|$)/i;
+
+function extraerGrabaciones(
+  acts: { anotacion: string | null; actuacion: string | null; fechaActuacion: Date | null }[],
+): { fecha: string; actuacion: string; url: string }[] {
+  const out: { fecha: string; actuacion: string; url: string }[] = [];
+  const vistas = new Set<string>();
+  for (const a of acts) {
+    const texto = `${a.anotacion ?? ""} ${a.actuacion ?? ""}`;
+    const urls = texto.match(URL_RE) ?? [];
+    for (const raw of urls) {
+      const url = raw.replace(/[.,;)]+$/, "");
+      if ((MEDIA_HOST.test(url) || MEDIA_EXT.test(url)) && !vistas.has(url)) {
+        vistas.add(url);
+        out.push({
+          fecha: fmtFecha(a.fechaActuacion),
+          actuacion: a.actuacion ?? "Actuación",
+          url,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 export default async function CaseDetail({
   params,
 }: {
@@ -96,6 +125,8 @@ export default async function CaseDetail({
     fecha: fmtFecha(d.fechaCarga),
   }));
 
+  const grabaciones = extraerGrabaciones(caso.actuaciones);
+
   const syncLogs = caso.syncLogs.map((l) => ({
     inicio: fmtHora(l.createdAt),
     origen: l.origen,
@@ -130,6 +161,7 @@ export default async function CaseDetail({
         actuaciones={actuaciones}
         partes={partes}
         documentos={documentos}
+        grabaciones={grabaciones}
         syncLogs={syncLogs}
       />
     </div>
