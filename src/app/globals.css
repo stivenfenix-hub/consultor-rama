@@ -583,6 +583,35 @@ input:-webkit-autofill:focus {
   font-variant-numeric: tabular-nums;
 }
 
+/* Pestañas del proceso */
+.tabbar {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tab {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 11px 15px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* Tabla */
 .table-wrap {
   overflow-x: auto;

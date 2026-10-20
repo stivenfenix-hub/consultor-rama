@@ -75,6 +75,7 @@ export async function sincronizarProceso(
   const caseRow = await prisma.case.findUnique({ where: { id: caseId } });
   if (!caseRow) throw new Error("Proceso no encontrado");
 
+  const t0 = Date.now();
   try {
     // 1. Detalle (datos que no vienen en el resumen)
     const detalle = await obtenerDetalle(caseRow.idProceso);
@@ -134,6 +135,16 @@ export async function sincronizarProceso(
       },
     });
 
+    await prisma.syncLog.create({
+      data: {
+        caseId,
+        operacion: "Actuaciones",
+        resultado: "exito",
+        durationMs: Date.now() - t0,
+        elementos: nuevas.length,
+      },
+    });
+
     return {
       nuevas: nuevas.length,
       total: actuaciones.length,
@@ -145,6 +156,18 @@ export async function sincronizarProceso(
       where: { id: caseId },
       data: { lastSyncedAt: new Date(), lastError: msg.slice(0, 500) },
     });
+    await prisma.syncLog
+      .create({
+        data: {
+          caseId,
+          operacion: "Actuaciones",
+          resultado: "fallo",
+          durationMs: Date.now() - t0,
+          elementos: 0,
+          error: msg.slice(0, 500),
+        },
+      })
+      .catch(() => {});
     throw err;
   }
 }

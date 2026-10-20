@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
+import { CaseTabs, type Datos, type Parte } from "./case-tabs";
 
 function fmtFecha(d: Date | null | undefined) {
   if (!d) return "—";
@@ -13,8 +14,25 @@ function fmtFecha(d: Date | null | undefined) {
   });
 }
 function fmtHora(d: Date | null | undefined) {
-  if (!d) return "";
+  if (!d) return "—";
   return new Date(d).toLocaleString("es-CO");
+}
+
+/** Convierte el string de sujetos de la Rama en una lista {rol, nombre}. */
+function parsePartes(sujetos: string | null): Parte[] {
+  if (!sujetos) return [];
+  return sujetos
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((seg) => {
+      const idx = seg.indexOf(":");
+      if (idx < 0) return { rol: "Parte", nombre: seg };
+      return {
+        rol: seg.slice(0, idx).trim(),
+        nombre: seg.slice(idx + 1).trim(),
+      };
+    });
 }
 
 export default async function CaseDetail({
@@ -30,9 +48,44 @@ export default async function CaseDetail({
     where: { id: caseId, userId: user.id },
     include: {
       actuaciones: { orderBy: { fechaActuacion: "desc" } },
+      syncLogs: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   });
   if (!caso) notFound();
+
+  const datos: Datos = [
+    { label: "Despacho", value: caso.despacho },
+    { label: "Departamento", value: caso.departamento },
+    { label: "Ponente", value: caso.ponente },
+    { label: "Tipo de proceso", value: caso.tipoProceso },
+    { label: "Clase", value: caso.claseProceso },
+    { label: "Subclase", value: caso.subclaseProceso },
+    { label: "Recurso", value: caso.recurso },
+    { label: "Ubicación", value: caso.ubicacion },
+    { label: "Fecha del proceso", value: fmtFecha(caso.fechaProceso) },
+  ].filter((d): d is { label: string; value: string } => !!d.value);
+
+  const actuaciones = caso.actuaciones.map((a) => ({
+    id: a.id,
+    fecha: fmtFecha(a.fechaActuacion),
+    nombre: a.actuacion ?? "Actuación",
+    anotacion: a.anotacion,
+    seen: !!a.seenAt,
+    conDocumentos: a.conDocumentos,
+  }));
+
+  const partes = parsePartes(caso.sujetos);
+  const documentos = actuaciones.filter((a) => a.conDocumentos);
+
+  const syncLogs = caso.syncLogs.map((l) => ({
+    inicio: fmtHora(l.createdAt),
+    origen: l.origen,
+    operacion: l.operacion,
+    resultado: l.resultado,
+    duracion: l.durationMs,
+    elementos: l.elementos,
+    error: l.error,
+  }));
 
   return (
     <div className="page">
@@ -49,68 +102,17 @@ export default async function CaseDetail({
       </div>
 
       <p className="muted small">
-        Sincronizado: {fmtHora(caso.lastSyncedAt) || "nunca"}
+        Sincronizado: {fmtHora(caso.lastSyncedAt)}
         {caso.lastError ? " · con errores" : ""}
       </p>
 
-      <div className="card">
-        <h2>Datos del proceso</h2>
-        <dl className="small" style={{ margin: 0 }}>
-          <Field label="Despacho" value={caso.despacho} />
-          <Field label="Departamento" value={caso.departamento} />
-          <Field label="Ponente" value={caso.ponente} />
-          <Field label="Tipo de proceso" value={caso.tipoProceso} />
-          <Field label="Clase" value={caso.claseProceso} />
-          <Field label="Subclase" value={caso.subclaseProceso} />
-          <Field label="Recurso" value={caso.recurso} />
-          <Field label="Ubicación" value={caso.ubicacion} />
-          <Field label="Sujetos procesales" value={caso.sujetos} />
-          <Field label="Fecha del proceso" value={fmtFecha(caso.fechaProceso)} />
-        </dl>
-        {caso.lastError && (
-          <div className="error small">
-            Error en la última sincronización: {caso.lastError}
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <h2>Actuaciones ({caso.actuaciones.length})</h2>
-        {caso.actuaciones.length === 0 && (
-          <p className="muted small">Sin actuaciones registradas.</p>
-        )}
-        {caso.actuaciones.map((a) => (
-          <div key={a.id} className={`event ${a.seenAt ? "" : "unseen"}`}>
-            <div className="date">
-              {fmtFecha(a.fechaActuacion)}
-              {!a.seenAt && (
-                <span className="badge new" style={{ marginLeft: 8 }}>
-                  nueva
-                </span>
-              )}
-              {a.conDocumentos && (
-                <span className="badge" style={{ marginLeft: 8 }}>
-                  con documentos
-                </span>
-              )}
-            </div>
-            <div className="name">{a.actuacion ?? "Actuación"}</div>
-            {a.anotacion && <div className="note">{a.anotacion}</div>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div style={{ display: "flex", gap: 8, padding: "4px 0" }}>
-      <dt className="muted" style={{ minWidth: 160 }}>
-        {label}
-      </dt>
-      <dd style={{ margin: 0 }}>{value}</dd>
+      <CaseTabs
+        datos={datos}
+        actuaciones={actuaciones}
+        partes={partes}
+        documentos={documentos}
+        syncLogs={syncLogs}
+      />
     </div>
   );
 }

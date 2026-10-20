@@ -86,10 +86,27 @@ model Case {
 
   createdAt   DateTime    @default(now())
   actuaciones Actuacion[]
+  syncLogs    SyncLog[]
 
   // Un abogado no repite el mismo idProceso
   @@unique([userId, idProceso])
   @@index([userId])
+}
+
+// Historial de sincronizaciones de un proceso (pestaña "Sincronización").
+model SyncLog {
+  id         String   @id @default(cuid())
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId     String
+  origen     String   @default("Consulta Nacional Unificada")
+  operacion  String // "Actuaciones" | "Detalle" | ...
+  resultado  String // "exito" | "fallo"
+  durationMs Int?
+  elementos  Int      @default(0)
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([caseId])
 }
 
 model Actuacion {
