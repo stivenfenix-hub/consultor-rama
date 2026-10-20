@@ -288,7 +288,7 @@ input:-webkit-autofill:focus {
   font-size: 12px;
 }
 .login-by img {
-  height: 15px;
+  height: 20px;
   width: auto;
   display: block;
 }
@@ -375,6 +375,24 @@ input:-webkit-autofill:focus {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.sidebar-by {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0.9;
+}
+.sidebar-by:hover {
+  opacity: 1;
+  text-decoration: none;
+}
+.sidebar-by img {
+  height: 18px;
+  width: auto;
+  display: block;
 }
 
 .app-main-col {

@@ -93,6 +93,16 @@ export function AppShell({
               Salir
             </button>
           </form>
+          <a
+            className="sidebar-by"
+            href="https://unorgroup.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span>By</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/unor-logo.png" alt="UNOR Group" />
+          </a>
         </div>
       </aside>
 
