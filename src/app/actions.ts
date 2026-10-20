@@ -17,6 +17,7 @@ import { prisma } from "@/lib/db";
 import {
   agregarProcesoPorRadicado,
   sincronizarProceso,
+  sincronizarProcesosDeUsuario,
   marcarVistas,
 } from "@/lib/sync";
 import { RamaError } from "@/lib/rama";
@@ -292,6 +293,13 @@ export async function refrescarProcesoAction(caseId: string) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
   revalidatePath(`/dashboard/procesos/${caseId}`);
+}
+
+export async function actualizarTodosAction() {
+  const user = await requireUser();
+  await sincronizarProcesosDeUsuario(user.id);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/procesos");
 }
 
 export async function marcarVistasAction(caseId: string) {

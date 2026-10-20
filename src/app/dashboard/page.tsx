@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
+import { RefreshAllButton } from "./refresh-all-button";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -32,11 +33,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="page">
-      <div className="page-head">
+      <div className="page-head wrap">
         <h1>Dashboard</h1>
-        <Link href="/dashboard/procesos" className="btn">
-          + Agregar proceso
-        </Link>
+        <div className="row" style={{ gap: 10 }}>
+          <RefreshAllButton />
+          <Link href="/dashboard/procesos" className="btn">
+            + Agregar proceso
+          </Link>
+        </div>
       </div>
 
       {/* Tarjetas de resumen */}
