@@ -17,6 +17,8 @@ export default async function AppLayout({
     <AppShell
       userLabel={user.name ?? user.email}
       logoUrl={settings.logoDataUrl ?? "/logo-estradox.png"}
+      byLogoUrl={settings.byLogoDataUrl ?? "/unor-logo.png"}
+      byUrl={settings.byUrl}
       isAdmin={user.role === "admin"}
       logoutAction={logoutAction}
     >

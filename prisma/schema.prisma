@@ -32,6 +32,8 @@ model SiteSetting {
   brandName        String   @default("Estradox")
   logoDataUrl      String? // logo de la plataforma (tema oscuro); null = por defecto
   emailLogoDataUrl String? // logo para los correos (fondo blanco); null = por defecto
+  byLogoDataUrl    String? // logo "By" (aliado); null = logo UNOR por defecto
+  byUrl            String  @default("https://unorgroup.com") // enlace del logo "By"
   colorAccent String   @default("#8b3dff")
   colorAccent2 String  @default("#4b23e6")
   colorBg     String   @default("#0a0820")

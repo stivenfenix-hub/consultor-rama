@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { getSiteSettings } from "@/lib/settings";
 import { BrandLogo } from "@/components/brand-logo";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage() {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
+  const s = await getSiteSettings();
 
   return (
     <div className="container">
@@ -23,13 +25,9 @@ export default async function LoginPage() {
           <LoginForm />
           <div className="login-by">
             <span>By</span>
-            <a
-              href="https://unorgroup.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a href={s.byUrl} target="_blank" rel="noopener noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/unor-logo.png" alt="UNOR Group" />
+              <img src={s.byLogoDataUrl ?? "/unor-logo.png"} alt="By" />
             </a>
           </div>
         </div>

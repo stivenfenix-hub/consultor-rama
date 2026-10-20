@@ -7,6 +7,8 @@ type S = {
   brandName: string;
   logoDataUrl: string | null;
   emailLogoDataUrl: string | null;
+  byLogoDataUrl: string | null;
+  byUrl: string;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -66,10 +68,10 @@ function LogoUpload({
   hint: string;
   current: string | null;
   previewBg: string;
-  which: "platform" | "email";
+  which: "platform" | "email" | "by";
 }) {
   const [preview, setPreview] = useState<string | null>(current);
-  const fallback = "/logo-estradox.png";
+  const fallback = which === "by" ? "/unor-logo.png" : "/logo-estradox.png";
   return (
     <div style={{ marginTop: 14 }}>
       <label className="small muted">{title}</label>
@@ -158,6 +160,26 @@ export function AppearanceForm({ settings }: { settings: S }) {
           current={settings.emailLogoDataUrl}
           previewBg="#fff"
         />
+
+        <LogoUpload
+          field="byLogo"
+          which="by"
+          title={`Logo "By" (aliado) — se ve en el login y el menú`}
+          hint="Aparece en el pie del login y del menú, junto a la palabra 'By'."
+          current={settings.byLogoDataUrl}
+          previewBg="var(--bg)"
+        />
+
+        <div style={{ marginTop: 10 }}>
+          <label className="small muted">Enlace del logo &quot;By&quot;</label>
+          <input
+            type="url"
+            name="byUrl"
+            defaultValue={settings.byUrl}
+            placeholder="https://unorgroup.com"
+            style={{ maxWidth: 320 }}
+          />
+        </div>
       </div>
 
       <div className="card">

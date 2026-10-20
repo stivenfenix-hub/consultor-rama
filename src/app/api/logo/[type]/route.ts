@@ -13,7 +13,12 @@ export async function GET(
 ) {
   const { type } = await params;
   const s = await getSiteSettings();
-  const dataUrl = type === "email" ? s.emailLogoDataUrl : s.logoDataUrl;
+  const dataUrl =
+    type === "email"
+      ? s.emailLogoDataUrl
+      : type === "by"
+        ? s.byLogoDataUrl
+        : s.logoDataUrl;
 
   const m = dataUrl?.match(/^data:(.+?);base64,(.*)$/s);
   if (m) {
@@ -24,8 +29,9 @@ export async function GET(
   }
 
   // Por defecto: logo incluido en el proyecto
+  const defaultFile = type === "by" ? "unor-logo.png" : "logo-estradox.png";
   const file = await readFile(
-    path.join(process.cwd(), "public", "logo-estradox.png"),
+    path.join(process.cwd(), "public", defaultFile),
   );
   return new Response(new Uint8Array(file), {
     headers: { "content-type": "image/png", "cache-control": "no-cache" },

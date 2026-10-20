@@ -188,6 +188,8 @@ export async function updateAppearanceAction(
     colorPanel: string;
     logoDataUrl?: string;
     emailLogoDataUrl?: string;
+    byLogoDataUrl?: string;
+    byUrl?: string;
   } = { ...parsed.data };
 
   // Convierte un archivo de imagen a data URL (máx 500 KB). Devuelve mensaje de error o null.
@@ -212,16 +214,34 @@ export async function updateAppearanceAction(
   if (mail.error) return { error: mail.error };
   if (mail.dataUrl) data.emailLogoDataUrl = mail.dataUrl;
 
+  const by = await fileToDataUrl("byLogo");
+  if (by.error) return { error: by.error };
+  if (by.dataUrl) data.byLogoDataUrl = by.dataUrl;
+
+  const byUrl = String(formData.get("byUrl") ?? "").trim();
+  if (byUrl) {
+    if (!/^https?:\/\//i.test(byUrl)) {
+      return { error: "El enlace 'By' debe iniciar con http:// o https://" };
+    }
+    data.byUrl = byUrl;
+  }
+
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
   return { ok: "Apariencia actualizada. Los cambios ya están aplicados." };
 }
 
-export async function resetLogoAction(which: "platform" | "email" = "platform") {
+export async function resetLogoAction(
+  which: "platform" | "email" | "by" = "platform",
+) {
   await requireAdmin();
-  await updateSiteSettings(
-    which === "email" ? { emailLogoDataUrl: null } : { logoDataUrl: null },
-  );
+  const data =
+    which === "email"
+      ? { emailLogoDataUrl: null }
+      : which === "by"
+        ? { byLogoDataUrl: null }
+        : { logoDataUrl: null };
+  await updateSiteSettings(data);
   revalidatePath("/", "layout");
 }
 

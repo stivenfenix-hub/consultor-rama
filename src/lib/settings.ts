@@ -6,6 +6,8 @@ export type SiteSettings = {
   brandName: string;
   logoDataUrl: string | null;
   emailLogoDataUrl: string | null;
+  byLogoDataUrl: string | null;
+  byUrl: string;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -17,6 +19,8 @@ const DEFAULTS: SiteSettings = {
   brandName: "Estradox",
   logoDataUrl: null,
   emailLogoDataUrl: null,
+  byLogoDataUrl: null,
+  byUrl: "https://unorgroup.com",
   colorAccent: "#8b3dff",
   colorAccent2: "#4b23e6",
   colorBg: "#0a0820",
@@ -33,6 +37,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       brandName: s.brandName,
       logoDataUrl: s.logoDataUrl,
       emailLogoDataUrl: s.emailLogoDataUrl,
+      byLogoDataUrl: s.byLogoDataUrl,
+      byUrl: s.byUrl,
       colorAccent: s.colorAccent,
       colorAccent2: s.colorAccent2,
       colorBg: s.colorBg,

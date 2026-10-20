@@ -26,12 +26,16 @@ const BOTTOM_NAV = [
 export function AppShell({
   userLabel,
   logoUrl,
+  byLogoUrl,
+  byUrl,
   isAdmin,
   logoutAction,
   children,
 }: {
   userLabel: string;
   logoUrl: string;
+  byLogoUrl: string;
+  byUrl: string;
   isAdmin: boolean;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
@@ -95,13 +99,13 @@ export function AppShell({
           </form>
           <a
             className="sidebar-by"
-            href="https://unorgroup.com"
+            href={byUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
             <span>By</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/unor-logo.png" alt="UNOR Group" />
+            <img src={byLogoUrl} alt="By" />
           </a>
         </div>
       </aside>
