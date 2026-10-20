@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
-import { CaseTabs, type Datos, type Parte } from "./case-tabs";
+import { CaseTabs, type Datos } from "./case-tabs";
 
 function fmtFecha(d: Date | null | undefined) {
   if (!d) return "—";
@@ -19,7 +19,9 @@ function fmtHora(d: Date | null | undefined) {
 }
 
 /** Convierte el string de sujetos de la Rama en una lista {rol, nombre}. */
-function parsePartes(sujetos: string | null): Parte[] {
+function parsePartes(
+  sujetos: string | null,
+): { rol: string; nombre: string }[] {
   if (!sujetos) return [];
   return sujetos
     .split("|")
@@ -48,6 +50,8 @@ export default async function CaseDetail({
     where: { id: caseId, userId: user.id },
     include: {
       actuaciones: { orderBy: { fechaActuacion: "desc" } },
+      documentos: { orderBy: { fechaCarga: "desc" } },
+      partes: true,
       syncLogs: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   });
@@ -74,8 +78,23 @@ export default async function CaseDetail({
     conDocumentos: a.conDocumentos,
   }));
 
-  const partes = parsePartes(caso.sujetos);
-  const documentos = actuaciones.filter((a) => a.conDocumentos);
+  // Partes estructuradas; si aún no hay (proceso sincronizado antes), parsea el texto.
+  const partes =
+    caso.partes.length > 0
+      ? caso.partes.map((p) => ({
+          rol: p.tipoSujeto ?? "Parte",
+          nombre: p.nombre ?? "—",
+          identificacion: p.identificacion,
+        }))
+      : parsePartes(caso.sujetos).map((p) => ({ ...p, identificacion: null }));
+
+  const documentos = caso.documentos.map((d) => ({
+    idRegDocumento: d.idRegDocumento,
+    nombre: d.nombre ?? "Documento",
+    descripcion: d.descripcion,
+    tipo: d.tipo,
+    fecha: fmtFecha(d.fechaCarga),
+  }));
 
   const syncLogs = caso.syncLogs.map((l) => ({
     inicio: fmtHora(l.createdAt),

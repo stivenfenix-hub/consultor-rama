@@ -87,10 +87,44 @@ model Case {
   createdAt   DateTime    @default(now())
   actuaciones Actuacion[]
   syncLogs    SyncLog[]
+  documentos  Documento[]
+  partes      Parte[]
 
   // Un abogado no repite el mismo idProceso
   @@unique([userId, idProceso])
   @@index([userId])
+}
+
+// Documentos del proceso extraídos de la Rama Judicial.
+model Documento {
+  id             String    @id @default(cuid())
+  case           Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId         String
+  idRegDocumento String // id del documento en la Rama (para descargar)
+  nombre         String?
+  descripcion    String?
+  tipo           String? // pdf, etc.
+  fechaCarga     DateTime?
+  consActuacion  Int?
+  createdAt      DateTime  @default(now())
+
+  @@unique([caseId, idRegDocumento])
+  @@index([caseId])
+}
+
+// Partes / sujetos procesales (estructurados).
+model Parte {
+  id             String   @id @default(cuid())
+  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId         String
+  idRegSujeto    String
+  nombre         String?
+  tipoSujeto     String?
+  identificacion String?
+  createdAt      DateTime @default(now())
+
+  @@unique([caseId, idRegSujeto])
+  @@index([caseId])
 }
 
 // Historial de sincronizaciones de un proceso (pestaña "Sincronización").

@@ -118,8 +118,8 @@ async function ramaGet<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
         const msg =
           (body as { Message?: string } | null)?.Message ??
           `HTTP ${res.status}`;
-        // 400 "mas de mil registros" es un error de negocio: no reintentar.
-        const businessError = res.status === 400;
+        // 400 (criterios) y 404 (no encontrado) no se reintentan.
+        const businessError = res.status === 400 || res.status === 404;
         if (businessError || attempt === MAX_RETRIES) {
           throw new RamaError(msg, res.status, res.status === 429);
         }
@@ -129,7 +129,13 @@ async function ramaGet<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
       }
     } catch (err) {
       clearTimeout(timer);
-      if (err instanceof RamaError && err.status === 400) throw err; // negocio
+      // Errores de negocio (400/404): no reintentar.
+      if (
+        err instanceof RamaError &&
+        (err.status === 400 || err.status === 404)
+      ) {
+        throw err;
+      }
       lastErr = err;
     }
     // backoff: 1.5s, 3s, ...
@@ -171,6 +177,65 @@ export async function buscarPorNombre(
 /** Trae el detalle de un proceso por su idProceso. */
 export async function obtenerDetalle(idProceso: string | number): Promise<ProcesoDetalle> {
   return ramaGet<ProcesoDetalle>(`/Proceso/Detalle/${idProceso}`);
+}
+
+export interface Documento {
+  idRegDocumento: number;
+  nombre?: string;
+  descripcion?: string;
+  tipo?: string;
+  fechaCarga?: string;
+  consActuacion?: number | null;
+}
+
+export interface Sujeto {
+  idRegSujeto: number;
+  nombreRazonSocial?: string;
+  tipoSujeto?: string;
+  identificacion?: string | null;
+}
+
+/** Documentos del proceso. Devuelve [] si el proceso no tiene (404). */
+export async function obtenerDocumentos(
+  idProceso: string | number,
+): Promise<Documento[]> {
+  try {
+    const data = await ramaGet<Documento[]>(`/Proceso/Documentos/${idProceso}`);
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    if (err instanceof RamaError && err.status === 404) return [];
+    throw err;
+  }
+}
+
+/** Documentos de una actuación concreta (suelen ser los descargables). */
+export async function obtenerDocumentosActuacion(
+  idRegActuacion: string | number,
+): Promise<Documento[]> {
+  try {
+    const data = await ramaGet<Documento[]>(
+      `/Proceso/DocumentosActuacion/${idRegActuacion}`,
+    );
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    if (err instanceof RamaError && err.status === 404) return [];
+    throw err;
+  }
+}
+
+/** Sujetos procesales (partes) estructurados. */
+export async function obtenerSujetos(
+  idProceso: string | number,
+): Promise<Sujeto[]> {
+  try {
+    const data = await ramaGet<{ sujetos?: Sujeto[] }>(
+      `/Proceso/Sujetos/${idProceso}?pagina=1`,
+    );
+    return data.sujetos ?? [];
+  } catch (err) {
+    if (err instanceof RamaError && err.status === 404) return [];
+    throw err;
+  }
 }
 
 /**

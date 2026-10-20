@@ -11,7 +11,18 @@ export type Act = {
   seen: boolean;
   conDocumentos: boolean;
 };
-export type Parte = { rol: string; nombre: string };
+export type Parte = {
+  rol: string;
+  nombre: string;
+  identificacion: string | null;
+};
+export type Doc = {
+  idRegDocumento: string;
+  nombre: string;
+  descripcion: string | null;
+  tipo: string | null;
+  fecha: string;
+};
 export type Sync = {
   inicio: string;
   origen: string;
@@ -40,7 +51,7 @@ export function CaseTabs({
   datos: Datos;
   actuaciones: Act[];
   partes: Parte[];
-  documentos: Act[];
+  documentos: Doc[];
   syncLogs: Sync[];
 }) {
   const [tab, setTab] = useState<TabKey>("resumen");
@@ -121,21 +132,29 @@ export function CaseTabs({
             <h2>Documentos ({documentos.length})</h2>
             {documentos.length === 0 ? (
               <p className="muted small">
-                Este proceso no tiene actuaciones con documentos adjuntos.
+                Este proceso no tiene documentos en la Rama Judicial.
               </p>
             ) : (
-              <>
-                <p className="muted small" style={{ marginTop: -4 }}>
-                  Actuaciones con documentos disponibles en la Rama Judicial:
-                </p>
-                {documentos.map((a) => (
-                  <div key={a.id} className="event">
-                    <div className="date">{a.fecha}</div>
-                    <div className="name">📄 {a.nombre}</div>
-                    {a.anotacion && <div className="note">{a.anotacion}</div>}
+              documentos.map((d) => (
+                <div key={d.idRegDocumento} className="doc-row">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="name">📄 {d.nombre}</div>
+                    <div className="muted small">
+                      {d.fecha}
+                      {d.tipo ? ` · ${d.tipo.toUpperCase()}` : ""}
+                      {d.descripcion ? ` · ${d.descripcion}` : ""}
+                    </div>
                   </div>
-                ))}
-              </>
+                  <a
+                    className="btn secondary small"
+                    href={`/api/documento/${d.idRegDocumento}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    ⬇ Descargar
+                  </a>
+                </div>
+              ))
             )}
           </>
         )}
@@ -155,7 +174,12 @@ export function CaseTabs({
                     <dt className="muted" style={{ minWidth: 170 }}>
                       {p.rol}
                     </dt>
-                    <dd style={{ margin: 0 }}>{p.nombre}</dd>
+                    <dd style={{ margin: 0 }}>
+                      {p.nombre}
+                      {p.identificacion ? (
+                        <span className="muted"> · {p.identificacion}</span>
+                      ) : null}
+                    </dd>
                   </div>
                 ))}
               </dl>

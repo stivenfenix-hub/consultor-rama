@@ -4,6 +4,9 @@ import {
   buscarPorRadicado,
   obtenerDetalle,
   obtenerActuaciones,
+  obtenerDocumentos,
+  obtenerDocumentosActuacion,
+  obtenerSujetos,
   RamaError,
   type ProcesoResumen,
   type Actuacion as RamaActuacion,
@@ -145,6 +148,10 @@ export async function sincronizarProceso(
       },
     });
 
+    // Partes y Documentos (cada uno con su propio registro, sin romper el sync).
+    await sincronizarSujetos(caseId, caseRow.idProceso);
+    await sincronizarDocumentos(caseId, caseRow.idProceso, actuaciones);
+
     return {
       nuevas: nuevas.length,
       total: actuaciones.length,
@@ -169,6 +176,120 @@ export async function sincronizarProceso(
       })
       .catch(() => {});
     throw err;
+  }
+}
+
+/** Trae y guarda las partes (sujetos) del proceso; registra en SyncLog. */
+async function sincronizarSujetos(caseId: string, idProceso: string) {
+  const t = Date.now();
+  try {
+    const sujetos = await obtenerSujetos(idProceso);
+    await prisma.parte.deleteMany({ where: { caseId } });
+    if (sujetos.length > 0) {
+      await prisma.parte.createMany({
+        data: sujetos.map((s) => ({
+          caseId,
+          idRegSujeto: String(s.idRegSujeto),
+          nombre: (s.nombreRazonSocial ?? "").replace(/\s+/g, " ").trim() || null,
+          tipoSujeto: s.tipoSujeto ?? null,
+          identificacion: s.identificacion ?? null,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    await prisma.syncLog.create({
+      data: {
+        caseId,
+        operacion: "Partes",
+        resultado: "exito",
+        durationMs: Date.now() - t,
+        elementos: sujetos.length,
+      },
+    });
+  } catch (err) {
+    await prisma.syncLog
+      .create({
+        data: {
+          caseId,
+          operacion: "Partes",
+          resultado: "fallo",
+          durationMs: Date.now() - t,
+          elementos: 0,
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+        },
+      })
+      .catch(() => {});
+  }
+}
+
+/**
+ * Trae y guarda los documentos del proceso: los de nivel proceso + los de
+ * cada actuación con documentos (estos últimos son los descargables).
+ */
+async function sincronizarDocumentos(
+  caseId: string,
+  idProceso: string,
+  actuaciones: RamaActuacion[],
+) {
+  const t = Date.now();
+  try {
+    const todos = await obtenerDocumentos(idProceso);
+
+    // Documentos por actuación (cap para no saturar a la Rama).
+    const conDocs = actuaciones
+      .filter((a) => a.conDocumentos)
+      .slice(0, 30);
+    for (const a of conDocs) {
+      const d = await obtenerDocumentosActuacion(a.idRegActuacion);
+      todos.push(...d);
+      await new Promise((res) => setTimeout(res, 300));
+    }
+
+    // Dedupe por idRegDocumento.
+    const vistos = new Set<string>();
+    const docs = todos.filter((d) => {
+      const k = String(d.idRegDocumento);
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    });
+
+    if (docs.length > 0) {
+      await prisma.documento.createMany({
+        data: docs.map((d) => ({
+          caseId,
+          idRegDocumento: String(d.idRegDocumento),
+          nombre: d.nombre ?? null,
+          descripcion: d.descripcion ?? null,
+          tipo: d.tipo || null,
+          fechaCarga: parseFecha(d.fechaCarga),
+          consActuacion: d.consActuacion ?? null,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    await prisma.syncLog.create({
+      data: {
+        caseId,
+        operacion: "Documentos",
+        resultado: "exito",
+        durationMs: Date.now() - t,
+        elementos: docs.length,
+      },
+    });
+  } catch (err) {
+    await prisma.syncLog
+      .create({
+        data: {
+          caseId,
+          operacion: "Documentos",
+          resultado: "fallo",
+          durationMs: Date.now() - t,
+          elementos: 0,
+          error: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+        },
+      })
+      .catch(() => {});
   }
 }
 
