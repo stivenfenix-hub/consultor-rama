@@ -261,7 +261,7 @@ async function enviarSinNovedades(
       `actuaciones nuevas.\n\nVer tus procesos: ${appUrl}/dashboard`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
-        <img src="${appUrl}/logo-estradox.png" alt="Estradox" height="26" style="margin-bottom:12px" />
+        <img src="${appUrl}/api/logo/email" alt="Estradox" height="26" style="margin-bottom:12px" />
         <h2>Sin novedades hoy</h2>
         <p>Hola ${escapeHtml(name ?? "")}, revisamos tus <b>${totalCasos}</b> proceso(s) el ${escapeHtml(hoy)} y <b>no hubo actuaciones nuevas</b>.</p>
         <p>Te avisaremos apenas aparezca algo.</p>
@@ -306,7 +306,7 @@ async function enviarResumen(
 
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto">
-      <img src="${appUrl}/logo-estradox.png" alt="Estradox" height="26" style="margin-bottom:12px" />
+      <img src="${appUrl}/api/logo/email" alt="Estradox" height="26" style="margin-bottom:12px" />
       <h2>Tienes ${totalNuevas} actuacion(es) nueva(s)</h2>
       <p>Hola ${escapeHtml(name ?? "")}, se detectaron novedades en ${casos.length} de tus procesos:</p>
       ${bloques}

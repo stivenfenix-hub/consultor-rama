@@ -5,6 +5,7 @@ export type SiteSettings = {
   id: string;
   brandName: string;
   logoDataUrl: string | null;
+  emailLogoDataUrl: string | null;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -15,6 +16,7 @@ const DEFAULTS: SiteSettings = {
   id: "site",
   brandName: "Estradox",
   logoDataUrl: null,
+  emailLogoDataUrl: null,
   colorAccent: "#8b3dff",
   colorAccent2: "#4b23e6",
   colorBg: "#0a0820",
@@ -30,6 +32,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       id: s.id,
       brandName: s.brandName,
       logoDataUrl: s.logoDataUrl,
+      emailLogoDataUrl: s.emailLogoDataUrl,
       colorAccent: s.colorAccent,
       colorAccent2: s.colorAccent2,
       colorBg: s.colorBg,

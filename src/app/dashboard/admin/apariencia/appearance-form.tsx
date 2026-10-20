@@ -6,6 +6,7 @@ import { updateAppearanceAction, resetLogoAction } from "@/app/actions";
 type S = {
   brandName: string;
   logoDataUrl: string | null;
+  emailLogoDataUrl: string | null;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -52,17 +53,86 @@ function ColorField({
   );
 }
 
+function LogoUpload({
+  field,
+  title,
+  hint,
+  current,
+  previewBg,
+  which,
+}: {
+  field: string;
+  title: string;
+  hint: string;
+  current: string | null;
+  previewBg: string;
+  which: "platform" | "email";
+}) {
+  const [preview, setPreview] = useState<string | null>(current);
+  const fallback = "/logo-estradox.png";
+  return (
+    <div style={{ marginTop: 14 }}>
+      <label className="small muted">{title}</label>
+      <div className="row wrap" style={{ gap: 14, marginTop: 6 }}>
+        <div
+          style={{
+            background: previewBg,
+            borderRadius: 8,
+            padding: 10,
+            minWidth: 170,
+            minHeight: 54,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview ?? fallback}
+            alt="logo"
+            style={{ maxHeight: 36, maxWidth: 220 }}
+          />
+        </div>
+        <input
+          type="file"
+          name={field}
+          accept="image/png,image/jpeg,image/svg+xml"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) setPreview(URL.createObjectURL(f));
+          }}
+        />
+        {current && (
+          <button
+            type="button"
+            className="btn danger small"
+            onClick={() => {
+              resetLogoAction(which);
+              setPreview(null);
+            }}
+          >
+            Quitar
+          </button>
+        )}
+      </div>
+      <p className="muted small" style={{ marginTop: 6 }}>
+        {hint}
+      </p>
+    </div>
+  );
+}
+
 export function AppearanceForm({ settings }: { settings: S }) {
   const [state, formAction, pending] = useActionState(
     updateAppearanceAction,
     {},
   );
-  const [preview, setPreview] = useState<string | null>(settings.logoDataUrl);
 
   return (
     <form action={formAction}>
       <div className="card">
-        <h2>Marca</h2>
+        <h2>Marca y logos</h2>
         <label className="small muted">Nombre de la marca</label>
         <input
           type="text"
@@ -71,57 +141,23 @@ export function AppearanceForm({ settings }: { settings: S }) {
           style={{ maxWidth: 320 }}
         />
 
-        <div style={{ height: 18 }} />
-        <label className="small muted">Logo (PNG, máx 500 KB)</label>
-        <div className="row wrap" style={{ gap: 14, marginTop: 6 }}>
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 8,
-              padding: 10,
-              minWidth: 160,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {preview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={preview} alt="logo" style={{ maxHeight: 40, maxWidth: 220 }} />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src="/logo-estradox.png"
-                alt="logo actual"
-                style={{ maxHeight: 40, maxWidth: 220 }}
-              />
-            )}
-          </div>
-          <input
-            type="file"
-            name="logo"
-            accept="image/png,image/jpeg,image/svg+xml"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setPreview(URL.createObjectURL(f));
-            }}
-          />
-          {settings.logoDataUrl && (
-            <button
-              type="button"
-              className="btn danger small"
-              onClick={() => {
-                resetLogoAction();
-                setPreview(null);
-              }}
-            >
-              Quitar logo subido
-            </button>
-          )}
-        </div>
-        <p className="muted small" style={{ marginTop: 6 }}>
-          Vista previa sobre fondo blanco (así se ve en los correos).
-        </p>
+        <LogoUpload
+          field="logo"
+          which="platform"
+          title="Logo de la plataforma (se ve sobre el tema oscuro — usa letra clara)"
+          hint="Aparece en el menú y en las pantallas de la app."
+          current={settings.logoDataUrl}
+          previewBg="var(--bg)"
+        />
+
+        <LogoUpload
+          field="emailLogo"
+          which="email"
+          title="Logo para los correos (se ve sobre fondo blanco — usa tu logo oscuro)"
+          hint="Aparece en los correos de verificación, reset y notificaciones."
+          current={settings.emailLogoDataUrl}
+          previewBg="#fff"
+        />
       </div>
 
       <div className="card">

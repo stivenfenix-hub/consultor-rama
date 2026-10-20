@@ -187,29 +187,41 @@ export async function updateAppearanceAction(
     colorBg: string;
     colorPanel: string;
     logoDataUrl?: string;
+    emailLogoDataUrl?: string;
   } = { ...parsed.data };
 
-  // Logo opcional (archivo -> data URL base64). Máx 500 KB.
-  const logo = formData.get("logo");
-  if (logo instanceof File && logo.size > 0) {
-    if (!logo.type.startsWith("image/")) {
+  // Convierte un archivo de imagen a data URL (máx 500 KB). Devuelve mensaje de error o null.
+  async function fileToDataUrl(
+    field: string,
+  ): Promise<{ dataUrl?: string; error?: string }> {
+    const f = formData.get(field);
+    if (!(f instanceof File) || f.size === 0) return {};
+    if (!f.type.startsWith("image/"))
       return { error: "El logo debe ser una imagen (PNG recomendado)." };
-    }
-    if (logo.size > 500 * 1024) {
+    if (f.size > 500 * 1024)
       return { error: "El logo es muy pesado (máx 500 KB)." };
-    }
-    const buf = Buffer.from(await logo.arrayBuffer());
-    data.logoDataUrl = `data:${logo.type};base64,${buf.toString("base64")}`;
+    const buf = Buffer.from(await f.arrayBuffer());
+    return { dataUrl: `data:${f.type};base64,${buf.toString("base64")}` };
   }
+
+  const plat = await fileToDataUrl("logo");
+  if (plat.error) return { error: plat.error };
+  if (plat.dataUrl) data.logoDataUrl = plat.dataUrl;
+
+  const mail = await fileToDataUrl("emailLogo");
+  if (mail.error) return { error: mail.error };
+  if (mail.dataUrl) data.emailLogoDataUrl = mail.dataUrl;
 
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
   return { ok: "Apariencia actualizada. Los cambios ya están aplicados." };
 }
 
-export async function resetLogoAction() {
+export async function resetLogoAction(which: "platform" | "email" = "platform") {
   await requireAdmin();
-  await updateSiteSettings({ logoDataUrl: null });
+  await updateSiteSettings(
+    which === "email" ? { emailLogoDataUrl: null } : { logoDataUrl: null },
+  );
   revalidatePath("/", "layout");
 }
 

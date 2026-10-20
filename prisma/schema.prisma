@@ -29,8 +29,9 @@ model User {
 // Ajustes globales del sitio (una sola fila con id "site"), editables por admin.
 model SiteSetting {
   id          String   @id @default("site")
-  brandName   String   @default("Estradox")
-  logoDataUrl String? // PNG en data URL; si es null se usa el logo por defecto
+  brandName        String   @default("Estradox")
+  logoDataUrl      String? // logo de la plataforma (tema oscuro); null = por defecto
+  emailLogoDataUrl String? // logo para los correos (fondo blanco); null = por defecto
   colorAccent String   @default("#8b3dff")
   colorAccent2 String  @default("#4b23e6")
   colorBg     String   @default("#0a0820")

@@ -75,7 +75,7 @@ export async function registerUser(input: {
   return user;
 }
 
-const LOGO = `${APP_URL}/logo-estradox.png`;
+const LOGO = `${APP_URL}/api/logo/email`;
 const BTN =
   "display:inline-block;background:linear-gradient(135deg,#8b3dff,#4b23e6);color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600";
 

@@ -15,6 +15,7 @@ export default async function AparienciaPage() {
         settings={{
           brandName: s.brandName,
           logoDataUrl: s.logoDataUrl,
+          emailLogoDataUrl: s.emailLogoDataUrl,
           colorAccent: s.colorAccent,
           colorAccent2: s.colorAccent2,
           colorBg: s.colorBg,
