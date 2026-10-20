@@ -1,10 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { getSiteSettings } from "@/lib/settings";
+import { IosInstallBubble } from "@/components/ios-install-bubble";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Estradox",
   description: "Seguimiento de procesos judiciales en tiempo real",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Estradox",
+    statusBarStyle: "black-translucent",
+  },
+  icons: { apple: "/icon-512.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0820",
 };
 
 export default async function RootLayout({
@@ -26,7 +38,10 @@ export default async function RootLayout({
       <head>
         <style dangerouslySetInnerHTML={{ __html: theme }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <IosInstallBubble />
+      </body>
     </html>
   );
 }

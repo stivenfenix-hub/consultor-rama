@@ -277,6 +277,45 @@ input:-webkit-autofill:focus {
   margin: 10vh auto 0;
 }
 
+/* Burbuja "Instalar en iPhone" */
+.ios-bubble {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  max-width: 440px;
+  margin: 0 auto;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 40px 14px 16px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+}
+.ios-bubble-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.ios-bubble-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.ios-bubble-text b {
+  color: var(--text);
+}
+.ios-bubble-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px;
+}
+
 /* Footer "By UNOR" en el login */
 .login-by {
   display: flex;
