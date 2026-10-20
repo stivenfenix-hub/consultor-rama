@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { ChangePasswordForm } from "./change-password-form";
+import { NotificationsToggle } from "./notifications-toggle";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
@@ -24,6 +25,11 @@ export default async function ConfiguracionPage() {
             <dd style={{ margin: 0 }}>{user.email}</dd>
           </div>
         </dl>
+      </div>
+
+      <div className="card">
+        <h2>Notificaciones</h2>
+        <NotificationsToggle />
       </div>
 
       <div className="card" style={{ maxWidth: 460 }}>

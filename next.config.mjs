@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // El cliente de Prisma no debe empaquetarse en el bundle del servidor.
-  serverExternalPackages: ["@prisma/client", "prisma"],
+  serverExternalPackages: ["@prisma/client", "prisma", "web-push"],
 };
 
 export default nextConfig;

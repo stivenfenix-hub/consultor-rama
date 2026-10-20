@@ -24,6 +24,20 @@ model User {
   createdAt     DateTime  @default(now())
   cases         Case[]
   tokens        Token[]
+  pushSubscriptions PushSubscription[]
+}
+
+// Suscripciones de notificaciones push (Web Push) por dispositivo.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Ajustes globales del sitio (una sola fila con id "site"), editables por admin.

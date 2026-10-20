@@ -13,6 +13,7 @@ const NAV = [
 const ADMIN_NAV = [
   { href: "/dashboard/admin", label: "Panel admin", icon: "👑" },
   { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "👥" },
+  { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "📣" },
   { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "🎨" },
 ];
 

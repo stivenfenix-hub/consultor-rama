@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { loginWithPassword, logout, requireUser, requireAdmin } from "@/lib/auth";
 import { updateSiteSettings } from "@/lib/settings";
+import { sendPushToAll } from "@/lib/push";
 import {
   registerUser,
   resendVerification,
@@ -244,6 +245,37 @@ export async function resetLogoAction(
         : { logoDataUrl: null };
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
+}
+
+// ---------- Admin: enviar notificación (promo/info) a todos ----------
+const promoSchema = z.object({
+  title: z.string().min(1, "Escribe un título").max(80),
+  body: z.string().min(1, "Escribe el mensaje").max(300),
+  url: z.string().url("Enlace inválido").or(z.literal("")).optional(),
+});
+
+export async function enviarPromoAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = promoSchema.safeParse({
+    title: formData.get("title"),
+    body: formData.get("body"),
+    url: formData.get("url") || "",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const res = await sendPushToAll({
+    title: parsed.data.title,
+    body: parsed.data.body,
+    url: parsed.data.url || "/dashboard",
+    tag: "promo",
+  });
+  return {
+    ok: `Enviado a ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
+  };
 }
 
 export async function logoutAction() {

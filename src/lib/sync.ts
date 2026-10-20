@@ -12,6 +12,7 @@ import {
   type Actuacion as RamaActuacion,
 } from "./rama";
 import { sendMail } from "./mailer";
+import { sendPushToUser } from "./push";
 
 function parseFecha(f?: string | null): Date | null {
   if (!f) return null;
@@ -391,11 +392,18 @@ export async function sincronizarTodos(pausaMs = 1500) {
     await new Promise((res) => setTimeout(res, pausaMs));
   }
 
-  // Enviar correos (no romper la corrida del cron si falla el envio)
-  for (const [, u] of porUsuario) {
+  // Enviar correos + push (no romper la corrida del cron si falla el envio)
+  for (const [userId, u] of porUsuario) {
     try {
       if (u.casos.length > 0) {
         await enviarResumen(u.email, u.name, u.casos);
+        const totalNuevas = u.casos.reduce((n, c) => n + c.nuevas.length, 0);
+        await sendPushToUser(userId, {
+          title: "Actuaciones nuevas",
+          body: `Tienes ${totalNuevas} actuación(es) nueva(s) en ${u.casos.length} de tus procesos.`,
+          url: "/dashboard",
+          tag: "actuaciones",
+        }).catch(() => {});
       } else {
         await enviarSinNovedades(u.email, u.name, u.totalCasos);
       }
