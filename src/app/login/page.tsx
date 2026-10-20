@@ -11,11 +11,27 @@ export default async function LoginPage() {
     <div className="container">
       <div className="center">
         <div className="card">
-          <BrandLogo size="lg" />
-          <p className="muted small" style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <BrandLogo size="lg" />
+          </div>
+          <p
+            className="muted small"
+            style={{ marginTop: 10, textAlign: "center" }}
+          >
             Ingresa a tu cuenta para seguir tus procesos judiciales.
           </p>
           <LoginForm />
+          <div className="login-by">
+            <span>By</span>
+            <a
+              href="https://unorgroup.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/unor-logo.png" alt="UNOR Group" />
+            </a>
+          </div>
         </div>
       </div>
     </div>

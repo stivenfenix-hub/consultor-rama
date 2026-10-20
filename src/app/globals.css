@@ -277,6 +277,29 @@ input:-webkit-autofill:focus {
   margin: 10vh auto 0;
 }
 
+/* Footer "By UNOR" en el login */
+.login-by {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.login-by img {
+  height: 15px;
+  width: auto;
+  display: block;
+}
+.login-by a {
+  display: inline-flex;
+  opacity: 0.9;
+}
+.login-by a:hover {
+  opacity: 1;
+}
+
 /* ===== App shell con barra lateral ===== */
 .app-shell {
   display: flex;
