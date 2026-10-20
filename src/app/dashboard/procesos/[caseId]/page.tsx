@@ -5,17 +5,19 @@ import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
 import { CaseTabs, type Datos } from "./case-tabs";
 
+const TZ = "America/Bogota";
 function fmtFecha(d: Date | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("es-CO", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: TZ,
   });
 }
 function fmtHora(d: Date | null | undefined) {
   if (!d) return "—";
-  return new Date(d).toLocaleString("es-CO");
+  return new Date(d).toLocaleString("es-CO", { timeZone: TZ });
 }
 
 /** Convierte el string de sujetos de la Rama en una lista {rol, nombre}. */

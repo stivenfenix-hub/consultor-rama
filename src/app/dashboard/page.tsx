@@ -11,6 +11,7 @@ function fmt(d: Date | null | undefined) {
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "America/Bogota",
   });
 }
 

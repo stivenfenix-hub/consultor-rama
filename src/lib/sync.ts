@@ -396,6 +396,7 @@ async function enviarSinNovedades(
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "America/Bogota",
   });
   await sendMail({
     to: email,
@@ -430,7 +431,9 @@ async function enviarResumen(
         .slice(0, 10)
         .map((a) => {
           const fecha = a.fechaActuacion
-            ? new Date(a.fechaActuacion).toLocaleDateString("es-CO")
+            ? new Date(a.fechaActuacion).toLocaleDateString("es-CO", {
+                timeZone: "America/Bogota",
+              })
             : "";
           return `<li><strong>${escapeHtml(a.actuacion ?? "Actuacion")}</strong> — ${fecha}${
             a.anotacion ? `<br/><span style="color:#555">${escapeHtml(a.anotacion)}</span>` : ""
