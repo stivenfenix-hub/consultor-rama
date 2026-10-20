@@ -1,14 +1,17 @@
 :root {
-  --bg: #0b0d10;
-  --panel: #14181d;
-  --panel-2: #1b2127;
-  --border: #272e36;
-  --text: #e7edf3;
-  --muted: #93a1b0;
-  --accent: #2f81f7;
-  --green: #2ea043;
-  --red: #e5534b;
-  --amber: #d29922;
+  /* Identidad Estradox: indigo profundo + degradado violeta -> azul */
+  --bg: #0a0820;
+  --panel: #151140;
+  --panel-2: #1f1a55;
+  --border: #322a74;
+  --text: #ecebfb;
+  --muted: #a39cd8;
+  --accent: #8b3dff;
+  --accent-2: #4b23e6;
+  --brand-grad: linear-gradient(135deg, #a259ff 0%, #6a2bf5 45%, #3a1bd8 100%);
+  --green: #2fc26b;
+  --red: #ff5c72;
+  --amber: #f0b429;
 }
 
 * {
@@ -114,7 +117,7 @@ input:-webkit-autofill:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--accent);
+  background: var(--brand-grad);
   color: white;
   border: none;
   border-radius: 8px;
@@ -124,6 +127,33 @@ input:-webkit-autofill:focus {
 }
 .btn:hover {
   filter: brightness(1.08);
+}
+
+/* Marca Estradox con degradado */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.wordmark .mark {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.wordmark .word {
+  background: var(--brand-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.wordmark.lg {
+  font-size: 30px;
+}
+.wordmark.lg .mark {
+  width: 34px;
+  height: 34px;
 }
 .btn.secondary {
   background: var(--panel-2);

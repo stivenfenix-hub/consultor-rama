@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { Brand } from "@/components/brand";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage() {
@@ -10,8 +11,10 @@ export default async function LoginPage() {
     <div className="container">
       <div className="center">
         <div className="card">
-          <h1>Consultor de Procesos</h1>
-          <p className="muted small">Ingresa a tu cuenta para seguir tus procesos judiciales.</p>
+          <Brand size="lg" />
+          <p className="muted small" style={{ marginTop: 10 }}>
+            Ingresa a tu cuenta para seguir tus procesos judiciales.
+          </p>
           <LoginForm />
         </div>
       </div>

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Consultor de Procesos",
-  description: "Seguimiento de procesos judiciales desde el API de la Rama Judicial",
+  title: "Estradox",
+  description: "Seguimiento de procesos judiciales en tiempo real",
 };
 
 export default function RootLayout({

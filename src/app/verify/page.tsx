@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { verifyEmailToken } from "@/lib/accounts";
+import { Brand } from "@/components/brand";
 
 export default async function VerifyPage({
   searchParams,
@@ -13,6 +14,9 @@ export default async function VerifyPage({
     <div className="container">
       <div className="center">
         <div className="card" style={{ textAlign: "center" }}>
+          <div style={{ marginBottom: 12, justifyContent: "center", display: "flex" }}>
+            <Brand />
+          </div>
           {ok ? (
             <>
               <h1>✅ Correo verificado</h1>

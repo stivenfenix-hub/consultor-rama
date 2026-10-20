@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Brand } from "@/components/brand";
 import { ResetForm } from "./reset-form";
 
 export default async function ResetPage({
@@ -12,6 +13,7 @@ export default async function ResetPage({
     <div className="container">
       <div className="center">
         <div className="card">
+          <div style={{ marginBottom: 12 }}><Brand /></div>
           <h1>Nueva contraseña</h1>
           {!token ? (
             <>

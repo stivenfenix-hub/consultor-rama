@@ -261,11 +261,12 @@ async function enviarSinNovedades(
       `actuaciones nuevas.\n\nVer tus procesos: ${appUrl}/dashboard`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+        <img src="${appUrl}/logo-estradox.png" alt="Estradox" height="26" style="margin-bottom:12px" />
         <h2>Sin novedades hoy</h2>
         <p>Hola ${escapeHtml(name ?? "")}, revisamos tus <b>${totalCasos}</b> proceso(s) el ${escapeHtml(hoy)} y <b>no hubo actuaciones nuevas</b>.</p>
         <p>Te avisaremos apenas aparezca algo.</p>
         <p><a href="${appUrl}/dashboard">Ver mis procesos</a></p>
-        <p style="color:#777;font-size:12px">Consultor de Procesos — actualización automática diaria.</p>
+        <p style="color:#777;font-size:12px">Estradox — actualización automática diaria.</p>
       </div>`,
   });
 }
@@ -305,10 +306,11 @@ async function enviarResumen(
 
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto">
+      <img src="${appUrl}/logo-estradox.png" alt="Estradox" height="26" style="margin-bottom:12px" />
       <h2>Tienes ${totalNuevas} actuacion(es) nueva(s)</h2>
       <p>Hola ${escapeHtml(name ?? "")}, se detectaron novedades en ${casos.length} de tus procesos:</p>
       ${bloques}
-      <p style="color:#777;font-size:12px">Consultor de Procesos — actualizacion automatica.</p>
+      <p style="color:#777;font-size:12px">Estradox — actualización automática.</p>
     </div>`;
 
   const text =

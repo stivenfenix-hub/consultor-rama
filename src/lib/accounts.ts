@@ -75,18 +75,23 @@ export async function registerUser(input: {
   return user;
 }
 
+const LOGO = `${APP_URL}/logo-estradox.png`;
+const BTN =
+  "display:inline-block;background:linear-gradient(135deg,#8b3dff,#4b23e6);color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600";
+
 async function enviarVerificacion(userId: string, email: string) {
   const raw = await createToken(userId, "verify", VERIFY_TTL);
   const link = `${APP_URL}/verify?token=${raw}`;
   await sendMail({
     to: email,
-    subject: "Verifica tu correo - Consultor de Procesos",
+    subject: "Verifica tu correo - Estradox",
     text: `Confirma tu cuenta visitando: ${link}\n\nEl enlace vence en 24 horas.`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+        <img src="${LOGO}" alt="Estradox" height="26" style="margin-bottom:12px" />
         <h2>Confirma tu cuenta</h2>
-        <p>Gracias por registrarte en el Consultor de Procesos. Confirma tu correo para activar tu cuenta:</p>
-        <p><a href="${link}" style="display:inline-block;background:#2f81f7;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Verificar mi correo</a></p>
+        <p>Gracias por registrarte en <b>Estradox</b>. Confirma tu correo para activar tu cuenta:</p>
+        <p><a href="${link}" style="${BTN}">Verificar mi correo</a></p>
         <p style="color:#777;font-size:13px">O copia este enlace: ${link}<br/>Vence en 24 horas.</p>
       </div>`,
   });
@@ -123,13 +128,14 @@ export async function requestPasswordReset(emailRaw: string) {
   const link = `${APP_URL}/reset?token=${raw}`;
   await sendMail({
     to: email,
-    subject: "Restablece tu contraseña - Consultor de Procesos",
+    subject: "Restablece tu contraseña - Estradox",
     text: `Para cambiar tu contraseña visita: ${link}\n\nEl enlace vence en 1 hora. Si no lo solicitaste, ignora este correo.`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+        <img src="${LOGO}" alt="Estradox" height="26" style="margin-bottom:12px" />
         <h2>Restablece tu contraseña</h2>
         <p>Recibimos una solicitud para cambiar tu contraseña. Si fuiste tú, continúa:</p>
-        <p><a href="${link}" style="display:inline-block;background:#2f81f7;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Cambiar contraseña</a></p>
+        <p><a href="${link}" style="${BTN}">Cambiar contraseña</a></p>
         <p style="color:#777;font-size:13px">O copia este enlace: ${link}<br/>Vence en 1 hora. Si no lo solicitaste, ignora este correo.</p>
       </div>`,
   });

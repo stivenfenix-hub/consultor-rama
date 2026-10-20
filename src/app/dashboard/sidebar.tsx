@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Brand } from "@/components/brand";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
@@ -31,7 +32,7 @@ export function AppShell({
     <div className="app-shell">
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="sidebar-brand">
-          <span className="brand">⚖️ Consultor</span>
+          <Brand />
           <button
             className="close"
             aria-label="Cerrar menú"
@@ -76,7 +77,7 @@ export function AppShell({
           >
             ☰
           </button>
-          <span className="brand">⚖️ Consultor</span>
+          <Brand />
         </header>
         <main className="app-main">{children}</main>
       </div>
