@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
  */
 export function IosInstallBubble() {
   const [show, setShow] = useState(false);
+  const [chrome, setChrome] = useState(false);
 
   useEffect(() => {
     try {
@@ -19,10 +20,12 @@ export function IosInstallBubble() {
       const isStandalone =
         (navigator as unknown as { standalone?: boolean }).standalone === true ||
         window.matchMedia("(display-mode: standalone)").matches;
-      // "Agregar a inicio" solo funciona en Safari (no Chrome/Firefox iOS).
-      const isSafari = !/crios|fxios|edgios|opios/i.test(ua);
       const dismissed = localStorage.getItem("estradox_ios_pwa") === "1";
-      if (isIOS && isSafari && !isStandalone && !dismissed) setShow(true);
+      // En iOS mostramos la invitación en cualquier navegador (Safari, Chrome…).
+      if (isIOS && !isStandalone && !dismissed) {
+        setChrome(/crios/i.test(ua));
+        setShow(true);
+      }
     } catch {
       // ignore
     }
@@ -65,8 +68,17 @@ export function IosInstallBubble() {
             <path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
           </svg>
         </b>{" "}
-        en Safari y elige <b>“Agregar a inicio”</b>. Se abrirá en su propia
-        ventana, sin barras.
+        {chrome ? (
+          <>
+            en el menú de Chrome y elige{" "}
+            <b>“Agregar a pantalla de inicio”</b>.
+          </>
+        ) : (
+          <>
+            en Safari y elige <b>“Agregar a inicio”</b>.
+          </>
+        )}{" "}
+        Se abrirá en su propia ventana, sin barras.
       </div>
     </div>
   );
