@@ -63,6 +63,17 @@ export async function requireUser() {
   return user;
 }
 
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (user.role !== "admin") throw new Error("FORBIDDEN");
+  return user;
+}
+
+export async function isAdmin() {
+  const user = await getCurrentUser();
+  return user?.role === "admin";
+}
+
 export async function hashPassword(plain: string) {
   return bcrypt.hash(plain, 10);
 }
@@ -91,5 +102,9 @@ export async function loginWithPassword(
   if (!user || !user.passwordHash || !okPass) return { status: "invalid" };
   if (!user.emailVerified) return { status: "unverified", email };
   await createSession(user.id);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
   return { status: "ok" };
 }

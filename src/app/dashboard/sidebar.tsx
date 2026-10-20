@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Brand } from "@/components/brand";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
@@ -11,12 +10,22 @@ const NAV = [
   { href: "/dashboard/configuracion", label: "Configuración", icon: "⚙️" },
 ];
 
+const ADMIN_NAV = [
+  { href: "/dashboard/admin", label: "Panel admin", icon: "👑" },
+  { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "👥" },
+  { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "🎨" },
+];
+
 export function AppShell({
   userLabel,
+  logoUrl,
+  isAdmin,
   logoutAction,
   children,
 }: {
   userLabel: string;
+  logoUrl: string;
+  isAdmin: boolean;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -26,13 +35,31 @@ export function AppShell({
   const isActive = (href: string) =>
     href === "/dashboard"
       ? pathname === "/dashboard"
-      : pathname.startsWith(href);
+      : pathname === href || pathname.startsWith(href + "/");
+
+  const renderNav = (
+    items: { href: string; label: string; icon: string }[],
+  ) =>
+    items.map((item) => (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`nav-item ${isActive(item.href) ? "active" : ""}`}
+        onClick={() => setOpen(false)}
+      >
+        <span className="nav-icon">{item.icon}</span>
+        {item.label}
+      </Link>
+    ));
 
   return (
     <div className="app-shell">
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="sidebar-brand">
-          <Brand />
+          <span className="logo-chip">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoUrl} alt="logo" className="brand-logo" />
+          </span>
           <button
             className="close"
             aria-label="Cerrar menú"
@@ -43,17 +70,13 @@ export function AppShell({
         </div>
 
         <nav className="nav">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item ${isActive(item.href) ? "active" : ""}`}
-              onClick={() => setOpen(false)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
+          {renderNav(NAV)}
+          {isAdmin && (
+            <>
+              <div className="nav-section">Administración</div>
+              {renderNav(ADMIN_NAV)}
+            </>
+          )}
         </nav>
 
         <div className="sidebar-foot">
@@ -77,7 +100,10 @@ export function AppShell({
           >
             ☰
           </button>
-          <Brand />
+          <span className="logo-chip">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoUrl} alt="logo" className="brand-logo" />
+          </span>
         </header>
         <main className="app-main">{children}</main>
       </div>

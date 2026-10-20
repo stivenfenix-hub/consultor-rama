@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { loginWithPassword, logout, requireUser } from "@/lib/auth";
+import { loginWithPassword, logout, requireUser, requireAdmin } from "@/lib/auth";
+import { updateSiteSettings } from "@/lib/settings";
 import {
   registerUser,
   resendVerification,
@@ -151,6 +152,65 @@ export async function changePasswordAction(
     if (err instanceof AccountError) return { error: err.message };
     return { error: "No se pudo cambiar la contraseña." };
   }
+}
+
+// ---------- Admin: apariencia del sitio ----------
+const hex = z.string().regex(/^#([0-9a-fA-F]{6})$/, "Color inválido (usa #RRGGBB)");
+const appearanceSchema = z.object({
+  brandName: z.string().min(1).max(40),
+  colorAccent: hex,
+  colorAccent2: hex,
+  colorBg: hex,
+  colorPanel: hex,
+});
+
+export async function updateAppearanceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = appearanceSchema.safeParse({
+    brandName: formData.get("brandName"),
+    colorAccent: formData.get("colorAccent"),
+    colorAccent2: formData.get("colorAccent2"),
+    colorBg: formData.get("colorBg"),
+    colorPanel: formData.get("colorPanel"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const data: {
+    brandName: string;
+    colorAccent: string;
+    colorAccent2: string;
+    colorBg: string;
+    colorPanel: string;
+    logoDataUrl?: string;
+  } = { ...parsed.data };
+
+  // Logo opcional (archivo -> data URL base64). Máx 500 KB.
+  const logo = formData.get("logo");
+  if (logo instanceof File && logo.size > 0) {
+    if (!logo.type.startsWith("image/")) {
+      return { error: "El logo debe ser una imagen (PNG recomendado)." };
+    }
+    if (logo.size > 500 * 1024) {
+      return { error: "El logo es muy pesado (máx 500 KB)." };
+    }
+    const buf = Buffer.from(await logo.arrayBuffer());
+    data.logoDataUrl = `data:${logo.type};base64,${buf.toString("base64")}`;
+  }
+
+  await updateSiteSettings(data);
+  revalidatePath("/", "layout");
+  return { ok: "Apariencia actualizada. Los cambios ya están aplicados." };
+}
+
+export async function resetLogoAction() {
+  await requireAdmin();
+  await updateSiteSettings({ logoDataUrl: null });
+  revalidatePath("/", "layout");
 }
 
 export async function logoutAction() {

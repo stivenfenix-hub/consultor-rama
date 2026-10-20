@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brand } from "@/components/brand";
+import { BrandLogo } from "@/components/brand-logo";
 import { ForgotForm } from "./forgot-form";
 
 export default function ForgotPage() {
@@ -7,7 +7,7 @@ export default function ForgotPage() {
     <div className="container">
       <div className="center">
         <div className="card">
-          <div style={{ marginBottom: 12 }}><Brand /></div>
+          <div style={{ marginBottom: 12 }}><BrandLogo /></div>
           <h1>Recuperar contraseña</h1>
           <p className="muted small">
             Te enviaremos un enlace para restablecerla.

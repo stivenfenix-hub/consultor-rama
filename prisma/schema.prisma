@@ -19,9 +19,23 @@ model User {
   lastName      String?
   passwordHash  String?
   emailVerified DateTime?
+  role          String    @default("user") // "user" | "admin"
+  lastLoginAt   DateTime?
   createdAt     DateTime  @default(now())
   cases         Case[]
   tokens        Token[]
+}
+
+// Ajustes globales del sitio (una sola fila con id "site"), editables por admin.
+model SiteSetting {
+  id          String   @id @default("site")
+  brandName   String   @default("Estradox")
+  logoDataUrl String? // PNG en data URL; si es null se usa el logo por defecto
+  colorAccent String   @default("#8b3dff")
+  colorAccent2 String  @default("#4b23e6")
+  colorBg     String   @default("#0a0820")
+  colorPanel  String   @default("#151140")
+  updatedAt   DateTime @updatedAt
 }
 
 // Tokens de un solo uso para verificar correo y restablecer contrasena.

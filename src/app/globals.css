@@ -129,6 +129,25 @@ input:-webkit-autofill:focus {
   filter: brightness(1.08);
 }
 
+/* Logo PNG del sitio (sobre chip blanco para que lea en tema oscuro) */
+.logo-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 9px;
+  padding: 6px 12px;
+}
+.brand-logo {
+  height: 24px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+.brand-logo.lg {
+  height: 38px;
+}
+
 /* Marca Estradox con degradado */
 .wordmark {
   display: inline-flex;
@@ -322,6 +341,13 @@ input:-webkit-autofill:focus {
 .nav-icon {
   width: 20px;
   text-align: center;
+}
+.nav-section {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  padding: 14px 12px 4px;
 }
 .sidebar-foot {
   border-top: 1px solid var(--border);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { verifyEmailToken } from "@/lib/accounts";
-import { Brand } from "@/components/brand";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default async function VerifyPage({
   searchParams,
@@ -15,7 +15,7 @@ export default async function VerifyPage({
       <div className="center">
         <div className="card" style={{ textAlign: "center" }}>
           <div style={{ marginBottom: 12, justifyContent: "center", display: "flex" }}>
-            <Brand />
+            <BrandLogo />
           </div>
           {ok ? (
             <>
