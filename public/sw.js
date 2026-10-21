@@ -19,7 +19,7 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "",
     icon: "/icon-512.png",
-    badge: "/icon-512.png",
+    badge: "/badge.png",
     data: { url: data.url || "/dashboard" },
     tag: data.tag,
     renotify: !!data.tag,
