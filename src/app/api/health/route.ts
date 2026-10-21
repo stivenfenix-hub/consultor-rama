@@ -7,13 +7,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   let db = false;
+  let ultimaSincronizacion: Date | null = null;
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    const r = await prisma.case.aggregate({ _max: { lastSyncedAt: true } });
+    ultimaSincronizacion = r._max.lastSyncedAt;
     db = true;
   } catch {}
   const set = (k: string) => !!process.env[k];
   return NextResponse.json({
     db,
+    ultimaSincronizacion,
     appUrl: process.env.APP_URL ?? null,
     sessionSecret: set("SESSION_SECRET"),
     cronSecret: set("CRON_SECRET"),

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { sincronizarTodos } from "@/lib/sync";
 
 /**
@@ -23,14 +23,25 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const resultados = await sincronizarTodos();
-  const nuevas = resultados.reduce((n, r) => n + (r.nuevas ?? 0), 0);
-  return NextResponse.json({
-    ok: true,
-    procesos: resultados.length,
-    actuacionesNuevas: nuevas,
-    fallidos: resultados.filter((r) => !r.ok).length,
+  // El proxy de Hostinger corta las peticiones a los 60 s, así que se responde
+  // de inmediato y la sincronización sigue en segundo plano.
+  after(async () => {
+    const inicio = Date.now();
+    try {
+      const resultados = await sincronizarTodos();
+      const nuevas = resultados.reduce((n, r) => n + (r.nuevas ?? 0), 0);
+      console.log(
+        `[cron] fin: ${resultados.length} procesos, ${nuevas} actuaciones nuevas, ` +
+          `${resultados.filter((r) => !r.ok).length} fallidos, ${Date.now() - inicio} ms`,
+      );
+    } catch (e) {
+      console.error("[cron] error", e);
+    }
   });
+  return NextResponse.json(
+    { ok: true, mensaje: "Sincronización iniciada en segundo plano." },
+    { status: 202 },
+  );
 }
 
 export const GET = handle;
