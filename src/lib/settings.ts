@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "./db";
+import { ensureColumn } from "./runtime-columns";
 
 export type SiteSettings = {
   id: string;
@@ -66,22 +67,9 @@ export async function updateSiteSettings(
 }
 
 // ---------- Favicon ----------
-// Se guarda en una columna creada en tiempo de ejecución (ADD COLUMN IF NOT
-// EXISTS) para no depender de una migración en la base de producción.
-let faviconColumnReady = false;
-async function ensureFaviconColumn() {
-  if (faviconColumnReady) return;
-  const cols = await prisma.$queryRawUnsafe<unknown[]>(
-    `SELECT 1 FROM information_schema.columns
-     WHERE table_name = 'SiteSetting' AND column_name = 'faviconDataUrl'`,
-  );
-  if (cols.length === 0) {
-    await prisma.$executeRawUnsafe(
-      `ALTER TABLE "SiteSetting" ADD COLUMN IF NOT EXISTS "faviconDataUrl" TEXT`,
-    );
-  }
-  faviconColumnReady = true;
-}
+// Columna creada en tiempo de ejecución (ver runtime-columns.ts).
+const ensureFaviconColumn = () =>
+  ensureColumn("SiteSetting", "faviconDataUrl", "TEXT");
 
 /** Favicon subido por el admin (data URL) o null si usa el de por defecto. */
 export async function getFaviconDataUrl(): Promise<string | null> {

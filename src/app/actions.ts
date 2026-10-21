@@ -19,6 +19,7 @@ import {
   resetPassword,
   changePassword,
   AccountError,
+  normalizarWhatsapp,
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
 import {
@@ -60,6 +61,19 @@ const registerSchema = z.object({
   firstName: z.string().min(1, "Ingresa tu nombre"),
   lastName: z.string().min(1, "Ingresa tu apellido"),
   email: z.string().email("Correo inválido"),
+  whatsapp: z
+    .string()
+    .transform((v, ctx) => {
+      const n = normalizarWhatsapp(v);
+      if (!n) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ingresa un número de WhatsApp válido (ej. 300 123 4567).",
+        });
+        return z.NEVER;
+      }
+      return n;
+    }),
   password: passwordSchema,
 });
 
@@ -75,6 +89,7 @@ export async function registerAction(
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
     email: formData.get("email"),
+    whatsapp: String(formData.get("whatsapp") ?? ""),
     password: formData.get("password"),
   });
   if (!parsed.success) {

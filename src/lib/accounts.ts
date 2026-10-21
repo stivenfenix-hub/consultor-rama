@@ -1,6 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { prisma } from "./db";
+import { ensureColumn } from "./runtime-columns";
 import { hashPassword } from "./auth";
 import { sendMail } from "./mailer";
 
@@ -50,11 +51,40 @@ async function consumeToken(type: "verify" | "reset", raw: string) {
 
 // ---------- Registro + verificacion ----------
 
+/**
+ * Normaliza un número de WhatsApp a formato internacional (+57...). Acepta
+ * espacios, guiones y paréntesis; un celular colombiano de 10 dígitos recibe
+ * el indicativo 57. Devuelve null si no parece un número válido.
+ */
+export function normalizarWhatsapp(raw: string): string | null {
+  const conMas = raw.trim().startsWith("+");
+  let d = raw.replace(/\D/g, "");
+  if (!conMas && d.length === 10 && d.startsWith("3")) d = `57${d}`;
+  if (d.length < 10 || d.length > 15) return null;
+  return `+${d}`;
+}
+
+const ensureWhatsappColumn = () => ensureColumn("User", "whatsapp", "TEXT");
+
+/** WhatsApp de cada usuario (id -> número), para el reporte de admin. */
+export async function getWhatsappPorUsuario(): Promise<Map<string, string>> {
+  try {
+    await ensureWhatsappColumn();
+    const rows = await prisma.$queryRawUnsafe<{ id: string; w: string }[]>(
+      `SELECT id, "whatsapp" AS w FROM "User" WHERE "whatsapp" IS NOT NULL`,
+    );
+    return new Map(rows.map((r) => [r.id, r.w]));
+  } catch {
+    return new Map();
+  }
+}
+
 export async function registerUser(input: {
   firstName: string;
   lastName: string;
   email: string;
   password: string;
+  whatsapp: string;
 }) {
   const email = input.email.trim().toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -71,6 +101,12 @@ export async function registerUser(input: {
       emailVerified: null,
     },
   });
+  await ensureWhatsappColumn();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "User" SET "whatsapp" = $1 WHERE id = $2`,
+    input.whatsapp,
+    user.id,
+  );
   await enviarVerificacion(user.id, email);
   return user;
 }

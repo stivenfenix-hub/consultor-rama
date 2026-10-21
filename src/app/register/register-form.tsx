@@ -34,6 +34,17 @@ export function RegisterForm() {
       <label className="small muted" htmlFor="email">Correo</label>
       <input id="email" name="email" type="email" required placeholder="abogado@ejemplo.com" />
       <div style={{ height: 10 }} />
+      <label className="small muted" htmlFor="whatsapp">WhatsApp</label>
+      <input
+        id="whatsapp"
+        name="whatsapp"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        required
+        placeholder="300 123 4567"
+      />
+      <div style={{ height: 10 }} />
       <label className="small muted" htmlFor="password">Contraseña</label>
       <input id="password" name="password" type="password" required placeholder="Mínimo 8, con letras y números" />
 

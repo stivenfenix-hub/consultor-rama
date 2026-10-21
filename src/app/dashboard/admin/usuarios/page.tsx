@@ -1,4 +1,5 @@
 import { listUsers } from "@/lib/admin";
+import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
 
 function fmt(d: Date | null | undefined) {
@@ -12,7 +13,7 @@ function fmt(d: Date | null | undefined) {
 }
 
 export default async function UsuariosAdmin() {
-  const users = await listUsers();
+  const [users, whatsapp] = await Promise.all([listUsers(), getWhatsappPorUsuario()]);
   const now = Date.now();
   const activos = users.filter(
     (u) =>
@@ -42,6 +43,7 @@ export default async function UsuariosAdmin() {
               <tr>
                 <th>Nombre</th>
                 <th>Correo</th>
+                <th>WhatsApp</th>
                 <th>Rol</th>
                 <th>Verificado</th>
                 <th>Procesos</th>
@@ -54,6 +56,19 @@ export default async function UsuariosAdmin() {
                 <tr key={u.id}>
                   <td>{u.name ?? "—"}</td>
                   <td className="muted">{u.email}</td>
+                  <td>
+                    {whatsapp.get(u.id) ? (
+                      <a
+                        href={`https://wa.me/${whatsapp.get(u.id)!.replace("+", "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {whatsapp.get(u.id)}
+                      </a>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td>
                     {u.role === "admin" ? (
                       <span className="badge new">admin</span>
