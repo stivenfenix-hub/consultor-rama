@@ -331,7 +331,7 @@ function DocButtons({
           }
         }}
       >
-        {bajando ? "…" : "⬇"}
+        {bajando ? "Descargando…" : "⬇ Descargar"}
       </button>
     </div>
   );
