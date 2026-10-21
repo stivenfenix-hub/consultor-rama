@@ -100,6 +100,22 @@ export default async function CaseDetail({
     { label: "Fecha del proceso", value: fmtFecha(caso.fechaProceso) },
   ].filter((d): d is { label: string; value: string } => !!d.value);
 
+  // Documentos agrupados por su actuación (campo consActuacion).
+  const docsByCons = new Map<
+    number,
+    { idRegDocumento: string; nombre: string; tipo: string | null }[]
+  >();
+  for (const d of caso.documentos) {
+    if (d.consActuacion == null) continue;
+    const arr = docsByCons.get(d.consActuacion) ?? [];
+    arr.push({
+      idRegDocumento: d.idRegDocumento,
+      nombre: d.nombre ?? "Documento",
+      tipo: d.tipo,
+    });
+    docsByCons.set(d.consActuacion, arr);
+  }
+
   const actuaciones = caso.actuaciones.map((a) => ({
     id: a.id,
     fecha: fmtFecha(a.fechaActuacion),
@@ -107,6 +123,7 @@ export default async function CaseDetail({
     anotacion: a.anotacion,
     seen: !!a.seenAt,
     conDocumentos: a.conDocumentos,
+    docs: a.consActuacion != null ? docsByCons.get(a.consActuacion) ?? [] : [],
   }));
 
   // Partes estructuradas; si aún no hay (proceso sincronizado antes), parsea el texto.

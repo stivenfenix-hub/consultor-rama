@@ -10,6 +10,7 @@ export type Act = {
   anotacion: string | null;
   seen: boolean;
   conDocumentos: boolean;
+  docs: { idRegDocumento: string; nombre: string; tipo: string | null }[];
 };
 export type Parte = {
   rol: string;
@@ -125,6 +126,22 @@ export function CaseTabs({
                 </div>
                 <div className="name">{a.nombre}</div>
                 {a.anotacion && <div className="note">{a.anotacion}</div>}
+                {a.docs.length > 0 && (
+                  <div className="row wrap" style={{ gap: 8, marginTop: 8 }}>
+                    {a.docs.map((d) => (
+                      <a
+                        key={d.idRegDocumento}
+                        className="btn secondary small"
+                        href={`/api/documento/${d.idRegDocumento}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={d.nombre}
+                      >
+                        ⬇ Descargar{d.tipo ? ` ${d.tipo.toUpperCase()}` : ""}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </>
