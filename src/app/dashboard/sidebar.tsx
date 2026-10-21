@@ -134,16 +134,24 @@ export function AppShell({
 
       {/* Barra de navegación inferior (solo móvil) */}
       <nav className="bottom-nav">
-        {BOTTOM_NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`bottom-item ${isActive(item.href) ? "active" : ""}`}
-          >
-            <Icon name={item.icon} size={22} className="bottom-icon" />
-            <span className="bottom-label">{item.label}</span>
-          </Link>
-        ))}
+        {BOTTOM_NAV.map((nav) => {
+          // Para el admin, "Inicio" lleva al panel admin.
+          const esInicioAdmin = isAdmin && nav.href === "/dashboard";
+          const href = esInicioAdmin ? "/dashboard/admin" : nav.href;
+          const activo = esInicioAdmin
+            ? pathname === "/dashboard/admin"
+            : isActive(nav.href);
+          return (
+            <Link
+              key={nav.href}
+              href={href}
+              className={`bottom-item ${activo ? "active" : ""}`}
+            >
+              <Icon name={nav.icon} size={22} className="bottom-icon" />
+              <span className="bottom-label">{nav.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       <NotificationsPrompt />

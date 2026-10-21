@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { loginWithPassword, logout, requireUser, requireAdmin } from "@/lib/auth";
+import {
+  homePath,
+  loginWithPassword,
+  logout,
+  requireUser,
+  requireAdmin,
+} from "@/lib/auth";
 import { updateSiteSettings } from "@/lib/settings";
 import { sendPushToAll } from "@/lib/push";
 import {
@@ -46,7 +52,7 @@ export async function loginAction(
       error: "Tu correo aún no está verificado. Revisa tu bandeja.",
       needsVerify: res.email,
     };
-  redirect("/dashboard");
+  redirect(homePath(res.role));
 }
 
 // ---------- Registro ----------

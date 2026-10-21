@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, homePath } from "@/lib/auth";
 import { BrandLogo } from "@/components/brand-logo";
 import { RegisterForm } from "./register-form";
 
 export default async function RegisterPage() {
   const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect(homePath(user.role));
 
   return (
     <div className="container">

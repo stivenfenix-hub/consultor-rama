@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, homePath } from "@/lib/auth";
 import { getSiteSettings } from "@/lib/settings";
 import { BrandLogo } from "@/components/brand-logo";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage() {
   const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect(homePath(user.role));
   const s = await getSiteSettings();
 
   return (

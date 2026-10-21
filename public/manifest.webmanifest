@@ -2,7 +2,7 @@
   "name": "Estradox",
   "short_name": "Estradox",
   "description": "Seguimiento de procesos judiciales en tiempo real",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

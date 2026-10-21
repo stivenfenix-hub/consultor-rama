@@ -69,6 +69,11 @@ export async function requireAdmin() {
   return user;
 }
 
+/** Página de inicio según el rol: el admin (root) entra al panel admin. */
+export function homePath(role: string | null | undefined) {
+  return role === "admin" ? "/dashboard/admin" : "/dashboard";
+}
+
 export async function isAdmin() {
   const user = await getCurrentUser();
   return user?.role === "admin";
@@ -85,7 +90,7 @@ export async function hashPassword(plain: string) {
  * - invalid: correo o contrasena incorrectos.
  */
 export type LoginResult =
-  | { status: "ok" }
+  | { status: "ok"; role: string }
   | { status: "unverified"; email: string }
   | { status: "invalid" };
 
@@ -106,5 +111,5 @@ export async function loginWithPassword(
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   });
-  return { status: "ok" };
+  return { status: "ok", role: user.role };
 }
