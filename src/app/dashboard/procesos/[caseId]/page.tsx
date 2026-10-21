@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
 import { CaseTabs, type Datos } from "./case-tabs";
+import { Icon } from "@/components/icon";
 
 const TZ = "America/Bogota";
 function fmtFecha(d: Date | null | undefined) {
@@ -161,7 +162,7 @@ export default async function CaseDetail({
       <div className="page-head wrap">
         <div>
           <Link href="/dashboard/procesos" className="small muted">
-            ← Procesos
+            <Icon name="arrowLeft" size={14} /> Procesos
           </Link>
           <h1 className="radicado" style={{ marginTop: 4 }}>
             {caso.radicado}

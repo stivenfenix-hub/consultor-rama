@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Icon } from "@/components/icon";
 import { useRouter } from "next/navigation";
 import {
   refrescarProcesoAction,
@@ -34,7 +35,7 @@ export function CaseActions({
         disabled={pending}
         onClick={() => run("refresh", () => refrescarProcesoAction(caseId))}
       >
-        {pending && accion === "refresh" ? "Actualizando…" : "↻ Actualizar"}
+        {pending && accion === "refresh" ? "Actualizando…" : <><Icon name="refresh" /> Actualizar</>}
       </button>
 
       {hasUnseen && (

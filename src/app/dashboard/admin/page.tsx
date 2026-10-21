@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAdminStats } from "@/lib/admin";
 import { StatTile } from "@/components/charts";
+import { Icon } from "@/components/icon";
 
 export default async function AdminDashboard() {
   const s = await getAdminStats();
@@ -37,10 +38,10 @@ export default async function AdminDashboard() {
         <h2>Accesos rápidos</h2>
         <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
           <Link href="/dashboard/admin/usuarios" className="btn secondary">
-            👥 Ver usuarios
+            <Icon name="users" /> Ver usuarios
           </Link>
           <Link href="/dashboard/admin/apariencia" className="btn secondary">
-            🎨 Apariencia del sitio
+            <Icon name="palette" /> Apariencia del sitio
           </Link>
         </div>
       </section>

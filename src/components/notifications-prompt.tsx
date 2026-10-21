@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { pushSupported, subscribeToPush } from "@/lib/push-client";
+import { Icon } from "./icon";
 
 /**
  * Aviso que, al entrar, pregunta si quiere activar notificaciones.
@@ -59,9 +60,9 @@ export function NotificationsPrompt() {
   return (
     <div className="ios-bubble" role="dialog" aria-label="Activar notificaciones">
       <button className="ios-bubble-close" onClick={dismiss} aria-label="Cerrar">
-        ✕
+        <Icon name="close" size={16} />
       </button>
-      <div className="ios-bubble-title">🔔 ¿Activar notificaciones?</div>
+      <div className="ios-bubble-title"><Icon name="bell" /> ¿Activar notificaciones?</div>
       <div className="ios-bubble-text">
         Te avisamos apenas haya <b>actuaciones nuevas</b> en tus procesos.
       </div>

@@ -6,6 +6,7 @@ import {
   descargarDocumento,
   type ViewerDoc,
 } from "@/components/document-viewer";
+import { Icon } from "@/components/icon";
 
 export type Datos = { label: string; value: string }[];
 export type Act = {
@@ -160,7 +161,7 @@ export function CaseTabs({
               documentos.map((d) => (
                 <div key={d.idRegDocumento} className="doc-row">
                   <div style={{ minWidth: 0 }}>
-                    <div className="name">📄 {d.nombre}</div>
+                    <div className="name"><Icon name="file" size={16} /> {d.nombre}</div>
                     <div className="muted small">
                       {d.fecha}
                       {d.tipo ? ` · ${d.tipo.toUpperCase()}` : ""}
@@ -219,7 +220,7 @@ export function CaseTabs({
               grabaciones.map((g, i) => (
                 <div key={i} className="doc-row">
                   <div style={{ minWidth: 0 }}>
-                    <div className="name">🎙️ {g.actuacion}</div>
+                    <div className="name"><Icon name="mic" size={16} /> {g.actuacion}</div>
                     <div className="muted small" style={{ wordBreak: "break-all" }}>
                       {g.fecha} · {g.url}
                     </div>
@@ -265,10 +266,10 @@ export function CaseTabs({
                         <td>{l.operacion}</td>
                         <td>
                           {l.resultado === "exito" ? (
-                            <span style={{ color: "var(--green)" }}>✓ Éxito</span>
+                            <span style={{ color: "var(--green)" }}><Icon name="check" size={15} /> Éxito</span>
                           ) : (
                             <span style={{ color: "var(--amber)" }}>
-                              ⚠ Fallo
+                              <Icon name="alert" size={15} /> Fallo
                             </span>
                           )}
                         </td>
@@ -313,7 +314,7 @@ function DocButtons({
         onClick={() => onVer(doc)}
         title={doc.nombre}
       >
-        👁 {etiqueta}
+        <Icon name="eye" size={16} /> {etiqueta}
       </button>
       <button
         className="btn secondary small"
@@ -331,7 +332,7 @@ function DocButtons({
           }
         }}
       >
-        {bajando ? "Descargando…" : "⬇ Descargar"}
+        {bajando ? "Descargando…" : <><Icon name="download" size={16} /> Descargar</>}
       </button>
     </div>
   );

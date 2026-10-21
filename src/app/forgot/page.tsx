@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
+import { Icon } from "@/components/icon";
 import { ForgotForm } from "./forgot-form";
 
 export default function ForgotPage() {
@@ -14,7 +15,7 @@ export default function ForgotPage() {
           </p>
           <ForgotForm />
           <p className="muted small" style={{ marginTop: 14 }}>
-            <Link href="/login">← Volver a iniciar sesión</Link>
+            <Link href="/login"><Icon name="arrowLeft" size={14} /> Volver a iniciar sesión</Link>
           </p>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { resetAction } from "@/app/actions";
+import { Icon } from "@/components/icon";
 
 export function ResetForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(resetAction, {});
@@ -12,7 +13,7 @@ export function ResetForm({ token }: { token: string }) {
       <div style={{ marginTop: 16 }}>
         <div className="ok">{state.ok}</div>
         <p className="muted small" style={{ marginTop: 12 }}>
-          <Link href="/login">Ir a iniciar sesión →</Link>
+          <Link href="/login">Ir a iniciar sesión <Icon name="arrowRight" size={14} /></Link>
         </p>
       </div>
     );

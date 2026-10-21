@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./icon";
 
 // pdf.js desde CDN: Chrome Android (y la app instalada) no muestra PDFs dentro
 // de la página, así que cada hoja se dibuja en un <canvas>.
@@ -152,7 +153,7 @@ export function DocumentViewer({
     <div className="viewer-overlay" role="dialog" aria-modal="true">
       <div className="viewer-head">
         <button className="btn secondary small" onClick={onClose}>
-          ✕ Cerrar
+          <Icon name="close" size={16} /> Cerrar
         </button>
         <div className="viewer-title" title={doc.nombre}>
           {doc.nombre}
@@ -164,7 +165,7 @@ export function DocumentViewer({
           )}
         </div>
         <button className="btn small" onClick={descargar} disabled={descargando}>
-          {descargando ? "Descargando…" : "⬇ Descargar"}
+          {descargando ? "Descargando…" : <><Icon name="download" size={16} /> Descargar</>}
         </button>
       </div>
       <div className="viewer-body">

@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useEffect } from "react";
 import { enviarPromoAction } from "@/app/actions";
+import { Icon } from "@/components/icon";
 
 export function PromoForm() {
   const [state, formAction, pending] = useActionState(enviarPromoAction, {});
@@ -49,7 +50,7 @@ export function PromoForm() {
 
       <div style={{ height: 14 }} />
       <button className="btn" type="submit" disabled={pending}>
-        {pending ? "Enviando…" : "📣 Enviar a todos"}
+        {pending ? "Enviando…" : <><Icon name="megaphone" /> Enviar a todos</>}
       </button>
       {state.error && <div className="error">{state.error}</div>}
       {state.ok && <div className="ok">{state.ok}</div>}

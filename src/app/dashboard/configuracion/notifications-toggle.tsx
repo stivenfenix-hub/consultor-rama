@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "@/components/icon";
 import {
   pushSupported,
   isSubscribed,
@@ -66,7 +67,7 @@ export function NotificationsToggle() {
         </button>
       ) : (
         <button className="btn" onClick={activar} disabled={busy}>
-          {busy ? "Activando..." : "🔔 Activar notificaciones"}
+          {busy ? "Activando..." : <><Icon name="bell" /> Activar notificaciones</>}
         </button>
       )}
       {msg && (

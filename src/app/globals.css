@@ -398,8 +398,7 @@ input:-webkit-autofill:focus {
   color: var(--accent);
 }
 .nav-icon {
-  width: 20px;
-  text-align: center;
+  color: #fff;
 }
 .nav-section {
   font-size: 11px;
@@ -829,4 +828,29 @@ input:-webkit-autofill:focus {
 .viewer-msg {
   text-align: center;
   margin-top: 40px;
+}
+
+/* Iconos planos (SVG) */
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+.bottom-icon {
+  color: #fff;
+}
+.ios-bubble-title,
+.doc-row .name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.doc-row .name .icon {
+  opacity: 0.85;
+}
+.hamburger,
+.close,
+.sidebar-brand .close {
+  color: #fff;
+  line-height: 0;
 }

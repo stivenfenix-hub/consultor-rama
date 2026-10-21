@@ -4,25 +4,26 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationsPrompt } from "@/components/notifications-prompt";
+import { Icon, type IconName } from "@/components/icon";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: "▦" },
-  { href: "/dashboard/procesos", label: "Procesos", icon: "⚖️" },
-  { href: "/dashboard/configuracion", label: "Configuración", icon: "⚙️" },
+const NAV: { href: string; label: string; icon: IconName }[] = [
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/dashboard/procesos", label: "Procesos", icon: "scale" },
+  { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
 ];
 
-const ADMIN_NAV = [
-  { href: "/dashboard/admin", label: "Panel admin", icon: "👑" },
-  { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "👥" },
-  { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "📣" },
-  { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "🎨" },
+const ADMIN_NAV: { href: string; label: string; icon: IconName }[] = [
+  { href: "/dashboard/admin", label: "Panel admin", icon: "shield" },
+  { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "users" },
+  { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "megaphone" },
+  { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "palette" },
 ];
 
 // Barra inferior solo en móvil.
-const BOTTOM_NAV = [
-  { href: "/dashboard", label: "Inicio", icon: "🏠" },
-  { href: "/dashboard/procesos", label: "Procesos", icon: "⚖️" },
-  { href: "/dashboard/configuracion", label: "Configuración", icon: "⚙️" },
+const BOTTOM_NAV: { href: string; label: string; icon: IconName }[] = [
+  { href: "/dashboard", label: "Inicio", icon: "home" },
+  { href: "/dashboard/procesos", label: "Procesos", icon: "scale" },
+  { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
 ];
 
 export function AppShell({
@@ -51,7 +52,7 @@ export function AppShell({
       : pathname === href || pathname.startsWith(href + "/");
 
   const renderNav = (
-    items: { href: string; label: string; icon: string }[],
+    items: { href: string; label: string; icon: IconName }[],
   ) =>
     items.map((item) => (
       <Link
@@ -60,7 +61,7 @@ export function AppShell({
         className={`nav-item ${isActive(item.href) ? "active" : ""}`}
         onClick={() => setOpen(false)}
       >
-        <span className="nav-icon">{item.icon}</span>
+        <Icon name={item.icon} size={19} className="nav-icon" />
         {item.label}
       </Link>
     ));
@@ -78,7 +79,7 @@ export function AppShell({
             aria-label="Cerrar menú"
             onClick={() => setOpen(false)}
           >
-            ✕
+            <Icon name="close" size={20} />
           </button>
         </div>
 
@@ -121,7 +122,7 @@ export function AppShell({
             aria-label="Abrir menú"
             onClick={() => setOpen(true)}
           >
-            ☰
+            <Icon name="menu" size={22} />
           </button>
           <span className="logo-chip">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -139,7 +140,7 @@ export function AppShell({
             href={item.href}
             className={`bottom-item ${isActive(item.href) ? "active" : ""}`}
           >
-            <span className="bottom-icon">{item.icon}</span>
+            <Icon name={item.icon} size={22} className="bottom-icon" />
             <span className="bottom-label">{item.label}</span>
           </Link>
         ))}

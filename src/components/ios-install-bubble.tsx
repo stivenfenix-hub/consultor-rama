@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "./icon";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -92,9 +93,9 @@ export function IosInstallBubble() {
   return (
     <div className="ios-bubble" role="dialog" aria-label="Instalar app">
       <button className="ios-bubble-close" onClick={close} aria-label="Cerrar">
-        ✕
+        <Icon name="close" size={16} />
       </button>
-      <div className="ios-bubble-title">📲 Instala Estradox</div>
+      <div className="ios-bubble-title"><Icon name="phone" /> Instala Estradox</div>
 
       {deferred ? (
         <>
@@ -107,7 +108,7 @@ export function IosInstallBubble() {
             style={{ marginTop: 10 }}
             onClick={install}
           >
-            ⬇ Instalar app
+            <Icon name="download" /> Instalar app
           </button>
         </>
       ) : ios ? (

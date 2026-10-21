@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { verifyEmailToken } from "@/lib/accounts";
 import { BrandLogo } from "@/components/brand-logo";
+import { Icon } from "@/components/icon";
 
 export default async function VerifyPage({
   searchParams,
@@ -19,7 +20,7 @@ export default async function VerifyPage({
           </div>
           {ok ? (
             <>
-              <h1>✅ Correo verificado</h1>
+              <h1><Icon name="checkCircle" size={26} /> Correo verificado</h1>
               <p className="muted">Tu cuenta quedó activada. Ya puedes iniciar sesión.</p>
               <Link href="/login" className="btn" style={{ marginTop: 10 }}>
                 Iniciar sesión
