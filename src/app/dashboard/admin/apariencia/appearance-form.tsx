@@ -9,6 +9,8 @@ type S = {
   emailLogoDataUrl: string | null;
   byLogoDataUrl: string | null;
   byUrl: string;
+  notifIconDataUrl: string | null;
+  notifBadgeDataUrl: string | null;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -68,10 +70,17 @@ function LogoUpload({
   hint: string;
   current: string | null;
   previewBg: string;
-  which: "platform" | "email" | "by";
+  which: "platform" | "email" | "by" | "notif-icon" | "notif-badge";
 }) {
   const [preview, setPreview] = useState<string | null>(current);
-  const fallback = which === "by" ? "/unor-logo.png" : "/logo-estradox.png";
+  const fallback =
+    which === "by"
+      ? "/unor-logo.png"
+      : which === "notif-icon"
+        ? "/icon-512.png"
+        : which === "notif-badge"
+          ? "/badge.png"
+          : "/logo-estradox.png";
   return (
     <div style={{ marginTop: 14 }}>
       <label className="small muted">{title}</label>
@@ -180,6 +189,24 @@ export function AppearanceForm({ settings }: { settings: S }) {
             style={{ maxWidth: 320 }}
           />
         </div>
+
+        <LogoUpload
+          field="notifIcon"
+          which="notif-icon"
+          title="Ícono de las notificaciones (el grande, a color)"
+          hint="Aparece en la notificación al recibirla. PNG cuadrado recomendado."
+          current={settings.notifIconDataUrl}
+          previewBg="var(--bg)"
+        />
+
+        <LogoUpload
+          field="notifBadge"
+          which="notif-badge"
+          title="Badge de notificación (el pequeño de la barra de estado)"
+          hint="En Android se ve como silueta blanca: usa un PNG con fondo transparente y solo la figura."
+          current={settings.notifBadgeDataUrl}
+          previewBg="#3b3366"
+        />
       </div>
 
       <div className="card">

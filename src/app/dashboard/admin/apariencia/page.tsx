@@ -18,6 +18,8 @@ export default async function AparienciaPage() {
           emailLogoDataUrl: s.emailLogoDataUrl,
           byLogoDataUrl: s.byLogoDataUrl,
           byUrl: s.byUrl,
+          notifIconDataUrl: s.notifIconDataUrl,
+          notifBadgeDataUrl: s.notifBadgeDataUrl,
           colorAccent: s.colorAccent,
           colorAccent2: s.colorAccent2,
           colorBg: s.colorBg,

@@ -8,6 +8,8 @@ export type SiteSettings = {
   emailLogoDataUrl: string | null;
   byLogoDataUrl: string | null;
   byUrl: string;
+  notifIconDataUrl: string | null;
+  notifBadgeDataUrl: string | null;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -21,6 +23,8 @@ const DEFAULTS: SiteSettings = {
   emailLogoDataUrl: null,
   byLogoDataUrl: null,
   byUrl: "https://unorgroup.com",
+  notifIconDataUrl: null,
+  notifBadgeDataUrl: null,
   colorAccent: "#8b3dff",
   colorAccent2: "#4b23e6",
   colorBg: "#0a0820",
@@ -39,6 +43,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       emailLogoDataUrl: s.emailLogoDataUrl,
       byLogoDataUrl: s.byLogoDataUrl,
       byUrl: s.byUrl,
+      notifIconDataUrl: s.notifIconDataUrl,
+      notifBadgeDataUrl: s.notifBadgeDataUrl,
       colorAccent: s.colorAccent,
       colorAccent2: s.colorAccent2,
       colorBg: s.colorBg,

@@ -192,6 +192,8 @@ export async function updateAppearanceAction(
     emailLogoDataUrl?: string;
     byLogoDataUrl?: string;
     byUrl?: string;
+    notifIconDataUrl?: string;
+    notifBadgeDataUrl?: string;
   } = { ...parsed.data };
 
   // Convierte un archivo de imagen a data URL (máx 500 KB). Devuelve mensaje de error o null.
@@ -228,13 +230,26 @@ export async function updateAppearanceAction(
     data.byUrl = byUrl;
   }
 
+  const nIcon = await fileToDataUrl("notifIcon");
+  if (nIcon.error) return { error: nIcon.error };
+  if (nIcon.dataUrl) data.notifIconDataUrl = nIcon.dataUrl;
+
+  const nBadge = await fileToDataUrl("notifBadge");
+  if (nBadge.error) return { error: nBadge.error };
+  if (nBadge.dataUrl) data.notifBadgeDataUrl = nBadge.dataUrl;
+
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
   return { ok: "Apariencia actualizada. Los cambios ya están aplicados." };
 }
 
 export async function resetLogoAction(
-  which: "platform" | "email" | "by" = "platform",
+  which:
+    | "platform"
+    | "email"
+    | "by"
+    | "notif-icon"
+    | "notif-badge" = "platform",
 ) {
   await requireAdmin();
   const data =
@@ -242,7 +257,11 @@ export async function resetLogoAction(
       ? { emailLogoDataUrl: null }
       : which === "by"
         ? { byLogoDataUrl: null }
-        : { logoDataUrl: null };
+        : which === "notif-icon"
+          ? { notifIconDataUrl: null }
+          : which === "notif-badge"
+            ? { notifBadgeDataUrl: null }
+            : { logoDataUrl: null };
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
 }

@@ -18,7 +18,11 @@ export async function GET(
       ? s.emailLogoDataUrl
       : type === "by"
         ? s.byLogoDataUrl
-        : s.logoDataUrl;
+        : type === "notif-icon"
+          ? s.notifIconDataUrl
+          : type === "notif-badge"
+            ? s.notifBadgeDataUrl
+            : s.logoDataUrl;
 
   const m = dataUrl?.match(/^data:(.+?);base64,(.*)$/s);
   if (m) {
@@ -28,8 +32,15 @@ export async function GET(
     });
   }
 
-  // Por defecto: logo incluido en el proyecto
-  const defaultFile = type === "by" ? "unor-logo.png" : "logo-estradox.png";
+  // Por defecto: archivo incluido en el proyecto según el tipo.
+  const defaultFile =
+    type === "by"
+      ? "unor-logo.png"
+      : type === "notif-badge"
+        ? "badge.png"
+        : type === "notif-icon"
+          ? "icon-512.png"
+          : "logo-estradox.png";
   const file = await readFile(
     path.join(process.cwd(), "public", defaultFile),
   );
