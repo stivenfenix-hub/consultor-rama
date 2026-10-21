@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Icon } from "./icon";
+
+// Páginas de acceso donde no se muestra la burbuja.
+const SIN_BURBUJA = ["/login", "/register", "/forgot", "/reset", "/verify"];
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -12,9 +16,11 @@ type BeforeInstallPromptEvent = Event & {
  * Invitación a instalar Estradox como app.
  * - Android / Chrome / Edge: botón "Instalar app" (instalación nativa de un toque).
  * - iPhone/iPad: instrucciones manuales (Apple no permite instalar por API).
- * No se muestra si ya está instalada (standalone) o si el usuario la cerró.
+ * No se muestra si ya está instalada (standalone), si el usuario la cerró, ni
+ * en las páginas de acceso (login, registro, etc.).
  */
 export function IosInstallBubble() {
+  const pathname = usePathname();
   const [show, setShow] = useState(false);
   const [ios, setIos] = useState(false);
   const [chrome, setChrome] = useState(false);
@@ -67,7 +73,7 @@ export function IosInstallBubble() {
     };
   }, []);
 
-  if (!show) return null;
+  if (!show || SIN_BURBUJA.some((p) => pathname.startsWith(p))) return null;
 
   const close = () => {
     try {
