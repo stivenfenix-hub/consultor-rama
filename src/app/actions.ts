@@ -21,7 +21,6 @@ import {
   sincronizarProcesosDeUsuario,
   marcarVistas,
 } from "@/lib/sync";
-import { RamaError } from "@/lib/rama";
 
 type ActionState = { error?: string; ok?: string; needsVerify?: string };
 
@@ -302,32 +301,50 @@ export async function logoutAction() {
   redirect("/login");
 }
 
-const radicadoSchema = z
-  .string()
-  .transform((s) => s.replace(/\D/g, ""))
-  .refine((s) => s.length === 23, "El radicado debe tener 23 digitos");
-
 export async function agregarProcesoAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser();
-  const parsed = radicadoSchema.safeParse(formData.get("radicado"));
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Radicado invalido" };
-  }
-  try {
-    const creados = await agregarProcesoPorRadicado(user.id, parsed.data);
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/procesos");
-    return { ok: `Proceso agregado (${creados.length} registro(s)).` };
-  } catch (err) {
-    if (err instanceof RamaError) return { error: err.message };
+  const input = String(formData.get("radicado") ?? "");
+  // Acepta varios radicados separados por coma, espacio, punto y coma o salto.
+  const radicados = [
+    ...new Set(
+      input
+        .split(/[\s,;]+/)
+        .map((s) => s.replace(/\D/g, ""))
+        .filter((s) => s.length === 23),
+    ),
+  ];
+  if (radicados.length === 0) {
     return {
       error:
-        "No se pudo consultar la Rama Judicial (puede estar lenta). Intenta de nuevo.",
+        "Ingresa uno o más radicados de 23 dígitos (separados por coma o espacio).",
     };
   }
+
+  let agregados = 0;
+  let fallidos = 0;
+  for (const rad of radicados) {
+    try {
+      await agregarProcesoPorRadicado(user.id, rad);
+      agregados++;
+    } catch {
+      fallidos++;
+    }
+  }
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/procesos");
+
+  if (agregados === 0) {
+    return {
+      error:
+        "No se pudo agregar ningún proceso (la Rama puede estar lenta o los radicados no existen).",
+    };
+  }
+  return {
+    ok: `${agregados} proceso(s) agregado(s)${fallidos ? `, ${fallidos} con error` : ""}.`,
+  };
 }
 
 export async function refrescarProcesoAction(caseId: string) {
