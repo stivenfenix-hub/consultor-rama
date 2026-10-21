@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { getSiteSettings } from "@/lib/settings";
+import { getFaviconDataUrl, getSiteSettings } from "@/lib/settings";
 
 // Sirve el logo de la plataforma o el de los correos como imagen real (URL),
 // para que funcione en clientes de correo que bloquean data URIs.
@@ -14,7 +14,9 @@ export async function GET(
   const { type } = await params;
   const s = await getSiteSettings();
   const dataUrl =
-    type === "email"
+    type === "favicon"
+      ? await getFaviconDataUrl()
+      : type === "email"
       ? s.emailLogoDataUrl
       : type === "by"
         ? s.byLogoDataUrl
@@ -33,6 +35,12 @@ export async function GET(
   }
 
   // Por defecto: archivo incluido en el proyecto según el tipo.
+  if (type === "favicon") {
+    const svg = await readFile(path.join(process.cwd(), "public", "favicon.svg"));
+    return new Response(new Uint8Array(svg), {
+      headers: { "content-type": "image/svg+xml", "cache-control": "no-cache" },
+    });
+  }
   const defaultFile =
     type === "by"
       ? "unor-logo.png"

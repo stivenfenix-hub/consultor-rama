@@ -64,3 +64,47 @@ export async function updateSiteSettings(
     create: { id: "site", ...data },
   });
 }
+
+// ---------- Favicon ----------
+// Se guarda en una columna creada en tiempo de ejecución (ADD COLUMN IF NOT
+// EXISTS) para no depender de una migración en la base de producción.
+let faviconColumnReady = false;
+async function ensureFaviconColumn() {
+  if (faviconColumnReady) return;
+  const cols = await prisma.$queryRawUnsafe<unknown[]>(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'SiteSetting' AND column_name = 'faviconDataUrl'`,
+  );
+  if (cols.length === 0) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "SiteSetting" ADD COLUMN IF NOT EXISTS "faviconDataUrl" TEXT`,
+    );
+  }
+  faviconColumnReady = true;
+}
+
+/** Favicon subido por el admin (data URL) o null si usa el de por defecto. */
+export async function getFaviconDataUrl(): Promise<string | null> {
+  try {
+    await ensureFaviconColumn();
+    const rows = await prisma.$queryRawUnsafe<{ f: string | null }[]>(
+      `SELECT "faviconDataUrl" AS f FROM "SiteSetting" WHERE id = 'site'`,
+    );
+    return rows[0]?.f ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setFaviconDataUrl(dataUrl: string | null) {
+  await ensureFaviconColumn();
+  await prisma.siteSetting.upsert({
+    where: { id: "site" },
+    create: { id: "site" },
+    update: {},
+  });
+  await prisma.$executeRawUnsafe(
+    `UPDATE "SiteSetting" SET "faviconDataUrl" = $1 WHERE id = 'site'`,
+    dataUrl,
+  );
+}

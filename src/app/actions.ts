@@ -10,7 +10,7 @@ import {
   requireUser,
   requireAdmin,
 } from "@/lib/auth";
-import { updateSiteSettings } from "@/lib/settings";
+import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
 import { sendPushToAll } from "@/lib/push";
 import {
   registerUser,
@@ -243,6 +243,10 @@ export async function updateAppearanceAction(
   if (nBadge.error) return { error: nBadge.error };
   if (nBadge.dataUrl) data.notifBadgeDataUrl = nBadge.dataUrl;
 
+  const fav = await fileToDataUrl("favicon");
+  if (fav.error) return { error: fav.error };
+  if (fav.dataUrl) await setFaviconDataUrl(fav.dataUrl);
+
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
   return { ok: "Apariencia actualizada. Los cambios ya están aplicados." };
@@ -254,9 +258,15 @@ export async function resetLogoAction(
     | "email"
     | "by"
     | "notif-icon"
-    | "notif-badge" = "platform",
+    | "notif-badge"
+    | "favicon" = "platform",
 ) {
   await requireAdmin();
+  if (which === "favicon") {
+    await setFaviconDataUrl(null);
+    revalidatePath("/", "layout");
+    return;
+  }
   const data =
     which === "email"
       ? { emailLogoDataUrl: null }

@@ -11,6 +11,7 @@ type S = {
   byUrl: string;
   notifIconDataUrl: string | null;
   notifBadgeDataUrl: string | null;
+  faviconDataUrl: string | null;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -70,7 +71,7 @@ function LogoUpload({
   hint: string;
   current: string | null;
   previewBg: string;
-  which: "platform" | "email" | "by" | "notif-icon" | "notif-badge";
+  which: "platform" | "email" | "by" | "notif-icon" | "notif-badge" | "favicon";
 }) {
   const [preview, setPreview] = useState<string | null>(current);
   const fallback =
@@ -80,7 +81,9 @@ function LogoUpload({
         ? "/icon-512.png"
         : which === "notif-badge"
           ? "/badge.png"
-          : "/logo-estradox.png";
+          : which === "favicon"
+            ? "/favicon.svg"
+            : "/logo-estradox.png";
   return (
     <div style={{ marginTop: 14 }}>
       <label className="small muted">{title}</label>
@@ -206,6 +209,15 @@ export function AppearanceForm({ settings }: { settings: S }) {
           hint="En Android se ve como silueta blanca: usa un PNG con fondo transparente y solo la figura."
           current={settings.notifBadgeDataUrl}
           previewBg="#3b3366"
+        />
+
+        <LogoUpload
+          field="favicon"
+          which="favicon"
+          title="Favicon (ícono de la pestaña del navegador)"
+          hint="PNG o SVG cuadrado, idealmente 64×64 o 512×512. Puede tardar en verse por la caché del navegador."
+          current={settings.faviconDataUrl}
+          previewBg="var(--bg)"
         />
       </div>
 

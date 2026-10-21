@@ -1,8 +1,8 @@
-import { getSiteSettings } from "@/lib/settings";
+import { getFaviconDataUrl, getSiteSettings } from "@/lib/settings";
 import { AppearanceForm } from "./appearance-form";
 
 export default async function AparienciaPage() {
-  const s = await getSiteSettings();
+  const [s, favicon] = await Promise.all([getSiteSettings(), getFaviconDataUrl()]);
   return (
     <div className="page">
       <div className="page-head">
@@ -20,6 +20,7 @@ export default async function AparienciaPage() {
           byUrl: s.byUrl,
           notifIconDataUrl: s.notifIconDataUrl,
           notifBadgeDataUrl: s.notifBadgeDataUrl,
+          faviconDataUrl: favicon,
           colorAccent: s.colorAccent,
           colorAccent2: s.colorAccent2,
           colorBg: s.colorBg,

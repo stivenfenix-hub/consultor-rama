@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { getSiteSettings } from "@/lib/settings";
+import { createHash } from "node:crypto";
+import { getFaviconDataUrl, getSiteSettings } from "@/lib/settings";
 import { IosInstallBubble } from "@/components/ios-install-bubble";
 import "./globals.css";
 
-export const metadata: Metadata = {
+const BASE_METADATA: Metadata = {
   title: "Estradox",
   description: "Seguimiento de procesos judiciales en tiempo real",
   manifest: "/manifest.webmanifest",
@@ -12,8 +13,23 @@ export const metadata: Metadata = {
     title: "Estradox",
     statusBarStyle: "black-translucent",
   },
-  icons: { apple: "/icon-512.png" },
 };
+
+// El favicon lo configura el admin; la versión (?v=) cambia con la imagen para
+// que el navegador no siga mostrando el anterior.
+export async function generateMetadata(): Promise<Metadata> {
+  const fav = await getFaviconDataUrl();
+  const v = fav
+    ? createHash("sha1").update(fav).digest("hex").slice(0, 10)
+    : "default";
+  return {
+    ...BASE_METADATA,
+    icons: {
+      icon: `/api/logo/favicon?v=${v}`,
+      apple: "/icon-512.png",
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#0a0820",
