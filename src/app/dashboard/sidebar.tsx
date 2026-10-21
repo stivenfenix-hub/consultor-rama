@@ -140,7 +140,7 @@ export function AppShell({
             className={`bottom-item ${isActive(item.href) ? "active" : ""}`}
           >
             <span className="bottom-icon">{item.icon}</span>
-            <span>{item.label}</span>
+            <span className="bottom-label">{item.label}</span>
           </Link>
         ))}
       </nav>
