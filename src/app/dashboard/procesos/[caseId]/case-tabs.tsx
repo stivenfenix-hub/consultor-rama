@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import {
+  DocumentViewer,
+  descargarDocumento,
+  type ViewerDoc,
+} from "@/components/document-viewer";
 
 export type Datos = { label: string; value: string }[];
 export type Act = {
@@ -59,6 +64,7 @@ export function CaseTabs({
   syncLogs: Sync[];
 }) {
   const [tab, setTab] = useState<TabKey>("resumen");
+  const [visor, setVisor] = useState<ViewerDoc | null>(null);
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "resumen", label: "Resumen" },
@@ -129,16 +135,12 @@ export function CaseTabs({
                 {a.docs.length > 0 && (
                   <div className="row wrap" style={{ gap: 8, marginTop: 8 }}>
                     {a.docs.map((d) => (
-                      <a
+                      <DocButtons
                         key={d.idRegDocumento}
-                        className="btn secondary small"
-                        href={`/api/documento/${d.idRegDocumento}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={d.nombre}
-                      >
-                        ⬇ Descargar{d.tipo ? ` ${d.tipo.toUpperCase()}` : ""}
-                      </a>
+                        doc={{ id: d.idRegDocumento, nombre: d.nombre, tipo: d.tipo }}
+                        onVer={setVisor}
+                        etiqueta={`Ver${d.tipo ? ` ${d.tipo.toUpperCase()}` : ""}`}
+                      />
                     ))}
                   </div>
                 )}
@@ -165,14 +167,11 @@ export function CaseTabs({
                       {d.descripcion ? ` · ${d.descripcion}` : ""}
                     </div>
                   </div>
-                  <a
-                    className="btn secondary small"
-                    href={`/api/documento/${d.idRegDocumento}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    ⬇ Descargar
-                  </a>
+                  <DocButtons
+                    doc={{ id: d.idRegDocumento, nombre: d.nombre, tipo: d.tipo }}
+                    onVer={setVisor}
+                    etiqueta="Ver"
+                  />
                 </div>
               ))
             )}
@@ -291,6 +290,49 @@ export function CaseTabs({
           </>
         )}
       </div>
+
+      {visor && <DocumentViewer doc={visor} onClose={() => setVisor(null)} />}
+    </div>
+  );
+}
+
+function DocButtons({
+  doc,
+  onVer,
+  etiqueta,
+}: {
+  doc: ViewerDoc;
+  onVer: (d: ViewerDoc) => void;
+  etiqueta: string;
+}) {
+  const [bajando, setBajando] = useState(false);
+  return (
+    <div className="row" style={{ gap: 6 }}>
+      <button
+        className="btn secondary small"
+        onClick={() => onVer(doc)}
+        title={doc.nombre}
+      >
+        👁 {etiqueta}
+      </button>
+      <button
+        className="btn secondary small"
+        disabled={bajando}
+        title="Descargar"
+        aria-label={`Descargar ${doc.nombre}`}
+        onClick={async () => {
+          setBajando(true);
+          try {
+            await descargarDocumento(doc);
+          } catch {
+            alert("No se pudo descargar el documento.");
+          } finally {
+            setBajando(false);
+          }
+        }}
+      >
+        {bajando ? "…" : "⬇"}
+      </button>
     </div>
   );
 }

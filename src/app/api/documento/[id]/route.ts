@@ -12,7 +12,7 @@ const BASE =
   "https://consultaprocesos.ramajudicial.gov.co:448/api/v2";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -39,13 +39,15 @@ export async function GET(
 
   const contentType =
     upstream.headers.get("content-type") ?? "application/octet-stream";
+  // ?inline=1 lo usa el visor integrado (vista previa sin descargar).
+  const inline = req.nextUrl.searchParams.get("inline") === "1";
   const filename = `${(doc.nombre ?? "documento").replace(/[^\w.\-]+/g, "_")}.${doc.tipo || "pdf"}`;
 
   return new NextResponse(upstream.body, {
     status: 200,
     headers: {
       "content-type": contentType,
-      "content-disposition": `attachment; filename="${filename}"`,
+      "content-disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
       "cache-control": "no-store",
     },
   });
