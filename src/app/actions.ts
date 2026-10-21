@@ -58,6 +58,12 @@ export async function loginAction(
 }
 
 // ---------- Registro ----------
+/** Las dos contraseñas del formulario ("password" y "password2") deben coincidir. */
+function contrasenasNoCoinciden(formData: FormData) {
+  return String(formData.get("password") ?? "") !== String(formData.get("password2") ?? "");
+}
+const NO_COINCIDEN = "Las contraseñas no coinciden.";
+
 const registerSchema = z.object({
   firstName: z.string().min(1, "Ingresa tu nombre"),
   lastName: z.string().min(1, "Ingresa tu apellido"),
@@ -86,6 +92,7 @@ export async function registerAction(
   if (String(formData.get("website") ?? "") !== "") {
     return { ok: "Revisa tu correo para verificar tu cuenta." };
   }
+  if (contrasenasNoCoinciden(formData)) return { error: NO_COINCIDEN };
   const parsed = registerSchema.safeParse({
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
@@ -138,6 +145,7 @@ export async function resetAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (contrasenasNoCoinciden(formData)) return { error: NO_COINCIDEN };
   const parsed = resetSchema.safeParse({
     token: formData.get("token"),
     password: formData.get("password"),
@@ -161,6 +169,7 @@ export async function changePasswordAction(
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser();
+  if (contrasenasNoCoinciden(formData)) return { error: NO_COINCIDEN };
   const parsed = changeSchema.safeParse({
     current: formData.get("current"),
     password: formData.get("password"),

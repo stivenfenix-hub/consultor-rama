@@ -276,6 +276,18 @@ input:-webkit-autofill:focus {
   max-width: 420px;
   margin: 10vh auto 0;
 }
+/* Formularios largos (registro): empiezan más arriba para que se vea todo. */
+.center.tall {
+  margin-top: 2vh;
+}
+@media (max-width: 640px) {
+  .center {
+    margin-top: 2vh;
+  }
+  .center.tall {
+    margin-top: 0;
+  }
+}
 
 /* Burbuja "Instalar en iPhone" */
 .ios-bubble {

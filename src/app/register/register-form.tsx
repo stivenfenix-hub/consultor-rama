@@ -46,7 +46,10 @@ export function RegisterForm() {
       />
       <div style={{ height: 10 }} />
       <label className="small muted" htmlFor="password">Contraseña</label>
-      <input id="password" name="password" type="password" required placeholder="Mínimo 8, con letras y números" />
+      <input id="password" name="password" type="password" required autoComplete="new-password" placeholder="Mínimo 8, con letras y números" />
+      <div style={{ height: 10 }} />
+      <label className="small muted" htmlFor="password2">Repetir contraseña</label>
+      <input id="password2" name="password2" type="password" required autoComplete="new-password" placeholder="Escríbela de nuevo" />
 
       {/* Honeypot anti-bot: oculto para humanos */}
       <input

@@ -23,7 +23,10 @@ export function ResetForm({ token }: { token: string }) {
     <form action={formAction} style={{ marginTop: 16 }}>
       <input type="hidden" name="token" value={token} />
       <label className="small muted" htmlFor="password">Nueva contraseña</label>
-      <input id="password" name="password" type="password" required placeholder="Mínimo 8, con letras y números" />
+      <input id="password" name="password" type="password" required autoComplete="new-password" placeholder="Mínimo 8, con letras y números" />
+      <div style={{ height: 10 }} />
+      <label className="small muted" htmlFor="password2">Repetir nueva contraseña</label>
+      <input id="password2" name="password2" type="password" required autoComplete="new-password" placeholder="Escríbela de nuevo" />
       <div style={{ height: 14 }} />
       <button className="btn" type="submit" disabled={pending} style={{ width: "100%", justifyContent: "center" }}>
         {pending ? "Guardando..." : "Cambiar contraseña"}

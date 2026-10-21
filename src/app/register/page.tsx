@@ -9,7 +9,7 @@ export default async function RegisterPage() {
 
   return (
     <div className="container">
-      <div className="center">
+      <div className="center tall">
         <div className="card">
           <div style={{ marginBottom: 12 }}><BrandLogo /></div>
           <h1>Crear cuenta</h1>
