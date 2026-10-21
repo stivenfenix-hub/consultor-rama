@@ -671,6 +671,17 @@ input:-webkit-autofill:focus {
 .doc-row .btn {
   flex-shrink: 0;
 }
+/* En pantallas angostas los botones bajan debajo del texto. */
+.doc-row {
+  flex-wrap: wrap;
+}
+.doc-row > div:first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.doc-row .muted {
+  overflow-wrap: anywhere;
+}
 
 /* Tabla */
 .table-wrap {
