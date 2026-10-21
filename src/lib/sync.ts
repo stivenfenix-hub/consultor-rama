@@ -10,6 +10,7 @@ import {
   RamaError,
   type ProcesoResumen,
   type Actuacion as RamaActuacion,
+  type Documento as RamaDocumento,
 } from "./rama";
 import { sendMail } from "./mailer";
 import { sendPushToUser } from "./push";
@@ -63,8 +64,14 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
     },
   });
 
-  // Primera carga: las actuaciones existentes NO cuentan como "nuevas".
-  await sincronizarProceso(caseRow.id, { marcarComoVistas: !existing });
+  // Carga rápida: todo menos los documentos por actuación (eso es lo lento).
+  await sincronizarProceso(caseRow.id, {
+    marcarComoVistas: !existing,
+    docsActuacion: false,
+  });
+  // Los documentos descargables (por actuación) se traen en segundo plano
+  // para que agregar sea rápido; aparecen a los pocos segundos.
+  void cargarDocumentosActuacionEnFondo(caseRow.id).catch(() => {});
   return caseRow;
 }
 
@@ -74,7 +81,7 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
  */
 export async function sincronizarProceso(
   caseId: string,
-  opts: { marcarComoVistas?: boolean } = {},
+  opts: { marcarComoVistas?: boolean; docsActuacion?: boolean } = {},
 ) {
   const caseRow = await prisma.case.findUnique({ where: { id: caseId } });
   if (!caseRow) throw new Error("Proceso no encontrado");
@@ -151,7 +158,12 @@ export async function sincronizarProceso(
 
     // Partes y Documentos (cada uno con su propio registro, sin romper el sync).
     await sincronizarSujetos(caseId, caseRow.idProceso);
-    await sincronizarDocumentos(caseId, caseRow.idProceso, actuaciones);
+    await sincronizarDocumentos(
+      caseId,
+      caseRow.idProceso,
+      actuaciones,
+      opts.docsActuacion !== false,
+    );
 
     return {
       nuevas: nuevas.length,
@@ -254,19 +266,20 @@ async function sincronizarDocumentos(
   caseId: string,
   idProceso: string,
   actuaciones: RamaActuacion[],
+  perActuacion = true,
 ) {
   const t = Date.now();
   try {
     const todos = await obtenerDocumentos(idProceso);
 
-    // Documentos por actuación (cap para no saturar a la Rama).
-    const conDocs = actuaciones
-      .filter((a) => a.conDocumentos)
-      .slice(0, 30);
-    for (const a of conDocs) {
-      const d = await obtenerDocumentosActuacion(a.idRegActuacion);
-      todos.push(...d);
-      await new Promise((res) => setTimeout(res, 300));
+    // Documentos por actuación (lo lento; opcional). Cap para no saturar.
+    if (perActuacion) {
+      const conDocs = actuaciones.filter((a) => a.conDocumentos).slice(0, 30);
+      for (const a of conDocs) {
+        const d = await obtenerDocumentosActuacion(a.idRegActuacion);
+        todos.push(...d);
+        await new Promise((res) => setTimeout(res, 300));
+      }
     }
 
     // Dedupe por idRegDocumento.
@@ -314,6 +327,68 @@ async function sincronizarDocumentos(
         },
       })
       .catch(() => {});
+  }
+}
+
+/**
+ * Trae los documentos por actuación (los descargables) en segundo plano, leyendo
+ * las actuaciones ya guardadas. Permite que agregar un proceso sea rápido.
+ */
+async function cargarDocumentosActuacionEnFondo(caseId: string) {
+  const t = Date.now();
+  try {
+    const acts = await prisma.actuacion.findMany({
+      where: { caseId, conDocumentos: true },
+      select: { idRegActuacion: true },
+      orderBy: { fechaActuacion: "desc" },
+      take: 30,
+    });
+    const todos: RamaDocumento[] = [];
+    for (const a of acts) {
+      try {
+        const d = await obtenerDocumentosActuacion(a.idRegActuacion);
+        todos.push(...d);
+      } catch {
+        // seguir con las demás
+      }
+      await new Promise((res) => setTimeout(res, 400));
+    }
+    if (todos.length === 0) return;
+
+    const vistos = new Set<string>();
+    const docs = todos.filter((d) => {
+      const k = String(d.idRegDocumento);
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    });
+    await prisma.documento
+      .createMany({
+        data: docs.map((d) => ({
+          caseId,
+          idRegDocumento: String(d.idRegDocumento),
+          nombre: d.nombre ?? null,
+          descripcion: d.descripcion ?? null,
+          tipo: d.tipo || null,
+          fechaCarga: parseFecha(d.fechaCarga),
+          consActuacion: d.consActuacion ?? null,
+        })),
+        skipDuplicates: true,
+      })
+      .catch(() => {});
+    await prisma.syncLog
+      .create({
+        data: {
+          caseId,
+          operacion: "Documentos",
+          resultado: "exito",
+          durationMs: Date.now() - t,
+          elementos: docs.length,
+        },
+      })
+      .catch(() => {});
+  } catch {
+    // segundo plano: no propagar
   }
 }
 
