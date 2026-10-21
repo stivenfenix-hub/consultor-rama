@@ -1,5 +1,17 @@
 // Helpers de notificaciones push para el navegador (cliente).
-const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+// Clave del build; si falta, se pide al servidor (/api/push/key).
+const VAPID_BUILD = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
+async function vapidKey(): Promise<string | null> {
+  if (VAPID_BUILD) return VAPID_BUILD;
+  try {
+    const r = await fetch("/api/push/key");
+    const j = (await r.json()) as { key: string | null };
+    return j.key;
+  } catch {
+    return null;
+  }
+}
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -33,6 +45,7 @@ export type SubResult = "ok" | "denied" | "error" | "unsupported" | "nokey";
 
 export async function subscribeToPush(): Promise<SubResult> {
   if (!pushSupported()) return "unsupported";
+  const VAPID = await vapidKey();
   if (!VAPID) return "nokey";
   const perm = await Notification.requestPermission();
   if (perm !== "granted") return "denied";

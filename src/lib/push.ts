@@ -5,7 +5,7 @@ import { prisma } from "./db";
 const PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const PRIVATE = process.env.VAPID_PRIVATE_KEY;
 const SUBJECT =
-  process.env.VAPID_SUBJECT || "mailto:notificaciones@lexaroabogados.com";
+  process.env.VAPID_SUBJECT || "mailto:notificaciones@estradox.com";
 
 let configured = false;
 function ensure(): boolean {
