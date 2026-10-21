@@ -14,6 +14,7 @@ import {
 } from "./rama";
 import { sendMail } from "./mailer";
 import { sendPushToUser } from "./push";
+import { after } from "next/server";
 
 function parseFecha(f?: string | null): Date | null {
   if (!f) return null;
@@ -71,7 +72,14 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
   });
   // Los documentos descargables (por actuación) se traen en segundo plano
   // para que agregar sea rápido; aparecen a los pocos segundos.
-  void cargarDocumentosActuacionEnFondo(caseRow.id).catch(() => {});
+  const id = caseRow.id;
+  try {
+    // after(): corre DESPUÉS de enviar la respuesta (no hace esperar al usuario).
+    after(() => cargarDocumentosActuacionEnFondo(id));
+  } catch {
+    // Fuera de una petición (p. ej. scripts): ejecutar sin esperar.
+    void cargarDocumentosActuacionEnFondo(id).catch(() => {});
+  }
   return caseRow;
 }
 
@@ -88,11 +96,11 @@ export async function sincronizarProceso(
 
   const t0 = Date.now();
   try {
-    // 1. Detalle (datos que no vienen en el resumen)
-    const detalle = await obtenerDetalle(caseRow.idProceso);
-
-    // 2. Actuaciones
-    const actuaciones = await obtenerActuaciones(caseRow.idProceso);
+    // 1-2. Detalle y actuaciones en paralelo (la Rama es lenta).
+    const [detalle, actuaciones] = await Promise.all([
+      obtenerDetalle(caseRow.idProceso),
+      obtenerActuaciones(caseRow.idProceso),
+    ]);
 
     // 3. Insertar solo las nuevas
     const existentes = await prisma.actuacion.findMany({
@@ -157,13 +165,15 @@ export async function sincronizarProceso(
     });
 
     // Partes y Documentos (cada uno con su propio registro, sin romper el sync).
-    await sincronizarSujetos(caseId, caseRow.idProceso);
-    await sincronizarDocumentos(
-      caseId,
-      caseRow.idProceso,
-      actuaciones,
-      opts.docsActuacion !== false,
-    );
+    await Promise.all([
+      sincronizarSujetos(caseId, caseRow.idProceso),
+      sincronizarDocumentos(
+        caseId,
+        caseRow.idProceso,
+        actuaciones,
+        opts.docsActuacion !== false,
+      ),
+    ]);
 
     return {
       nuevas: nuevas.length,
@@ -336,6 +346,7 @@ async function sincronizarDocumentos(
  */
 async function cargarDocumentosActuacionEnFondo(caseId: string) {
   const t = Date.now();
+  console.log("[docs-fondo] inicio", caseId);
   try {
     const acts = await prisma.actuacion.findMany({
       where: { caseId, conDocumentos: true },
@@ -387,8 +398,9 @@ async function cargarDocumentosActuacionEnFondo(caseId: string) {
         },
       })
       .catch(() => {});
-  } catch {
-    // segundo plano: no propagar
+    console.log("[docs-fondo] fin", caseId, Date.now() - t, "ms");
+  } catch (err) {
+    console.error("[docs-fondo] error", caseId, err);
   }
 }
 
