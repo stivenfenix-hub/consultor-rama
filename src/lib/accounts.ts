@@ -66,6 +66,29 @@ export function normalizarWhatsapp(raw: string): string | null {
 
 const ensureWhatsappColumn = () => ensureColumn("User", "whatsapp", "TEXT");
 
+/** WhatsApp de un usuario, o null si no lo ha registrado. */
+export async function getWhatsapp(userId: string): Promise<string | null> {
+  try {
+    await ensureWhatsappColumn();
+    const rows = await prisma.$queryRawUnsafe<{ w: string | null }[]>(
+      `SELECT "whatsapp" AS w FROM "User" WHERE id = $1`,
+      userId,
+    );
+    return rows[0]?.w ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setWhatsapp(userId: string, whatsapp: string) {
+  await ensureWhatsappColumn();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "User" SET "whatsapp" = $1 WHERE id = $2`,
+    whatsapp,
+    userId,
+  );
+}
+
 /** WhatsApp de cada usuario (id -> número), para el reporte de admin. */
 export async function getWhatsappPorUsuario(): Promise<Map<string, string>> {
   try {
@@ -101,12 +124,7 @@ export async function registerUser(input: {
       emailVerified: null,
     },
   });
-  await ensureWhatsappColumn();
-  await prisma.$executeRawUnsafe(
-    `UPDATE "User" SET "whatsapp" = $1 WHERE id = $2`,
-    input.whatsapp,
-    user.id,
-  );
+  await setWhatsapp(user.id, input.whatsapp);
   await enviarVerificacion(user.id, email);
   return user;
 }

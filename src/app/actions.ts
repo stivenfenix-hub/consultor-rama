@@ -20,6 +20,7 @@ import {
   changePassword,
   AccountError,
   normalizarWhatsapp,
+  setWhatsapp,
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
 import {
@@ -174,6 +175,23 @@ export async function changePasswordAction(
     if (err instanceof AccountError) return { error: err.message };
     return { error: "No se pudo cambiar la contraseña." };
   }
+}
+
+// ---------- Mi cuenta: WhatsApp ----------
+export async function updateWhatsappAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const n = normalizarWhatsapp(String(formData.get("whatsapp") ?? ""));
+  if (!n) return { error: "Ingresa un número de WhatsApp válido (ej. 300 123 4567)." };
+  try {
+    await setWhatsapp(user.id, n);
+  } catch {
+    return { error: "No se pudo guardar el número." };
+  }
+  revalidatePath("/dashboard/configuracion");
+  return { ok: `WhatsApp guardado: ${n}` };
 }
 
 // ---------- Admin: apariencia del sitio ----------

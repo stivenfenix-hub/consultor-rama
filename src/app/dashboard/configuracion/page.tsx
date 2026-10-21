@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { getWhatsapp } from "@/lib/accounts";
 import { ChangePasswordForm } from "./change-password-form";
 import { NotificationsToggle } from "./notifications-toggle";
+import { WhatsappForm } from "./whatsapp-form";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const whatsapp = await getWhatsapp(user.id);
 
   return (
     <div className="page">
@@ -25,6 +28,17 @@ export default async function ConfiguracionPage() {
             <dd style={{ margin: 0 }}>{user.email}</dd>
           </div>
         </dl>
+      </div>
+
+      <div className="card" style={{ maxWidth: 460 }}>
+        <h2>WhatsApp</h2>
+        {!whatsapp && (
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Aún no has registrado tu número. Agrégalo para que podamos
+            contactarte.
+          </p>
+        )}
+        <WhatsappForm current={whatsapp} />
       </div>
 
       <div className="card">
