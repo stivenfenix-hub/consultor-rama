@@ -436,27 +436,22 @@ export async function sincronizarTodos(pausaMs = 1500) {
     error?: string;
   }[] = [];
 
-  // Agrupa por abogado: TODOS los que tienen procesos reciben correo,
-  // tengan o no actuaciones nuevas.
+  // Agrupa por abogado; solo se notifica a quien tenga actuaciones nuevas.
   type Pendiente = {
     email: string;
     name: string | null;
-    totalCasos: number;
     casos: { radicado: string; caseId: string; nuevas: RamaActuacion[] }[];
   };
   const porUsuario = new Map<string, Pendiente>();
 
   for (const c of casos) {
-    // Asegura una entrada por abogado aunque no tenga novedades.
     const entry =
       porUsuario.get(c.userId) ??
       ({
         email: c.user.email,
         name: c.user.name,
-        totalCasos: 0,
         casos: [],
       } as Pendiente);
-    entry.totalCasos++;
     porUsuario.set(c.userId, entry);
 
     try {
@@ -479,7 +474,8 @@ export async function sincronizarTodos(pausaMs = 1500) {
     await new Promise((res) => setTimeout(res, pausaMs));
   }
 
-  // Enviar correos + push (no romper la corrida del cron si falla el envio)
+  // Enviar correos + push solo a quien tuvo novedades; sin novedades no se
+  // notifica nada. (No romper la corrida del cron si falla el envio.)
   for (const [userId, u] of porUsuario) {
     try {
       if (u.casos.length > 0) {
@@ -491,8 +487,6 @@ export async function sincronizarTodos(pausaMs = 1500) {
           url: "/dashboard",
           tag: "actuaciones",
         }).catch(() => {});
-      } else {
-        await enviarSinNovedades(u.email, u.name, u.totalCasos);
       }
     } catch (err) {
       console.error(`[mail] fallo enviando a ${u.email}:`, err);
@@ -500,38 +494,6 @@ export async function sincronizarTodos(pausaMs = 1500) {
   }
 
   return resultados;
-}
-
-/** Correo diario cuando el abogado NO tuvo actuaciones nuevas. */
-async function enviarSinNovedades(
-  email: string,
-  name: string | null,
-  totalCasos: number,
-) {
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-  const hoy = new Date().toLocaleDateString("es-CO", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "America/Bogota",
-  });
-  await sendMail({
-    to: email,
-    subject: "Sin novedades en tus procesos hoy",
-    text:
-      `Hola ${name ?? ""},\n\nRevisamos tus ${totalCasos} proceso(s) hoy (${hoy}) y no hubo ` +
-      `actuaciones nuevas.\n\nVer tus procesos: ${appUrl}/dashboard`,
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
-        <img src="${appUrl}/api/logo/email" alt="Estradox" height="26" style="margin-bottom:12px" />
-        <h2>Sin novedades hoy</h2>
-        <p>Hola ${escapeHtml(name ?? "")}, revisamos tus <b>${totalCasos}</b> proceso(s) el ${escapeHtml(hoy)} y <b>no hubo actuaciones nuevas</b>.</p>
-        <p>Te avisaremos apenas aparezca algo.</p>
-        <p><a href="${appUrl}/dashboard">Ver mis procesos</a></p>
-        <p style="color:#777;font-size:12px">Estradox — actualización automática diaria.</p>
-      </div>`,
-  });
 }
 
 /** Construye y envia el correo-resumen de actuaciones nuevas a un abogado. */
