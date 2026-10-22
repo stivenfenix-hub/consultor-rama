@@ -225,19 +225,42 @@ export async function crearLinkDePago(user: { id: string; email: string }) {
  * Es idempotente: un mismo pago nunca se acredita dos veces. El acceso solo se
  * da con lo que responde el API de Bold (no se confía en el webhook a ciegas).
  */
-export async function confirmarPago(linkId: string): Promise<boolean> {
+export async function confirmarPago(
+  linkId: string,
+  /**
+   * Webhook SALE_APPROVED recibido para este link: "real" si vino firmado con la
+   * llave secreta; "prueba" si vino firmado con llave vacía (modo de pruebas).
+   */
+  webhook?: { firma: "real" | "prueba"; monto: number | null; paymentId: string | null },
+): Promise<boolean> {
   await ensureSchema();
   const [pago] = await prisma.$queryRawUnsafe<
-    { id: string; userId: string; status: string }[]
-  >(`SELECT id, "userId", status FROM "BoldPayment" WHERE id = $1`, linkId);
+    { id: string; userId: string; status: string; amount: number }[]
+  >(`SELECT id, "userId", status, amount FROM "BoldPayment" WHERE id = $1`, linkId);
   if (!pago || pago.status === "PAID") return false;
 
   const j = await bold(`/online/link/v1/${encodeURIComponent(linkId)}`);
   const info = ((j.payload as Record<string, unknown>) ?? j) as {
     status?: string;
     transaction_id?: string;
+    is_sandbox?: boolean;
   };
-  const status = String(info.status ?? "");
+  let status = String(info.status ?? "");
+  console.log(
+    `[bold] link ${linkId}: status=${status} sandbox=${info.is_sandbox} webhook=${webhook?.firma ?? "no"}`,
+  );
+
+  // En modo de pruebas Bold deja el link "PROCESSING"; el pago se confirma con
+  // el webhook. Uno firmado con la llave secreta es prueba suficiente; uno de
+  // pruebas (llave vacía) solo vale si el API dice que el link es de pruebas.
+  if (status !== "PAID" && webhook && (status === "PROCESSING" || status === "ACTIVE")) {
+    const montoOk = webhook.monto == null || webhook.monto === pago.amount;
+    if (montoOk && (webhook.firma === "real" || info.is_sandbox === true)) {
+      status = "PAID";
+      info.transaction_id = info.transaction_id ?? webhook.paymentId ?? undefined;
+    }
+  }
+
   if (status !== "PAID") {
     if (status && status !== pago.status) {
       await prisma.$executeRawUnsafe(
