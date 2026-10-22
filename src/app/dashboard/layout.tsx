@@ -7,8 +7,8 @@ import { getSuscripcion, tieneAcceso } from "@/lib/subscription";
 import { logoutAction } from "@/app/actions";
 import { AppShell } from "./sidebar";
 
-// Páginas que se pueden abrir aunque el acceso esté vencido.
-const SIEMPRE_DISPONIBLES = ["/dashboard/suscripcion", "/dashboard/configuracion"];
+// Con el acceso vencido solo se puede abrir la página de pago.
+const PAGINA_PAGO = "/dashboard/suscripcion";
 
 export default async function AppLayout({
   children,
@@ -23,25 +23,8 @@ export default async function AppLayout({
     headers(),
   ]);
   const pathname = h.get("x-pathname") ?? "";
-  const libre = SIEMPRE_DISPONIBLES.some((p) => pathname.startsWith(p));
-
-  let contenido = children;
-  if (!tieneAcceso(sub) && !libre) {
-    contenido = (
-      <div className="page">
-        <div className="card" style={{ maxWidth: 520, margin: "40px auto", textAlign: "center" }}>
-          <h1>Tu acceso venció</h1>
-          <p className="muted">
-            Tus procesos siguen guardados, pero dejamos de revisarlos en la Rama
-            Judicial. Renueva tu plan para seguir recibiendo alertas.
-          </p>
-          <Link href="/dashboard/suscripcion" className="btn" style={{ marginTop: 10 }}>
-            Renovar mi plan
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const vencida = !tieneAcceso(sub);
+  if (vencida && !pathname.startsWith(PAGINA_PAGO)) redirect(PAGINA_PAGO);
 
   // Aviso arriba: días de prueba restantes o plan por vencer.
   let aviso: React.ReactNode = null;
@@ -70,10 +53,11 @@ export default async function AppLayout({
       byLogoUrl={settings.byLogoDataUrl ?? "/unor-logo.png"}
       byUrl={settings.byUrl}
       isAdmin={user.role === "admin"}
+      soloPago={vencida}
       logoutAction={logoutAction}
     >
       {aviso && <div className="sub-banner">{aviso}</div>}
-      {contenido}
+      {children}
     </AppShell>
   );
 }

@@ -35,6 +35,7 @@ export function AppShell({
   byLogoUrl,
   byUrl,
   isAdmin,
+  soloPago = false,
   logoutAction,
   children,
 }: {
@@ -43,6 +44,8 @@ export function AppShell({
   byLogoUrl: string;
   byUrl: string;
   isAdmin: boolean;
+  /** Acceso vencido: el menú solo muestra Suscripción (para pagar). */
+  soloPago?: boolean;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -87,8 +90,8 @@ export function AppShell({
         </div>
 
         <nav className="nav">
-          {renderNav(NAV)}
-          {isAdmin && (
+          {renderNav(soloPago ? NAV.filter((n) => n.href === "/dashboard/suscripcion") : NAV)}
+          {isAdmin && !soloPago && (
             <>
               <div className="nav-section">Administración</div>
               {renderNav(ADMIN_NAV)}
@@ -137,7 +140,10 @@ export function AppShell({
 
       {/* Barra de navegación inferior (solo móvil) */}
       <nav className="bottom-nav">
-        {BOTTOM_NAV.map((nav) => {
+        {(soloPago
+          ? [{ href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" as IconName }]
+          : BOTTOM_NAV
+        ).map((nav) => {
           // Para el admin, "Inicio" lleva al panel admin.
           const esInicioAdmin = isAdmin && nav.href === "/dashboard";
           const href = esInicioAdmin ? "/dashboard/admin" : nav.href;

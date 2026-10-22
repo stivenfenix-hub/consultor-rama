@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getSuscripcion, tieneAcceso } from "@/lib/subscription";
 
 // Descarga un documento de la Rama a través del backend (proxy), porque el
 // API de la Rama usa el puerto :448 y bloquea CORS. Solo entrega documentos
@@ -18,6 +19,9 @@ export async function GET(
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!tieneAcceso(await getSuscripcion(user.id))) {
+    return NextResponse.json({ error: "Tu acceso venció. Renueva tu plan." }, { status: 402 });
+  }
 
   // El documento debe pertenecer a un proceso del usuario.
   const doc = await prisma.documento.findFirst({
