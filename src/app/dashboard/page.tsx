@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
 import { RefreshAllButton } from "./refresh-all-button";
+import { estadoActualizarTodos } from "@/lib/limits";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -20,7 +21,10 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const stats = await getDashboardStats(user.id);
+  const [stats, refreshAll] = await Promise.all([
+    getDashboardStats(user.id),
+    estadoActualizarTodos(user.id, user.role === "admin"),
+  ]);
 
   const recientes = await prisma.case.findMany({
     where: { userId: user.id },
@@ -35,8 +39,11 @@ export default async function DashboardPage() {
     <div className="page">
       <div className="page-head wrap">
         <h1>Dashboard</h1>
-        <div className="row" style={{ gap: 10 }}>
-          <RefreshAllButton />
+        <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+          <RefreshAllButton
+            enCurso={refreshAll.enCurso}
+            disponibleEn={refreshAll.disponibleEn}
+          />
           <Link href="/dashboard/procesos" className="btn">
             + Agregar proceso
           </Link>

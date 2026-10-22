@@ -12,12 +12,16 @@ import {
 export function CaseActions({
   caseId,
   hasUnseen,
+  actualizadoHoy,
 }: {
   caseId: string;
   hasUnseen: boolean;
+  /** Ya se actualizó manualmente hoy (límite: una vez por día). */
+  actualizadoHoy: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [accion, setAccion] = useState<string>("");
+  const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
   const router = useRouter();
 
   const run = (nombre: string, fn: () => Promise<unknown>) => {
@@ -32,10 +36,22 @@ export function CaseActions({
     <div className="row wrap">
       <button
         className="btn"
-        disabled={pending}
-        onClick={() => run("refresh", () => refrescarProcesoAction(caseId))}
+        disabled={pending || actualizadoHoy}
+        title={
+          actualizadoHoy
+            ? "Puedes actualizar cada proceso una vez por día. Disponible mañana."
+            : "Consulta la Rama y actualiza este proceso (una vez por día)"
+        }
+        onClick={() =>
+          run("refresh", async () => setMsg(await refrescarProcesoAction(caseId)))
+        }
       >
-        {pending && accion === "refresh" ? "Actualizando…" : <><Icon name="refresh" /> Actualizar</>}
+        <Icon name="refresh" />
+        {pending && accion === "refresh"
+          ? "Actualizando…"
+          : actualizadoHoy
+            ? "Actualizado hoy"
+            : "Actualizar"}
       </button>
 
       {hasUnseen && (
@@ -61,6 +77,10 @@ export function CaseActions({
       >
         Eliminar
       </button>
+      {msg.error && <span className="error small">{msg.error}</span>}
+      {actualizadoHoy && !msg.ok && !msg.error && (
+        <span className="muted small">Disponible de nuevo mañana</span>
+      )}
     </div>
   );
 }

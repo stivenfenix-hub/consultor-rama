@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
+import { proximaActualizacionProceso } from "@/lib/limits";
 import { CaseTabs, type Datos } from "./case-tabs";
 import { Icon } from "@/components/icon";
 
@@ -88,6 +89,10 @@ export default async function CaseDetail({
     },
   });
   if (!caso) notFound();
+  const proximaActualizacion = await proximaActualizacionProceso(
+    caso.id,
+    user.role === "admin",
+  );
 
   const datos: Datos = [
     { label: "Despacho", value: caso.despacho },
@@ -168,7 +173,11 @@ export default async function CaseDetail({
             {caso.radicado}
           </h1>
         </div>
-        <CaseActions caseId={caso.id} hasUnseen={caso.unseenCount > 0} />
+        <CaseActions
+          caseId={caso.id}
+          hasUnseen={caso.unseenCount > 0}
+          actualizadoHoy={!!proximaActualizacion}
+        />
       </div>
 
       <p className="muted small">

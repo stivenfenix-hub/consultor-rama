@@ -202,29 +202,6 @@ export async function sincronizarProceso(
   }
 }
 
-/** Sincroniza todos los procesos de un usuario (botón "Actualizar todos"). */
-export async function sincronizarProcesosDeUsuario(
-  userId: string,
-  pausaMs = 1000,
-) {
-  const casos = await prisma.case.findMany({
-    where: { userId },
-    select: { id: true },
-  });
-  let ok = 0;
-  let fallidos = 0;
-  for (const c of casos) {
-    try {
-      await sincronizarProceso(c.id);
-      ok++;
-    } catch {
-      fallidos++;
-    }
-    await new Promise((res) => setTimeout(res, pausaMs));
-  }
-  return { total: casos.length, ok, fallidos };
-}
-
 /** Trae y guarda las partes (sujetos) del proceso; registra en SyncLog. */
 async function sincronizarSujetos(caseId: string, idProceso: string) {
   const t = Date.now();

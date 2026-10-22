@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -26,9 +27,14 @@ import { prisma } from "@/lib/db";
 import {
   agregarProcesoPorRadicado,
   sincronizarProceso,
-  sincronizarProcesosDeUsuario,
   marcarVistas,
 } from "@/lib/sync";
+import {
+  ejecutarActualizarTodos,
+  marcarActualizacionProceso,
+  proximaActualizacionProceso,
+  reservarActualizarTodos,
+} from "@/lib/limits";
 
 type ActionState = { error?: string; ok?: string; needsVerify?: string };
 
@@ -405,27 +411,41 @@ export async function agregarProcesoAction(
   };
 }
 
-export async function refrescarProcesoAction(caseId: string) {
+// Actualización manual de un proceso: una vez por día (el admin sin límite).
+export async function refrescarProcesoAction(caseId: string): Promise<ActionState> {
   const user = await requireUser();
   const caso = await prisma.case.findFirst({
     where: { id: caseId, userId: user.id },
   });
-  if (!caso) return;
+  if (!caso) return { error: "Proceso no encontrado." };
+  if (await proximaActualizacionProceso(caseId, user.role === "admin")) {
+    return { error: "Este proceso ya se actualizó hoy. Podrás hacerlo de nuevo mañana." };
+  }
+  let resultado: ActionState;
   try {
     await sincronizarProceso(caseId);
+    await marcarActualizacionProceso(caseId); // solo cuenta si funcionó
+    resultado = { ok: "Proceso actualizado." };
   } catch {
-    // el error queda guardado en caso.lastError
+    // el error queda guardado en caso.lastError; no se gasta el intento del día
+    resultado = { error: "La Rama Judicial no respondió. Intenta de nuevo en un rato." };
   }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
   revalidatePath(`/dashboard/procesos/${caseId}`);
+  return resultado;
 }
 
-export async function actualizarTodosAction() {
+// "Actualizar todos": una vez por semana, en segundo plano y por tandas.
+export async function actualizarTodosAction(): Promise<ActionState> {
   const user = await requireUser();
-  await sincronizarProcesosDeUsuario(user.id);
+  const error = await reservarActualizarTodos(user.id, user.role === "admin");
+  if (error) return { error };
+  after(() => ejecutarActualizarTodos(user.id));
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/procesos");
+  return {
+    ok: "Actualización iniciada en segundo plano. Puedes seguir usando la plataforma; te avisaremos si hay actuaciones nuevas.",
+  };
 }
 
 export async function marcarVistasAction(caseId: string) {
