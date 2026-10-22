@@ -12,6 +12,18 @@ import { confirmarPago, logBold } from "@/lib/subscription";
  */
 export const dynamic = "force-dynamic";
 
+// "Probar webhook" del recibo de pruebas de Bold envía el webhook desde el
+// navegador (checkout.bold.co), así que se permite CORS desde ahí.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "content-type, x-bold-signature, authorization",
+};
+
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS });
+}
+
 function firmaCon(raw: string, firma: string, llave: string) {
   const esperado = crypto
     .createHmac("sha256", llave)
@@ -34,7 +46,7 @@ export async function POST(req: NextRequest) {
         : null;
   if (!tipoFirma) {
     after(() => logBold("webhook-firma-invalida", raw));
-    return NextResponse.json({ error: "firma inválida" }, { status: 401 });
+    return NextResponse.json({ error: "firma inválida" }, { status: 401, headers: CORS });
   }
 
   let evento: {
@@ -49,7 +61,7 @@ export async function POST(req: NextRequest) {
   try {
     evento = JSON.parse(raw);
   } catch {
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: CORS });
   }
   const ref = evento.data?.metadata?.reference;
   after(() => logBold(`webhook (${tipoFirma})`, raw));
@@ -63,5 +75,5 @@ export async function POST(req: NextRequest) {
       confirmarPago(ref, webhook).catch((e) => console.error("[bold] webhook confirmar", e)),
     );
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: CORS });
 }
