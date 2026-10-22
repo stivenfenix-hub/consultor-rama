@@ -330,6 +330,26 @@ export async function verificarPagosPendientes(userId: string) {
   }
 }
 
+/**
+ * Respaldo del webhook (cron horario): revisa en Bold todos los links
+ * pendientes de los últimos 3 días, por si el usuario pagó y no volvió.
+ */
+export async function verificarTodosLosPagosPendientes(): Promise<number> {
+  if (!boldConfigurado()) return 0;
+  await ensureSchema();
+  const pendientes = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM "BoldPayment"
+     WHERE status IN ('ACTIVE', 'PROCESSING')
+       AND "createdAt" > now() - interval '3 days'
+     ORDER BY "createdAt" DESC LIMIT 50`,
+  );
+  let acreditados = 0;
+  for (const p of pendientes) {
+    if (await confirmarPago(p.id).catch(() => false)) acreditados++;
+  }
+  return acreditados;
+}
+
 export async function pagosDeUsuario(userId: string) {
   await ensureSchema();
   return prisma.$queryRawUnsafe<
