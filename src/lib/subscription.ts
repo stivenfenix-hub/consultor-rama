@@ -203,6 +203,15 @@ export async function extenderAcceso(userId: string, dias: number) {
   );
 }
 
+/** El root termina el acceso de un usuario de inmediato (prueba y plan). */
+export async function terminarAcceso(userId: string) {
+  await ensureSchema();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "User" SET "trialEndsAt" = now() - interval '1 minute', "paidUntil" = NULL WHERE id = $1`,
+    userId,
+  );
+}
+
 // ---------- Pagos con Bold ----------
 async function bold(path: string, init?: RequestInit) {
   const r = await fetch(`${BOLD_API}${path}`, {

@@ -8,7 +8,7 @@ import {
   totalPagosAprobados,
 } from "@/lib/subscription";
 import { PlanForm } from "./plan-form";
-import { GiftDaysButton } from "./gift-days-button";
+import { EndAccessButton, GiftDaysButton } from "./gift-days-button";
 
 const fecha = (d: Date | null) =>
   d
@@ -75,7 +75,7 @@ export default async function SuscripcionesAdmin() {
                 <th>Correo</th>
                 <th>Estado</th>
                 <th>Acceso hasta</th>
-                <th>Regalar días</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -89,7 +89,14 @@ export default async function SuscripcionesAdmin() {
                     <td className="muted">
                       {s?.estado === "admin" ? "—" : fecha(s?.accesoHasta ?? null)}
                     </td>
-                    <td>{u.role !== "admin" && <GiftDaysButton userId={u.id} />}</td>
+                    <td>
+                      {u.role !== "admin" && (
+                        <div className="row" style={{ gap: 6 }}>
+                          <GiftDaysButton userId={u.id} />
+                          {s?.estado !== "vencida" && <EndAccessButton userId={u.id} />}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

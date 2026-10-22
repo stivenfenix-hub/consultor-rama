@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { regalarDiasAction } from "@/app/actions";
+import { regalarDiasAction, terminarAccesoAction } from "@/app/actions";
 
 export function GiftDaysButton({ userId }: { userId: string }) {
   const [pending, startTransition] = useTransition();
@@ -15,6 +15,22 @@ export function GiftDaysButton({ userId }: { userId: string }) {
       }}
     >
       {pending ? "…" : "+30 días"}
+    </button>
+  );
+}
+
+export function EndAccessButton({ userId }: { userId: string }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      className="btn danger small"
+      disabled={pending}
+      onClick={() => {
+        if (!confirm("¿Terminar el acceso de este usuario ahora? Solo podrá ver la página de pago.")) return;
+        startTransition(() => terminarAccesoAction(userId));
+      }}
+    >
+      {pending ? "…" : "Terminar acceso"}
     </button>
   );
 }

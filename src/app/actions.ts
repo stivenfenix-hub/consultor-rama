@@ -26,6 +26,7 @@ import {
   getPlan,
   getSuscripcion,
   savePlan,
+  terminarAcceso,
   tieneAcceso,
 } from "@/lib/subscription";
 import {
@@ -590,6 +591,14 @@ export async function savePlanAction(
   await savePlan(parsed.data.precio, parsed.data.diasPrueba);
   revalidatePath("/dashboard/admin/suscripciones");
   return { ok: "Plan actualizado." };
+}
+
+/** El root termina el acceso de un usuario (queda vencido y solo ve el pago). */
+export async function terminarAccesoAction(userId: string) {
+  const admin = await requireAdmin();
+  if (userId === admin.id) return;
+  await terminarAcceso(userId);
+  revalidatePath("/dashboard/admin/suscripciones");
 }
 
 /** El root regala días de acceso a un usuario. */
