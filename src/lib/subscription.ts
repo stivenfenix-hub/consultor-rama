@@ -44,7 +44,35 @@ async function ensureSchema() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
       "paidAt" TIMESTAMPTZ
     )`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "BoldEvent" (
+      id SERIAL PRIMARY KEY,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      tipo TEXT NOT NULL,
+      detalle TEXT NOT NULL
+    )`);
   esquemaListo = true;
+}
+
+/** Registro de eventos de Bold (webhooks y consultas) para soporte. */
+export async function logBold(tipo: string, detalle: unknown) {
+  try {
+    await ensureSchema();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "BoldEvent" (tipo, detalle) VALUES ($1, $2)`,
+      tipo,
+      (typeof detalle === "string" ? detalle : JSON.stringify(detalle)).slice(0, 2000),
+    );
+  } catch (e) {
+    console.error("[bold] log", e);
+  }
+}
+
+export async function eventosBold() {
+  await ensureSchema();
+  return prisma.$queryRawUnsafe<{ id: number; createdAt: Date; tipo: string; detalle: string }[]>(
+    `SELECT id, "createdAt", tipo, detalle FROM "BoldEvent" ORDER BY id DESC LIMIT 20`,
+  );
 }
 
 // ---------- Plan (precio y días de prueba, editables por el root) ----------
@@ -246,9 +274,12 @@ export async function confirmarPago(
     is_sandbox?: boolean;
   };
   let status = String(info.status ?? "");
-  console.log(
-    `[bold] link ${linkId}: status=${status} sandbox=${info.is_sandbox} webhook=${webhook?.firma ?? "no"}`,
-  );
+  await logBold("consulta", {
+    link: linkId,
+    status,
+    is_sandbox: info.is_sandbox,
+    webhook: webhook ?? null,
+  });
 
   // En modo de pruebas Bold deja el link "PROCESSING"; el pago se confirma con
   // el webhook. Uno firmado con la llave secreta es prueba suficiente; uno de

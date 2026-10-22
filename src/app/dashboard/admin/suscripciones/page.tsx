@@ -2,6 +2,7 @@ import { listUsers } from "@/lib/admin";
 import { StatTile } from "@/components/charts";
 import {
   boldConfigurado,
+  eventosBold,
   getPlan,
   suscripcionesDeTodos,
   totalPagosAprobados,
@@ -27,11 +28,12 @@ const ETIQUETA = {
 };
 
 export default async function SuscripcionesAdmin() {
-  const [users, subs, plan, pagos] = await Promise.all([
+  const [users, subs, plan, pagos, eventos] = await Promise.all([
     listUsers(),
     suscripcionesDeTodos(),
     getPlan(),
     totalPagosAprobados(),
+    eventosBold(),
   ]);
   const cuenta = (e: string) => users.filter((u) => subs.get(u.id)?.estado === e).length;
 
@@ -94,6 +96,41 @@ export default async function SuscripcionesAdmin() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Últimos eventos de Bold</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Webhooks recibidos y consultas al API de Bold (para revisar pagos).
+        </p>
+        {eventos.length === 0 ? (
+          <p className="muted small">Aún no hay eventos.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventos.map((e) => (
+                  <tr key={e.id}>
+                    <td className="muted" style={{ whiteSpace: "nowrap" }}>
+                      {new Date(e.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota" })}
+                    </td>
+                    <td>{e.tipo}</td>
+                    <td className="small" style={{ wordBreak: "break-all", maxWidth: 520 }}>
+                      {e.detalle}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

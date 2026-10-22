@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { after, NextRequest, NextResponse } from "next/server";
-import { confirmarPago } from "@/lib/subscription";
+import { confirmarPago, logBold } from "@/lib/subscription";
 
 /**
  * Webhook de Bold (Panel de Comercios → Integraciones → Webhooks).
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         ? "prueba"
         : null;
   if (!tipoFirma) {
-    console.warn("[bold] webhook con firma inválida");
+    after(() => logBold("webhook-firma-invalida", raw));
     return NextResponse.json({ error: "firma inválida" }, { status: 401 });
   }
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
   const ref = evento.data?.metadata?.reference;
-  console.log(`[bold] webhook ${evento.type} ref=${ref} firma=${tipoFirma}`);
+  after(() => logBold(`webhook (${tipoFirma})`, raw));
   if (evento.type === "SALE_APPROVED" && ref?.startsWith("LNK_")) {
     const webhook = {
       firma: tipoFirma,
