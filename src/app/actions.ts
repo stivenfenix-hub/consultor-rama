@@ -51,7 +51,13 @@ import {
   reservarActualizarTodos,
 } from "@/lib/limits";
 
-type ActionState = { error?: string; ok?: string; needsVerify?: string };
+type ActionState = {
+  error?: string;
+  ok?: string;
+  needsVerify?: string;
+  /** Campo del formulario con el error (el formulario solo borra ese). */
+  field?: string;
+};
 
 const passwordSchema = z
   .string()
@@ -113,7 +119,7 @@ export async function registerAction(
   if (String(formData.get("website") ?? "") !== "") {
     return { ok: "Revisa tu correo para verificar tu cuenta." };
   }
-  if (contrasenasNoCoinciden(formData)) return { error: NO_COINCIDEN };
+  if (contrasenasNoCoinciden(formData)) return { error: NO_COINCIDEN, field: "password2" };
   const parsed = registerSchema.safeParse({
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
@@ -122,7 +128,11 @@ export async function registerAction(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    const issue = parsed.error.issues[0];
+    return {
+      error: issue?.message ?? "Datos inválidos",
+      field: issue?.path[0] != null ? String(issue.path[0]) : undefined,
+    };
   }
   try {
     await registerUser(parsed.data);
@@ -130,7 +140,8 @@ export async function registerAction(
       ok: "¡Listo! Te enviamos un correo para verificar tu cuenta. Revisa tu bandeja (y spam).",
     };
   } catch (err) {
-    if (err instanceof AccountError) return { error: err.message };
+    // El único error de cuenta al registrar es el correo ya registrado.
+    if (err instanceof AccountError) return { error: err.message, field: "email" };
     return { error: "No se pudo crear la cuenta. Intenta de nuevo." };
   }
 }

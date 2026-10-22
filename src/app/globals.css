@@ -880,3 +880,9 @@ input:-webkit-autofill:focus {
   font-weight: 600;
   margin-left: 4px;
 }
+
+/* Campo con error en formularios */
+input.input-error {
+  border-color: var(--red, #ff5a6e) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #ff5a6e 25%, transparent);
+}
