@@ -191,6 +191,10 @@ export async function enviarBienvenida(userId: string) {
   }
 }
 
+// Solo cuentas activadas desde que existe el recordatorio: los usuarios
+// anteriores sin procesos no lo reciben.
+const RECORDATORIO_DESDE = new Date("2026-10-22T19:30:00Z");
+
 /**
  * Recordatorio a quienes activaron la cuenta hace 24 h o más y aún no tienen
  * ningún proceso. Se envía una sola vez por usuario. Devuelve cuántos envió.
@@ -200,11 +204,13 @@ export async function enviarRecordatoriosPendientes(): Promise<number> {
   const pendientes = await prisma.$queryRawUnsafe<{ id: string }[]>(
     `SELECT u.id FROM "User" u
      WHERE u."emailVerified" IS NOT NULL
+       AND u."emailVerified" >= $1
        AND u."emailVerified" <= now() - interval '24 hours'
        AND u."reminderSentAt" IS NULL
        AND u.role <> 'admin'
        AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
      LIMIT 50`,
+    RECORDATORIO_DESDE,
   );
   let enviados = 0;
   for (const { id } of pendientes) {
