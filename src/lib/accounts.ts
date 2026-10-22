@@ -4,6 +4,8 @@ import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
 import { hashPassword } from "./auth";
 import { sendMail } from "./mailer";
+import { after } from "next/server";
+import { enviarBienvenida } from "./welcome-email";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const VERIFY_TTL = 1000 * 60 * 60 * 24; // 24h
@@ -168,6 +170,13 @@ export async function verifyEmailToken(raw: string) {
     where: { id: userId },
     data: { emailVerified: new Date() },
   });
+  // Bienvenida al activar la cuenta (el token es de un solo uso: se envía una vez).
+  // Se manda tras responder para no demorar la página de verificación.
+  try {
+    after(() => enviarBienvenida(userId));
+  } catch {
+    void enviarBienvenida(userId);
+  }
   return true;
 }
 
