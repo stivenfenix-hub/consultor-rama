@@ -14,6 +14,7 @@ import {
 } from "./rama";
 import { sendMail } from "./mailer";
 import { sendPushToUser } from "./push";
+import { usuariosConAcceso } from "./subscription";
 import { after } from "next/server";
 
 function parseFecha(f?: string | null): Date | null {
@@ -397,7 +398,9 @@ export async function marcarVistas(caseId: string) {
  * nuevas.
  */
 export async function sincronizarTodos(pausaMs = 1500) {
-  const casos = await prisma.case.findMany({
+  // Solo procesos de cuentas con acceso (prueba o plan al día).
+  const conAcceso = await usuariosConAcceso().catch(() => null);
+  const todos = await prisma.case.findMany({
     select: {
       id: true,
       radicado: true,
@@ -405,6 +408,7 @@ export async function sincronizarTodos(pausaMs = 1500) {
       user: { select: { email: true, name: true } },
     },
   });
+  const casos = conAcceso ? todos.filter((c) => conAcceso.has(c.userId)) : todos;
 
   const resultados: {
     caseId: string;

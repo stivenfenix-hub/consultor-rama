@@ -9,7 +9,7 @@ export function EmailTemplateForm({
   kind,
   template,
 }: {
-  kind: "welcome" | "reminder";
+  kind: "welcome" | "reminder" | "subEnding" | "subExpired";
   template: Template;
 }) {
   const [state, formAction, pending] = useActionState(saveEmailTemplateAction, {});

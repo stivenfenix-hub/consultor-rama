@@ -2,9 +2,11 @@ import { getEmailTemplate } from "@/lib/auto-emails";
 import { EmailTemplateForm } from "./email-template-form";
 
 export default async function CorreosAdmin() {
-  const [welcome, reminder] = await Promise.all([
+  const [welcome, reminder, subEnding, subExpired] = await Promise.all([
     getEmailTemplate("welcome"),
     getEmailTemplate("reminder"),
+    getEmailTemplate("subEnding"),
+    getEmailTemplate("subExpired"),
   ]);
   return (
     <div className="page">
@@ -27,6 +29,25 @@ export default async function CorreosAdmin() {
           el abogado todavía no ha cargado ningún radicado.
         </p>
         <EmailTemplateForm kind="reminder" template={reminder} />
+      </div>
+
+      <div className="card" style={{ maxWidth: 760 }}>
+        <h2>3. Acceso por vencer</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Se envía una vez cuando faltan 3 días para que venza la prueba gratis o
+          el mes pagado. Puedes usar <b>{"{fecha}"}</b>, <b>{"{dias}"}</b> y{" "}
+          <b>{"{precio}"}</b>. El botón lleva a la página de pago.
+        </p>
+        <EmailTemplateForm kind="subEnding" template={subEnding} />
+      </div>
+
+      <div className="card" style={{ maxWidth: 760 }}>
+        <h2>4. Acceso vencido</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Se envía una vez el día que vence el acceso. El botón lleva a la página
+          de pago.
+        </p>
+        <EmailTemplateForm kind="subExpired" template={subExpired} />
       </div>
     </div>
   );

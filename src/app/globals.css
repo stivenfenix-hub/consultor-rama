@@ -866,3 +866,17 @@ input:-webkit-autofill:focus {
   color: #fff;
   line-height: 0;
 }
+
+/* Aviso de prueba gratis / plan por vencer */
+.sub-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: 14px;
+}
+.sub-banner a {
+  font-weight: 600;
+  margin-left: 4px;
+}

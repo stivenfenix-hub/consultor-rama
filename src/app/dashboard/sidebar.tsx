@@ -9,6 +9,7 @@ import { Icon, type IconName } from "@/components/icon";
 const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/dashboard/procesos", label: "Procesos", icon: "scale" },
+  { href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" },
   { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
 ];
 
@@ -16,6 +17,7 @@ const ADMIN_NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard/admin", label: "Panel admin", icon: "shield" },
   { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "users" },
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "megaphone" },
+  { href: "/dashboard/admin/suscripciones", label: "Suscripciones", icon: "card" },
   { href: "/dashboard/admin/correos", label: "Correos automáticos", icon: "mail" },
   { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "palette" },
 ];

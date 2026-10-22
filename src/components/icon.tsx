@@ -102,6 +102,12 @@ const PATHS = {
       <path d="M12 9v4M12 17h.01" />
     </>
   ),
+  card: (
+    <>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </>
+  ),
   mail: (
     <>
       <rect x="2" y="4" width="20" height="16" rx="2" />

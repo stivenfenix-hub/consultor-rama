@@ -14,7 +14,20 @@ import {
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
 import { sendPushToAll } from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
-import { renderEmail, saveEmailTemplate, type EmailKind } from "@/lib/auto-emails";
+import {
+  EMAIL_KINDS,
+  renderEmail,
+  saveEmailTemplate,
+  type EmailKind,
+} from "@/lib/auto-emails";
+import {
+  crearLinkDePago,
+  extenderAcceso,
+  getPlan,
+  getSuscripcion,
+  savePlan,
+  tieneAcceso,
+} from "@/lib/subscription";
 import {
   registerUser,
   resendVerification,
@@ -343,7 +356,8 @@ export async function saveEmailTemplateAction(
   formData: FormData,
 ): Promise<ActionState> {
   await requireAdmin();
-  const kind: EmailKind = formData.get("kind") === "reminder" ? "reminder" : "welcome";
+  const k = String(formData.get("kind") ?? "");
+  const kind: EmailKind = (EMAIL_KINDS as string[]).includes(k) ? (k as EmailKind) : "welcome";
   const intent = String(formData.get("intent") ?? "save");
   if (intent === "reset") {
     await saveEmailTemplate(kind, null);
@@ -364,7 +378,12 @@ export async function saveEmailTemplateAction(
     const admin = await requireAdmin();
     const nombre = admin.firstName || admin.name || "";
     try {
-      await sendMail({ to: admin.email, ...renderEmail(parsed.data, nombre) });
+      await sendMail({ to: admin.email, ...renderEmail(kind, parsed.data, {
+          nombre,
+          fecha: "15 de noviembre de 2026",
+          dias: "3",
+          precio: `${(await getPlan()).precio.toLocaleString("es-CO")}`,
+        }) });
     } catch {
       return { error: "Se guardó, pero no se pudo enviar la prueba." };
     }
@@ -414,6 +433,8 @@ export async function agregarProcesoAction(
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser();
+  const sinAcceso = await bloqueoPorSuscripcion(user.id);
+  if (sinAcceso) return sinAcceso;
   const input = String(formData.get("radicado") ?? "");
   // Acepta varios radicados separados por coma, espacio, punto y coma o salto.
   const radicados = [
@@ -458,6 +479,8 @@ export async function agregarProcesoAction(
 // Actualización manual de un proceso: una vez por día (el admin sin límite).
 export async function refrescarProcesoAction(caseId: string): Promise<ActionState> {
   const user = await requireUser();
+  const sinAcceso = await bloqueoPorSuscripcion(user.id);
+  if (sinAcceso) return sinAcceso;
   const caso = await prisma.case.findFirst({
     where: { id: caseId, userId: user.id },
   });
@@ -483,6 +506,8 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
 // "Actualizar todos": una vez por semana, en segundo plano y por tandas.
 export async function actualizarTodosAction(): Promise<ActionState> {
   const user = await requireUser();
+  const sinAcceso = await bloqueoPorSuscripcion(user.id);
+  if (sinAcceso) return sinAcceso;
   const error = await reservarActualizarTodos(user.id, user.role === "admin");
   if (error) return { error };
   after(() => ejecutarActualizarTodos(user.id));
@@ -510,4 +535,56 @@ export async function eliminarProcesoAction(caseId: string) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
   redirect("/dashboard/procesos");
+}
+
+// ---------- Suscripción ----------
+/** Mensaje de error si la cuenta no tiene acceso (prueba o plan vencido). */
+async function bloqueoPorSuscripcion(userId: string): Promise<ActionState | null> {
+  const sub = await getSuscripcion(userId);
+  return tieneAcceso(sub)
+    ? null
+    : { error: "Tu acceso venció. Renueva tu plan en Suscripción para continuar." };
+}
+
+/** Crea el link de pago de Bold y lleva al usuario al checkout. */
+export async function pagarSuscripcionAction(): Promise<ActionState> {
+  const user = await requireUser();
+  let url: string;
+  try {
+    url = await crearLinkDePago({ id: user.id, email: user.email });
+  } catch (e) {
+    console.error("[bold] crear link", e);
+    return { error: "No pudimos generar el pago en este momento. Intenta de nuevo en unos minutos." };
+  }
+  redirect(url);
+}
+
+const planSchema = z.object({
+  precio: z.coerce.number().int().min(1000, "El precio mínimo es $1.000").max(10_000_000),
+  diasPrueba: z.coerce.number().int().min(0).max(365),
+});
+
+export async function savePlanAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = planSchema.safeParse({
+    precio: formData.get("precio"),
+    diasPrueba: formData.get("diasPrueba"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  await savePlan(parsed.data.precio, parsed.data.diasPrueba);
+  revalidatePath("/dashboard/admin/suscripciones");
+  return { ok: "Plan actualizado." };
+}
+
+/** El root regala días de acceso a un usuario. */
+export async function regalarDiasAction(userId: string, dias: number) {
+  await requireAdmin();
+  if (!Number.isInteger(dias) || dias < 1 || dias > 366) return;
+  await extenderAcceso(userId, dias);
+  revalidatePath("/dashboard/admin/suscripciones");
 }

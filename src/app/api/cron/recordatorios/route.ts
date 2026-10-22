@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { enviarRecordatoriosPendientes } from "@/lib/auto-emails";
+import {
+  enviarAvisosDeSuscripcion,
+  enviarRecordatoriosPendientes,
+} from "@/lib/auto-emails";
 
 /**
  * Envía el correo de recordatorio a quienes activaron su cuenta hace 24 h y aún
@@ -15,7 +18,15 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   const enviados = await enviarRecordatoriosPendientes();
-  return NextResponse.json({ ok: true, recordatoriosEnviados: enviados });
+  const avisos = await enviarAvisosDeSuscripcion().catch((e) => {
+    console.error("[cron] avisos de suscripcion", e);
+    return 0;
+  });
+  return NextResponse.json({
+    ok: true,
+    recordatoriosEnviados: enviados,
+    avisosSuscripcion: avisos,
+  });
 }
 
 export const GET = handle;

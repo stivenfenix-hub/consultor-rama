@@ -6,14 +6,28 @@ import { sendMail } from "./mailer";
 // Correos automáticos que el root edita en Panel admin → Correos automáticos:
 //  - "welcome": bienvenida, al activar la cuenta (confirmar el correo).
 //  - "reminder": recordatorio, 24 h después de activar si aún no tiene procesos.
+//  - "subEnding": la prueba o el mes pagado vence en ≤ 3 días.
+//  - "subExpired": la prueba o el mes pagado ya venció.
 // Formato del cuerpo:
-//  - {nombre} se reemplaza por el nombre del abogado.
+//  - {nombre} se reemplaza por el nombre del abogado; {fecha} por la fecha de
+//    vencimiento, {dias} por los días que faltan y {precio} por el valor del plan.
 //  - Una línea que solo diga [boton] se convierte en el botón grande.
 //  - **texto** se muestra en negrilla. Una línea en blanco separa párrafos.
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
-export type EmailKind = "welcome" | "reminder";
+export type EmailKind = "welcome" | "reminder" | "subEnding" | "subExpired";
+export const EMAIL_KINDS: EmailKind[] = ["welcome", "reminder", "subEnding", "subExpired"];
+
+// A dónde lleva el botón de cada correo.
+const BOTON_DESTINO: Record<EmailKind, string> = {
+  welcome: "/dashboard/procesos",
+  reminder: "/dashboard/procesos",
+  subEnding: "/dashboard/suscripcion",
+  subExpired: "/dashboard/suscripcion",
+};
+
+export type EmailVars = { nombre: string; fecha?: string; dias?: string; precio?: string };
 export type EmailTemplate = { subject: string; button: string; body: string };
 
 const FIRMA = `Atentamente,
@@ -67,12 +81,44 @@ No dejes que el tiempo corra sin aprovechar tu mes de prueba gratis. ¡Automatiz
 
 ${FIRMA}`,
   },
+  subEnding: {
+    subject: "⏰ Tu acceso a Estradox vence en {dias} día(s)",
+    button: "👉 Renovar mi plan",
+    body: `Hola, {nombre}:
+
+Te escribimos para avisarte que tu acceso a Estradox vence el **{fecha}**.
+
+Para que sigamos vigilando tus procesos todos los días y no te pierdas ninguna actuación, renueva tu plan mensual por solo **{precio} COP** (IVA y comisiones incluidas). Puedes pagar con tarjeta, PSE, Nequi o Botón Bancolombia.
+
+[boton]
+
+Si decides no continuar, no tienes que hacer nada: tu cuenta simplemente quedará en pausa y podrás reactivarla cuando quieras.
+
+${FIRMA}`,
+  },
+  subExpired: {
+    subject: "Tu acceso a Estradox venció: reactívalo hoy",
+    button: "👉 Reactivar mi plan",
+    body: `Hola, {nombre}:
+
+Tu acceso a Estradox venció el **{fecha}**, así que dejamos de revisar tus procesos en la Rama Judicial y no recibirás alertas de actuaciones nuevas.
+
+Tus procesos siguen guardados. Reactiva tu plan mensual por **{precio} COP** y retomamos la vigilancia de inmediato:
+
+[boton]
+
+Si tienes alguna duda, responde a este correo y te ayudamos.
+
+${FIRMA}`,
+  },
 };
 
 // Columnas de cada plantilla en SiteSetting (creadas en tiempo de ejecución).
 const COLS: Record<EmailKind, { s: string; b: string; t: string }> = {
   welcome: { s: "welcomeSubject", b: "welcomeButton", t: "welcomeBody" },
   reminder: { s: "reminderSubject", b: "reminderButton", t: "reminderBody" },
+  subEnding: { s: "subEndingSubject", b: "subEndingButton", t: "subEndingBody" },
+  subExpired: { s: "subExpiredSubject", b: "subExpiredButton", t: "subExpiredBody" },
 };
 
 async function ensureTemplateColumns(kind: EmailKind) {
@@ -143,9 +189,17 @@ function inline(s: string) {
 const BTN =
   "display:inline-block;background:linear-gradient(135deg,#8b3dff,#4b23e6);color:#fff;padding:16px 26px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px";
 
-export function renderEmail(t: EmailTemplate, nombre: string) {
-  const link = `${APP_URL}/dashboard/procesos`;
-  const body = t.body.replace(/\{nombre\}/g, nombre);
+function reemplazar(s: string, v: EmailVars) {
+  return s
+    .replace(/\{nombre\}/g, v.nombre)
+    .replace(/\{fecha\}/g, v.fecha ?? "")
+    .replace(/\{dias\}/g, v.dias ?? "")
+    .replace(/\{precio\}/g, v.precio ?? "");
+}
+
+export function renderEmail(kind: EmailKind, t: EmailTemplate, vars: EmailVars) {
+  const link = `${APP_URL}${BOTON_DESTINO[kind]}`;
+  const body = reemplazar(t.body, vars);
 
   const bloques = body.replace(/\r\n/g, "\n").split(/\n\s*\n/);
   const html = bloques
@@ -165,7 +219,7 @@ export function renderEmail(t: EmailTemplate, nombre: string) {
     .replace(/\*\*(.+?)\*\*/g, "$1");
 
   return {
-    subject: t.subject,
+    subject: reemplazar(t.subject, vars),
     text,
     html: `
       <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:580px;margin:0 auto;color:#1d1b2e;font-size:15px">
@@ -175,11 +229,18 @@ export function renderEmail(t: EmailTemplate, nombre: string) {
   };
 }
 
-async function enviarPlantilla(kind: EmailKind, userId: string) {
+export async function enviarPlantilla(
+  kind: EmailKind,
+  userId: string,
+  vars: Omit<EmailVars, "nombre"> = {},
+) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
   const nombre = user.firstName || user.name || "";
-  await sendMail({ to: user.email, ...renderEmail(await getEmailTemplate(kind), nombre) });
+  await sendMail({
+    to: user.email,
+    ...renderEmail(kind, await getEmailTemplate(kind), { nombre, ...vars }),
+  });
 }
 
 /** Envía la bienvenida a un usuario (no lanza error: solo lo registra). */
@@ -225,6 +286,34 @@ export async function enviarRecordatoriosPendientes(): Promise<number> {
       enviados++;
     } catch (e) {
       console.error("[recordatorio] no se pudo enviar", id, e);
+    }
+  }
+  return enviados;
+}
+
+/** Avisos de "tu acceso vence pronto" y "tu acceso venció" (una vez por fecha). */
+export async function enviarAvisosDeSuscripcion(): Promise<number> {
+  const { avisosDeVencimientoPendientes, marcarAviso, getPlan } = await import("./subscription");
+  const { porVencer, vencidos } = await avisosDeVencimientoPendientes();
+  const { precio } = await getPlan();
+  const precioTxt = `$${precio.toLocaleString("es-CO")}`;
+  const fechaTxt = (d: Date) =>
+    d.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Bogota" });
+  let enviados = 0;
+  for (const [lista, kind, tipo] of [
+    [porVencer, "subEnding", "porVencer"],
+    [vencidos, "subExpired", "vencida"],
+  ] as const) {
+    for (const { id, hasta } of lista) {
+      // Se marca antes de enviar: si el correo falla no se reintenta en bucle.
+      await marcarAviso(id, tipo, hasta);
+      const dias = Math.max(1, Math.ceil((hasta.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+      try {
+        await enviarPlantilla(kind, id, { fecha: fechaTxt(hasta), dias: String(dias), precio: precioTxt });
+        enviados++;
+      } catch (e) {
+        console.error(`[${kind}] no se pudo enviar`, id, e);
+      }
     }
   }
   return enviados;
