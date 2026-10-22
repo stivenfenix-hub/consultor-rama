@@ -14,7 +14,7 @@ import {
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
 import { sendPushToAll } from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
-import { renderWelcome, saveWelcomeTemplate } from "@/lib/welcome-email";
+import { renderEmail, saveEmailTemplate, type EmailKind } from "@/lib/auto-emails";
 import {
   registerUser,
   resendVerification,
@@ -331,25 +331,26 @@ export async function resetLogoAction(
   revalidatePath("/", "layout");
 }
 
-// ---------- Admin: correo de bienvenida ----------
-const welcomeSchema = z.object({
+// ---------- Admin: correos automáticos (bienvenida y recordatorio) ----------
+const emailTemplateSchema = z.object({
   subject: z.string().trim().min(1, "Escribe el asunto").max(200),
   button: z.string().trim().min(1, "Escribe el texto del botón").max(120),
   body: z.string().trim().min(1, "Escribe el cuerpo del correo").max(10000),
 });
 
-export async function saveWelcomeAction(
+export async function saveEmailTemplateAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   await requireAdmin();
+  const kind: EmailKind = formData.get("kind") === "reminder" ? "reminder" : "welcome";
   const intent = String(formData.get("intent") ?? "save");
   if (intent === "reset") {
-    await saveWelcomeTemplate(null);
+    await saveEmailTemplate(kind, null);
     revalidatePath("/dashboard/admin/correos");
     return { ok: "Se restauró el texto original." };
   }
-  const parsed = welcomeSchema.safeParse({
+  const parsed = emailTemplateSchema.safeParse({
     subject: formData.get("subject"),
     button: formData.get("button"),
     body: formData.get("body"),
@@ -357,19 +358,19 @@ export async function saveWelcomeAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  await saveWelcomeTemplate(parsed.data);
+  await saveEmailTemplate(kind, parsed.data);
   revalidatePath("/dashboard/admin/correos");
   if (intent === "test") {
     const admin = await requireAdmin();
     const nombre = admin.firstName || admin.name || "";
     try {
-      await sendMail({ to: admin.email, ...renderWelcome(parsed.data, nombre) });
+      await sendMail({ to: admin.email, ...renderEmail(parsed.data, nombre) });
     } catch {
       return { error: "Se guardó, pero no se pudo enviar la prueba." };
     }
     return { ok: `Guardado y enviado de prueba a ${admin.email}.` };
   }
-  return { ok: "Correo de bienvenida guardado." };
+  return { ok: "Correo guardado." };
 }
 
 // ---------- Admin: enviar notificación (promo/info) a todos ----------

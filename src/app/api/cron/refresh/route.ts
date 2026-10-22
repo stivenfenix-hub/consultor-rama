@@ -1,5 +1,6 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { sincronizarTodos } from "@/lib/sync";
+import { enviarRecordatoriosPendientes } from "@/lib/auto-emails";
 
 /**
  * Endpoint que refresca todos los procesos. Lo dispara un scheduler cada 24h.
@@ -37,6 +38,10 @@ async function handle(req: NextRequest) {
     } catch (e) {
       console.error("[cron] error", e);
     }
+    // Respaldo del cron horario de recordatorios (/api/cron/recordatorios).
+    await enviarRecordatoriosPendientes().catch((e) =>
+      console.error("[cron] recordatorios", e),
+    );
   });
   return NextResponse.json(
     { ok: true, mensaje: "Sincronización iniciada en segundo plano." },

@@ -1,33 +1,41 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveWelcomeAction } from "@/app/actions";
+import { saveEmailTemplateAction } from "@/app/actions";
 
 type Template = { subject: string; button: string; body: string };
 
-export function WelcomeForm({ template }: { template: Template }) {
-  const [state, formAction, pending] = useActionState(saveWelcomeAction, {});
+export function EmailTemplateForm({
+  kind,
+  template,
+}: {
+  kind: "welcome" | "reminder";
+  template: Template;
+}) {
+  const [state, formAction, pending] = useActionState(saveEmailTemplateAction, {});
+  const id = (n: string) => `${kind}-${n}`;
 
   return (
     // key: al restaurar el original, el formulario se vuelve a montar con el texto nuevo
     <form action={formAction} key={JSON.stringify(template)}>
-      <label className="small muted" htmlFor="subject">Asunto</label>
-      <input id="subject" name="subject" type="text" required defaultValue={template.subject} />
+      <input type="hidden" name="kind" value={kind} />
+      <label className="small muted" htmlFor={id("subject")}>Asunto</label>
+      <input id={id("subject")} name="subject" type="text" required defaultValue={template.subject} />
       <div style={{ height: 12 }} />
 
-      <label className="small muted" htmlFor="button">Texto del botón</label>
-      <input id="button" name="button" type="text" required defaultValue={template.button} />
+      <label className="small muted" htmlFor={id("button")}>Texto del botón</label>
+      <input id={id("button")} name="button" type="text" required defaultValue={template.button} />
       <div className="muted small" style={{ marginTop: 4 }}>
         El botón lleva al abogado a la página para agregar sus procesos.
       </div>
       <div style={{ height: 12 }} />
 
-      <label className="small muted" htmlFor="body">Cuerpo del correo</label>
+      <label className="small muted" htmlFor={id("body")}>Cuerpo del correo</label>
       <textarea
-        id="body"
+        id={id("body")}
         name="body"
         required
-        rows={22}
+        rows={18}
         defaultValue={template.body}
         style={{
           width: "100%",
@@ -62,7 +70,7 @@ export function WelcomeForm({ template }: { template: Template }) {
           formNoValidate
           disabled={pending}
           onClick={(e) => {
-            if (!confirm("¿Restaurar el texto original del correo de bienvenida?")) e.preventDefault();
+            if (!confirm("¿Restaurar el texto original de este correo?")) e.preventDefault();
           }}
         >
           Restaurar original

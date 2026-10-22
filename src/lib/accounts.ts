@@ -5,7 +5,7 @@ import { ensureColumn } from "./runtime-columns";
 import { hashPassword } from "./auth";
 import { sendMail } from "./mailer";
 import { after } from "next/server";
-import { enviarBienvenida } from "./welcome-email";
+import { enviarBienvenida } from "./auto-emails";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const VERIFY_TTL = 1000 * 60 * 60 * 24; // 24h
