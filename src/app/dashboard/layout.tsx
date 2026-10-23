@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getSiteSettings } from "@/lib/settings";
-import { getSuscripcion, tieneAcceso } from "@/lib/subscription";
+import { boldConfigurado, getSuscripcion, ofertaRelampago, tieneAcceso } from "@/lib/subscription";
+import { FlashOffer } from "@/components/flash-offer";
 import { logoutAction } from "@/app/actions";
 import { AppShell } from "./sidebar";
 
@@ -26,9 +27,17 @@ export default async function AppLayout({
   const vencida = !tieneAcceso(sub);
   if (vencida && !pathname.startsWith(PAGINA_PAGO)) redirect(PAGINA_PAGO);
 
+  // Oferta relámpago del día 15 (reemplaza el aviso de días de prueba).
+  const oferta =
+    boldConfigurado() && !pathname.startsWith(PAGINA_PAGO)
+      ? await ofertaRelampago(user.id, sub)
+      : null;
+
   // Aviso arriba: días de prueba restantes o plan por vencer.
   let aviso: React.ReactNode = null;
-  if (!pathname.startsWith("/dashboard/suscripcion")) {
+  if (oferta) {
+    aviso = null;
+  } else if (!pathname.startsWith("/dashboard/suscripcion")) {
     if (sub.estado === "prueba") {
       aviso = (
         <>
@@ -56,6 +65,14 @@ export default async function AppLayout({
       soloPago={vencida}
       logoutAction={logoutAction}
     >
+      {oferta && (
+        <FlashOffer
+          precio={oferta.precio}
+          ahorro={oferta.ahorro}
+          diasUsados={oferta.diasUsados}
+          diasRestantes={oferta.diasRestantes}
+        />
+      )}
       {aviso && <div className="sub-banner">{aviso}</div>}
       {children}
     </AppShell>

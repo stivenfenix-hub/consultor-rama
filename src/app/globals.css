@@ -943,3 +943,37 @@ input.input-error {
 .plan-card .btn {
   margin-top: auto !important;
 }
+
+/* Oferta relámpago del día 15 */
+.flash-offer {
+  position: relative;
+  margin: 0 0 16px;
+  padding: 18px 18px 16px;
+  border-radius: 14px;
+  border: 2px solid var(--accent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 22%, var(--panel)) 0%,
+    var(--panel) 70%
+  );
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.flash-offer-tag {
+  display: inline-block;
+  background: var(--brand-grad);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.flash-offer-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.flash-offer-text {
+  line-height: 1.5;
+}

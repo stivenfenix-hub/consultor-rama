@@ -461,3 +461,54 @@ export async function marcarAviso(userId: string, tipo: "porVencer" | "vencida",
   const col = tipo === "porVencer" ? "subNoticeFor" : "subExpiredFor";
   await prisma.$executeRawUnsafe(`UPDATE "User" SET "${col}" = $1 WHERE id = $2`, hasta, userId);
 }
+
+// ---------- Oferta relámpago del día 15 ----------
+// A mitad de la prueba gratis, si Estradox ya le avisó varias actuaciones nuevas
+// al abogado, se le ofrece el plan de 12 meses. Como el tiempo pagado se suma
+// desde que termina la prueba, los días gratis que le quedan quedan al final.
+const DIA_OFERTA = 15;
+const MIN_ALERTAS = 5;
+
+export type OfertaRelampago = {
+  precio: number;
+  ahorro: number;
+  diasUsados: number;
+  diasRestantes: number;
+  alertas: number;
+};
+
+export async function ofertaRelampago(
+  userId: string,
+  sub: Suscripcion,
+): Promise<OfertaRelampago | null> {
+  if (sub.estado !== "prueba" || !sub.trialEndsAt) return null;
+  try {
+    const plan = await getPlan();
+    const inicio = sub.trialEndsAt.getTime() - plan.diasPrueba * DIA_MS;
+    const diasUsados = Math.floor((Date.now() - inicio) / DIA_MS);
+    if (diasUsados < DIA_OFERTA) return null;
+
+    // Alertas: actuaciones que la revisión diaria encontró después de agregar
+    // el proceso (las del historial inicial no cuentan).
+    const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+      `SELECT count(*) AS n FROM "Actuacion" a
+       JOIN "Case" c ON c.id = a."caseId"
+       WHERE c."userId" = $1 AND a."createdAt" > c."createdAt" + interval '10 minutes'`,
+      userId,
+    );
+    const alertas = Number(r?.n ?? 0);
+    if (alertas < MIN_ALERTAS) return null;
+
+    const anual = plan.paquetes.find((p) => p.meses === 12)?.precio;
+    if (!anual) return null;
+    return {
+      precio: anual,
+      ahorro: plan.precio * 12 - anual,
+      diasUsados,
+      diasRestantes: sub.diasRestantes,
+      alertas,
+    };
+  } catch {
+    return null;
+  }
+}
