@@ -7,7 +7,6 @@ import "./globals.css";
 const BASE_METADATA: Metadata = {
   title: "Estradox",
   description: "Seguimiento de procesos judiciales en tiempo real",
-  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     title: "Estradox",
