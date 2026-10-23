@@ -60,9 +60,9 @@ export default async function SuscripcionesAdmin() {
         />
       </section>
 
-      <div className="card" style={{ maxWidth: 520 }}>
-        <h2>Plan</h2>
-        <PlanForm precio={plan.precio} diasPrueba={plan.diasPrueba} />
+      <div className="card" style={{ maxWidth: 720 }}>
+        <h2>Precios de los paquetes</h2>
+        <PlanForm paquetes={plan.paquetes} diasPrueba={plan.diasPrueba} />
       </div>
 
       <div className="card">

@@ -7,7 +7,7 @@ import {
   pagosDeUsuario,
   verificarPagosPendientes,
 } from "@/lib/subscription";
-import { PayButton } from "./pay-button";
+import { PricingCards } from "./pay-button";
 
 const TZ = "America/Bogota";
 const fecha = (d: Date | null) =>
@@ -51,7 +51,7 @@ export default async function SuscripcionPage({
       : sub.estado === "prueba"
         ? "Prueba gratis activa"
         : sub.estado === "activa"
-          ? "Plan mensual activo"
+          ? "Plan activo"
           : "Tu acceso venció";
 
   return (
@@ -63,7 +63,7 @@ export default async function SuscripcionPage({
       {pago && (
         <div className={pagoRecienAprobado ? "ok" : "muted small"} style={{ marginBottom: 12 }}>
           {pagoRecienAprobado
-            ? "¡Pago aprobado! Tu acceso ya quedó extendido 30 días."
+            ? `¡Pago aprobado! Tu acceso quedó extendido ${ultimoAprobado?.meses === 1 ? "1 mes" : `${ultimoAprobado?.meses ?? 1} meses`}.`
             : "Si ya pagaste, la confirmación de Bold puede tardar unos minutos. Recarga esta página en un momento."}
         </div>
       )}
@@ -77,24 +77,28 @@ export default async function SuscripcionPage({
             {sub.estado !== "vencida" && <span className="muted"> ({sub.diasRestantes} día(s))</span>}
           </p>
         )}
-        <p className="muted small">
-          Plan mensual: <b>{pesos(plan.precio)} COP</b> (IVA y comisiones incluidas). Cada pago suma
-          30 días de acceso, contados desde que termina tu acceso actual: si pagas antes, no
-          pierdes días. Pagas con tarjeta, PSE, Nequi o Botón Bancolombia a través de Bold.
-        </p>
-        {sub.estado !== "admin" &&
-          (boldConfigurado() ? (
-            <PayButton
-              label={
-                sub.estado === "vencida"
-                  ? `Reactivar por ${pesos(plan.precio)}`
-                  : `Pagar mes por ${pesos(plan.precio)}`
-              }
+      </div>
+
+      {sub.estado !== "admin" && (
+        <div style={{ maxWidth: 980 }}>
+          <h2 style={{ marginBottom: 4 }}>
+            {sub.estado === "vencida" ? "Elige un plan para reactivar tu cuenta" : "Elige tu plan"}
+          </h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Precios en pesos colombianos, IVA y comisiones incluidas. El tiempo se suma desde que
+            termina tu acceso actual: si pagas antes, no pierdes días. Pagas con tarjeta, PSE,
+            Nequi o Botón Bancolombia a través de Bold.
+          </p>
+          {boldConfigurado() ? (
+            <PricingCards
+              paquetes={plan.paquetes}
+              accion={sub.estado === "vencida" ? "Reactivar" : "Elegir plan"}
             />
           ) : (
             <p className="muted small">Los pagos en línea estarán disponibles muy pronto.</p>
-          ))}
-      </div>
+          )}
+        </div>
+      )}
 
       {pagos.length > 0 && (
         <div className="card" style={{ maxWidth: 560 }}>
@@ -104,6 +108,7 @@ export default async function SuscripcionPage({
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Plan</th>
                   <th>Valor</th>
                   <th>Estado</th>
                 </tr>
@@ -112,6 +117,7 @@ export default async function SuscripcionPage({
                 {pagos.map((p) => (
                   <tr key={p.id}>
                     <td className="muted">{fecha(p.paidAt ?? p.createdAt)}</td>
+                    <td>{p.meses === 1 ? "1 mes" : `${p.meses} meses`}</td>
                     <td>{pesos(p.amount)}</td>
                     <td>{ESTADO_PAGO[p.status] ?? p.status}</td>
                   </tr>

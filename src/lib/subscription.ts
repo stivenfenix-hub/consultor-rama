@@ -13,11 +13,38 @@ import { ensureColumn } from "./runtime-columns";
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const BOLD_API = "https://integrations.api.bold.co";
 const DIA_MS = 24 * 60 * 60 * 1000;
-const DIAS_POR_PAGO = 30;
 // Usuarios creados antes de lanzar los cobros: su prueba empieza este día.
 const LANZAMIENTO = new Date("2026-10-22T05:00:00Z");
 
-export const PLAN_DEFAULTS = { precio: 24900, diasPrueba: 30 };
+// Paquetes: meses de acceso y precio (COP). El de 1 mes es el precio base con
+// el que se calcula el ahorro de los demás.
+export const MESES_PAQUETES = [1, 3, 6, 12] as const;
+export type MesesPaquete = (typeof MESES_PAQUETES)[number];
+export type Paquete = { meses: MesesPaquete; precio: number };
+
+const PRECIOS_DEFAULT: Record<MesesPaquete, number> = {
+  1: 24900,
+  3: 65900,
+  6: 119900,
+  12: 219900,
+};
+const COL_PRECIO: Record<MesesPaquete, string> = {
+  1: "planPrice",
+  3: "planPrice3",
+  6: "planPrice6",
+  12: "planPrice12",
+};
+
+export type Plan = { precio: number; diasPrueba: number; paquetes: Paquete[] };
+export const PLAN_DEFAULTS: Plan = {
+  precio: PRECIOS_DEFAULT[1],
+  diasPrueba: 30,
+  paquetes: MESES_PAQUETES.map((meses) => ({ meses, precio: PRECIOS_DEFAULT[meses] })),
+};
+
+export function esMesesPaquete(n: number): n is MesesPaquete {
+  return (MESES_PAQUETES as readonly number[]).includes(n);
+}
 
 export function boldConfigurado() {
   return !!process.env.BOLD_API_KEY;
@@ -31,7 +58,9 @@ async function ensureSchema() {
   await ensureColumn("User", "paidUntil", "TIMESTAMPTZ");
   await ensureColumn("User", "subNoticeFor", "TIMESTAMPTZ");
   await ensureColumn("User", "subExpiredFor", "TIMESTAMPTZ");
-  await ensureColumn("SiteSetting", "planPrice", "INTEGER");
+  for (const col of Object.values(COL_PRECIO)) {
+    await ensureColumn("SiteSetting", col, "INTEGER");
+  }
   await ensureColumn("SiteSetting", "trialDays", "INTEGER");
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "BoldPayment" (
@@ -44,6 +73,7 @@ async function ensureSchema() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
       "paidAt" TIMESTAMPTZ
     )`);
+  await ensureColumn("BoldPayment", "meses", "INTEGER NOT NULL DEFAULT 1");
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "BoldEvent" (
       id SERIAL PRIMARY KEY,
@@ -75,32 +105,40 @@ export async function eventosBold() {
   );
 }
 
-// ---------- Plan (precio y días de prueba, editables por el root) ----------
-export async function getPlan(): Promise<{ precio: number; diasPrueba: number }> {
+// ---------- Plan (precios de los paquetes y días de prueba, editables por el root) ----------
+export async function getPlan(): Promise<Plan> {
   try {
     await ensureSchema();
-    const rows = await prisma.$queryRawUnsafe<
-      { p: number | null; d: number | null }[]
-    >(`SELECT "planPrice" AS p, "trialDays" AS d FROM "SiteSetting" WHERE id = 'site'`);
+    const cols = MESES_PAQUETES.map((m) => `"${COL_PRECIO[m]}" AS p${m}`).join(", ");
+    const rows = await prisma.$queryRawUnsafe<Record<string, number | null>[]>(
+      `SELECT ${cols}, "trialDays" AS d FROM "SiteSetting" WHERE id = 'site'`,
+    );
+    const r = rows[0] ?? {};
+    const paquetes = MESES_PAQUETES.map((meses) => ({
+      meses,
+      precio: r[`p${meses}`] ?? PRECIOS_DEFAULT[meses],
+    }));
     return {
-      precio: rows[0]?.p ?? PLAN_DEFAULTS.precio,
-      diasPrueba: rows[0]?.d ?? PLAN_DEFAULTS.diasPrueba,
+      precio: paquetes[0].precio,
+      diasPrueba: r.d ?? PLAN_DEFAULTS.diasPrueba,
+      paquetes,
     };
   } catch {
     return PLAN_DEFAULTS;
   }
 }
 
-export async function savePlan(precio: number, diasPrueba: number) {
+export async function savePlan(precios: Record<MesesPaquete, number>, diasPrueba: number) {
   await ensureSchema();
   await prisma.siteSetting.upsert({
     where: { id: "site" },
     create: { id: "site" },
     update: {},
   });
+  const sets = MESES_PAQUETES.map((m, i) => `"${COL_PRECIO[m]}" = $${i + 1}`).join(", ");
   await prisma.$executeRawUnsafe(
-    `UPDATE "SiteSetting" SET "planPrice" = $1, "trialDays" = $2 WHERE id = 'site'`,
-    precio,
+    `UPDATE "SiteSetting" SET ${sets}, "trialDays" = $${MESES_PAQUETES.length + 1} WHERE id = 'site'`,
+    ...MESES_PAQUETES.map((m) => precios[m]),
     diasPrueba,
   );
 }
@@ -192,13 +230,18 @@ export async function suscripcionesDeTodos() {
   return new Map(us.map((u) => [u.id, calcular(u, diasPrueba)]));
 }
 
-/** Suma días de acceso (regalo del root o pago confirmado). */
-export async function extenderAcceso(userId: string, dias: number) {
+/**
+ * Suma acceso desde que termina el actual (o desde hoy si ya venció): días
+ * (regalo del root) o meses calendario (pago de un paquete).
+ */
+export async function extenderAcceso(userId: string, cantidad: { dias?: number; meses?: number }) {
   const s = await getSuscripcion(userId);
-  const base = Math.max(Date.now(), s.accesoHasta?.getTime() ?? 0);
+  const hasta = new Date(Math.max(Date.now(), s.accesoHasta?.getTime() ?? 0));
+  if (cantidad.meses) hasta.setUTCMonth(hasta.getUTCMonth() + cantidad.meses);
+  if (cantidad.dias) hasta.setTime(hasta.getTime() + cantidad.dias * DIA_MS);
   await prisma.$executeRawUnsafe(
     `UPDATE "User" SET "paidUntil" = $1 WHERE id = $2`,
-    new Date(base + dias * DIA_MS),
+    hasta,
     userId,
   );
 }
@@ -229,16 +272,17 @@ async function bold(path: string, init?: RequestInit) {
 }
 
 /** Crea un link de pago de Bold para el plan mensual y devuelve su URL. */
-export async function crearLinkDePago(user: { id: string; email: string }) {
+export async function crearLinkDePago(user: { id: string; email: string }, meses: MesesPaquete) {
   if (!boldConfigurado()) throw new Error("Los pagos aún no están configurados.");
   await ensureSchema();
-  const { precio } = await getPlan();
+  const plan = await getPlan();
+  const precio = plan.paquetes.find((p) => p.meses === meses)?.precio ?? plan.precio;
   const j = await bold("/online/link/v1", {
     method: "POST",
     body: JSON.stringify({
       amount_type: "CLOSE",
       amount: { currency: "COP", total_amount: precio, tip_amount: 0 },
-      description: "Estradox - Plan mensual",
+      description: meses === 1 ? "Estradox - Plan 1 mes" : `Estradox - Plan ${meses} meses`,
       callback_url: `${APP_URL}/dashboard/suscripcion?pago=1`,
       payer_email: user.email,
     }),
@@ -248,11 +292,12 @@ export async function crearLinkDePago(user: { id: string; email: string }) {
     throw new Error(`Bold no devolvió el link: ${JSON.stringify(j).slice(0, 300)}`);
   }
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "BoldPayment" (id, "userId", amount, status, url) VALUES ($1, $2, $3, 'ACTIVE', $4)`,
+    `INSERT INTO "BoldPayment" (id, "userId", amount, status, url, meses) VALUES ($1, $2, $3, 'ACTIVE', $4, $5)`,
     payload.payment_link,
     user.id,
     precio,
     payload.url,
+    meses,
   );
   return payload.url;
 }
@@ -272,8 +317,8 @@ export async function confirmarPago(
 ): Promise<boolean> {
   await ensureSchema();
   const [pago] = await prisma.$queryRawUnsafe<
-    { id: string; userId: string; status: string; amount: number }[]
-  >(`SELECT id, "userId", status, amount FROM "BoldPayment" WHERE id = $1`, linkId);
+    { id: string; userId: string; status: string; amount: number; meses: number }[]
+  >(`SELECT id, "userId", status, amount, meses FROM "BoldPayment" WHERE id = $1`, linkId);
   if (!pago || pago.status === "PAID") return false;
 
   const j = await bold(`/online/link/v1/${encodeURIComponent(linkId)}`);
@@ -318,7 +363,7 @@ export async function confirmarPago(
     linkId,
   );
   if (marcado !== 1) return false; // otro proceso ya lo acreditó
-  await extenderAcceso(pago.userId, DIAS_POR_PAGO);
+  await extenderAcceso(pago.userId, { meses: pago.meses || 1 });
   console.log(`[bold] pago ${linkId} acreditado a ${pago.userId}`);
   return true;
 }
@@ -362,9 +407,9 @@ export async function verificarTodosLosPagosPendientes(): Promise<number> {
 export async function pagosDeUsuario(userId: string) {
   await ensureSchema();
   return prisma.$queryRawUnsafe<
-    { id: string; amount: number; status: string; createdAt: Date; paidAt: Date | null }[]
+    { id: string; amount: number; status: string; createdAt: Date; paidAt: Date | null; meses: number }[]
   >(
-    `SELECT id, amount, status, "createdAt", "paidAt" FROM "BoldPayment"
+    `SELECT id, amount, status, "createdAt", "paidAt", meses FROM "BoldPayment"
      WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`,
     userId,
   );

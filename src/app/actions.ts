@@ -25,6 +25,7 @@ import {
   extenderAcceso,
   getPlan,
   getSuscripcion,
+  esMesesPaquete,
   savePlan,
   terminarAcceso,
   tieneAcceso,
@@ -558,12 +559,17 @@ async function bloqueoPorSuscripcion(userId: string): Promise<ActionState | null
     : { error: "Tu acceso venció. Renueva tu plan en Suscripción para continuar." };
 }
 
-/** Crea el link de pago de Bold y lleva al usuario al checkout. */
-export async function pagarSuscripcionAction(): Promise<ActionState> {
+/** Crea el link de pago de Bold del paquete elegido y lleva al usuario al checkout. */
+export async function pagarSuscripcionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const user = await requireUser();
+  const meses = Number(formData.get("meses") ?? 1);
+  if (!esMesesPaquete(meses)) return { error: "Paquete inválido." };
   let url: string;
   try {
-    url = await crearLinkDePago({ id: user.id, email: user.email });
+    url = await crearLinkDePago({ id: user.id, email: user.email }, meses);
   } catch (e) {
     console.error("[bold] crear link", e);
     return { error: "No pudimos generar el pago en este momento. Intenta de nuevo en unos minutos." };
@@ -571,8 +577,16 @@ export async function pagarSuscripcionAction(): Promise<ActionState> {
   redirect(url);
 }
 
+const precioSchema = z.coerce
+  .number()
+  .int("El precio debe ser un número entero")
+  .min(1000, "El precio mínimo es $1.000")
+  .max(10_000_000);
 const planSchema = z.object({
-  precio: z.coerce.number().int().min(1000, "El precio mínimo es $1.000").max(10_000_000),
+  p1: precioSchema,
+  p3: precioSchema,
+  p6: precioSchema,
+  p12: precioSchema,
   diasPrueba: z.coerce.number().int().min(0).max(365),
 });
 
@@ -582,13 +596,17 @@ export async function savePlanAction(
 ): Promise<ActionState> {
   await requireAdmin();
   const parsed = planSchema.safeParse({
-    precio: formData.get("precio"),
+    p1: formData.get("p1"),
+    p3: formData.get("p3"),
+    p6: formData.get("p6"),
+    p12: formData.get("p12"),
     diasPrueba: formData.get("diasPrueba"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  await savePlan(parsed.data.precio, parsed.data.diasPrueba);
+  const { p1, p3, p6, p12, diasPrueba } = parsed.data;
+  await savePlan({ 1: p1, 3: p3, 6: p6, 12: p12 }, diasPrueba);
   revalidatePath("/dashboard/admin/suscripciones");
   return { ok: "Plan actualizado." };
 }
@@ -605,6 +623,6 @@ export async function terminarAccesoAction(userId: string) {
 export async function regalarDiasAction(userId: string, dias: number) {
   await requireAdmin();
   if (!Number.isInteger(dias) || dias < 1 || dias > 366) return;
-  await extenderAcceso(userId, dias);
+  await extenderAcceso(userId, { dias });
   revalidatePath("/dashboard/admin/suscripciones");
 }
