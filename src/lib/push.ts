@@ -23,7 +23,46 @@ export type PushPayload = {
   tag?: string;
 };
 
-type Sub = { id: string; endpoint: string; p256dh: string; auth: string };
+type Sub = { id: string; endpoint: string; p256dh: string; auth: string; createdAt?: Date };
+
+// Registro de envíos (respuesta del servicio push de cada dispositivo), visible
+// para el root en Panel admin → Notificaciones.
+let tablaLista = false;
+async function logPush(sub: Sub, status: number | null, detalle: string) {
+  try {
+    if (!tablaLista) {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "PushEvent" (
+          id SERIAL PRIMARY KEY,
+          "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+          "subId" TEXT,
+          servicio TEXT,
+          status INTEGER,
+          detalle TEXT
+        )`);
+      tablaLista = true;
+    }
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "PushEvent" ("subId", servicio, status, detalle) VALUES ($1, $2, $3, $4)`,
+      sub.id,
+      new URL(sub.endpoint).host,
+      status,
+      detalle.slice(0, 500),
+    );
+  } catch (e) {
+    console.error("[push] log", e);
+  }
+}
+
+export async function eventosPush() {
+  try {
+    return await prisma.$queryRawUnsafe<
+      { id: number; createdAt: Date; subId: string; servicio: string; status: number | null; detalle: string }[]
+    >(`SELECT id, "createdAt", "subId", servicio, status, detalle FROM "PushEvent" ORDER BY id DESC LIMIT 20`);
+  } catch {
+    return [];
+  }
+}
 
 async function sendToSubs(subs: Sub[], payload: PushPayload) {
   if (!ensure()) {
@@ -44,9 +83,12 @@ async function sendToSubs(subs: Sub[], payload: PushPayload) {
         { urgency: "high", TTL: 24 * 60 * 60 },
       );
       sent++;
+      await logPush(s, 201, "entregada al servicio push");
     } catch (err) {
       failed++;
       const code = (err as { statusCode?: number })?.statusCode;
+      const cuerpo = (err as { body?: string; message?: string })?.body ?? (err as Error)?.message ?? "";
+      await logPush(s, code ?? null, `error: ${cuerpo}`);
       // Suscripción vencida o inválida: eliminarla.
       if (code === 404 || code === 410) {
         await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
