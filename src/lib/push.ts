@@ -38,6 +38,10 @@ async function sendToSubs(subs: Sub[], payload: PushPayload) {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         body,
+        // Prioridad alta: Android la entrega de inmediato aunque el celular esté
+        // bloqueado o en ahorro de energía (con "normal" puede retenerla hasta
+        // desbloquearlo). TTL: si el celular está apagado, se reintenta 24 h.
+        { urgency: "high", TTL: 24 * 60 * 60 },
       );
       sent++;
     } catch (err) {
