@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Estradox</string>
+    <string name="channel_actuaciones">Actuaciones nuevas</string>
+    <string name="channel_actuaciones_desc">Avisos cuando tus procesos tienen actuaciones nuevas.</string>
+    <string name="channel_general">Avisos de Estradox</string>
+    <string name="channel_general_desc">Novedades y avisos de tu cuenta.</string>
+</resources>
