@@ -98,12 +98,51 @@ async function sendToSubs(subs: Sub[], payload: PushPayload) {
   return { sent, failed };
 }
 
+// Avisos para la app Android: guarda cada notificación y la app los consulta
+// en segundo plano (GET /api/mobile/notices). userId null = para todos.
+let avisosListos = false;
+export async function ensureMobileNoticeTable() {
+  if (avisosListos) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "MobileNotice" (
+      id SERIAL PRIMARY KEY,
+      "userId" TEXT REFERENCES "User"(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      url TEXT,
+      tag TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "MobileNotice_userId_idx" ON "MobileNotice" ("userId")`,
+  );
+  avisosListos = true;
+}
+
+async function guardarAviso(userId: string | null, payload: PushPayload) {
+  try {
+    await ensureMobileNoticeTable();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "MobileNotice" ("userId", title, body, url, tag) VALUES ($1, $2, $3, $4, $5)`,
+      userId,
+      payload.title,
+      payload.body,
+      payload.url ?? null,
+      payload.tag ?? null,
+    );
+  } catch (e) {
+    console.error("[push] aviso app", e);
+  }
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload) {
+  await guardarAviso(userId, payload);
   const subs = await prisma.pushSubscription.findMany({ where: { userId } });
   return sendToSubs(subs, payload);
 }
 
 export async function sendPushToAll(payload: PushPayload) {
+  await guardarAviso(null, payload);
   const subs = await prisma.pushSubscription.findMany();
   return sendToSubs(subs, payload);
 }

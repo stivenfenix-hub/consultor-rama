@@ -41,6 +41,7 @@ import {
   setWhatsapp,
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
+import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
   agregarProcesoPorRadicado,
   sincronizarProceso,
@@ -60,12 +61,6 @@ type ActionState = {
   /** Campo del formulario con el error (el formulario solo borra ese). */
   field?: string;
 };
-
-const passwordSchema = z
-  .string()
-  .min(8, "La contraseña debe tener al menos 8 caracteres")
-  .regex(/[A-Za-z]/, "Debe incluir al menos una letra")
-  .regex(/[0-9]/, "Debe incluir al menos un número");
 
 // ---------- Login ----------
 export async function loginAction(
@@ -92,26 +87,6 @@ function contrasenasNoCoinciden(formData: FormData) {
   return String(formData.get("password") ?? "") !== String(formData.get("password2") ?? "");
 }
 const NO_COINCIDEN = "Las contraseñas no coinciden.";
-
-const registerSchema = z.object({
-  firstName: z.string().min(1, "Ingresa tu nombre"),
-  lastName: z.string().min(1, "Ingresa tu apellido"),
-  email: z.string().email("Correo inválido"),
-  whatsapp: z
-    .string()
-    .transform((v, ctx) => {
-      const n = normalizarWhatsapp(v);
-      if (!n) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Ingresa un número de WhatsApp válido (ej. 300 123 4567).",
-        });
-        return z.NEVER;
-      }
-      return n;
-    }),
-  password: passwordSchema,
-});
 
 export async function registerAction(
   _prev: ActionState,
@@ -218,6 +193,22 @@ export async function changePasswordAction(
     if (err instanceof AccountError) return { error: err.message };
     return { error: "No se pudo cambiar la contraseña." };
   }
+}
+
+// ---------- Eliminar cuenta (la pide Google Play: en la app y en la web) ----------
+export async function deleteAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  if (user.role === "admin") return { error: "La cuenta administradora no se puede eliminar." };
+  const password = String(formData.get("password") ?? "");
+  const bcrypt = (await import("bcryptjs")).default;
+  const ok = !!user.passwordHash && (await bcrypt.compare(password, user.passwordHash));
+  if (!ok) return { error: "La contraseña no es correcta." };
+  await prisma.user.delete({ where: { id: user.id } });
+  await logout();
+  redirect("/login");
 }
 
 // ---------- Mi cuenta: WhatsApp ----------
@@ -448,16 +439,7 @@ export async function agregarProcesoAction(
   const user = await requireUser();
   const sinAcceso = await bloqueoPorSuscripcion(user.id);
   if (sinAcceso) return sinAcceso;
-  const input = String(formData.get("radicado") ?? "");
-  // Acepta varios radicados separados por coma, espacio, punto y coma o salto.
-  const radicados = [
-    ...new Set(
-      input
-        .split(/[\s,;]+/)
-        .map((s) => s.replace(/\D/g, ""))
-        .filter((s) => s.length === 23),
-    ),
-  ];
+  const radicados = parseRadicados(String(formData.get("radicado") ?? ""));
   if (radicados.length === 0) {
     return {
       error:

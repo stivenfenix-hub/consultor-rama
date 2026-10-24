@@ -4,6 +4,7 @@ import { getWhatsapp } from "@/lib/accounts";
 import { ChangePasswordForm } from "./change-password-form";
 import { NotificationsToggle } from "./notifications-toggle";
 import { WhatsappForm } from "./whatsapp-form";
+import { DeleteAccountForm } from "./delete-account-form";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
@@ -50,6 +51,13 @@ export default async function ConfiguracionPage() {
         <h2>Cambiar contraseña</h2>
         <ChangePasswordForm />
       </div>
+
+      {user.role !== "admin" && (
+        <div className="card" style={{ maxWidth: 460 }} id="eliminar-cuenta">
+          <h2>Eliminar cuenta</h2>
+          <DeleteAccountForm />
+        </div>
+      )}
     </div>
   );
 }

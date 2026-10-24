@@ -94,22 +94,32 @@ export type LoginResult =
   | { status: "unverified"; email: string }
   | { status: "invalid" };
 
-export async function loginWithPassword(
-  emailRaw: string,
-  password: string,
-): Promise<LoginResult> {
+/**
+ * Valida correo y contraseña sin crear sesión (la web crea la cookie; la app
+ * móvil recibe un token). Con "ok" registra el último ingreso.
+ */
+export async function checkPassword(emailRaw: string, password: string) {
   const email = emailRaw.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email } });
   // Siempre comparamos contra un hash para no filtrar si el correo existe.
   const hash =
     user?.passwordHash ?? "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidin";
   const okPass = await bcrypt.compare(password, hash);
-  if (!user || !user.passwordHash || !okPass) return { status: "invalid" };
-  if (!user.emailVerified) return { status: "unverified", email };
-  await createSession(user.id);
+  if (!user || !user.passwordHash || !okPass) return { status: "invalid" as const };
+  if (!user.emailVerified) return { status: "unverified" as const, email };
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   });
-  return { status: "ok", role: user.role };
+  return { status: "ok" as const, user };
+}
+
+export async function loginWithPassword(
+  emailRaw: string,
+  password: string,
+): Promise<LoginResult> {
+  const res = await checkPassword(emailRaw, password);
+  if (res.status !== "ok") return res;
+  await createSession(res.user.id);
+  return { status: "ok", role: res.user.role };
 }
