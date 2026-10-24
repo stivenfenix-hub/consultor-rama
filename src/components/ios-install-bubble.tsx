@@ -6,6 +6,7 @@ import { Icon } from "./icon";
 
 // Páginas de acceso donde no se muestra la burbuja.
 const SIN_BURBUJA = ["/login", "/register", "/forgot", "/reset", "/verify"];
+const OCULTAR_MS = 7 * 24 * 60 * 60 * 1000;
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -34,13 +35,17 @@ export function IosInstallBubble() {
     let dismissed = false;
     let standalone = false;
     try {
-      dismissed = localStorage.getItem("estradox_pwa") === "1";
+      // "Cerrar" la oculta 7 días (antes era para siempre: valor "1").
+      dismissed =
+        Date.now() - Number(localStorage.getItem("estradox_pwa") ?? 0) < OCULTAR_MS;
       standalone =
         (navigator as unknown as { standalone?: boolean }).standalone === true ||
         window.matchMedia("(display-mode: standalone)").matches;
       const ua = navigator.userAgent || "";
       const isIOS =
-        /iphone|ipad|ipod/i.test(ua) &&
+        (/iphone|ipad|ipod/i.test(ua) ||
+          // iPad con iPadOS se presenta como Mac
+          (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) &&
         !(window as unknown as { MSStream?: unknown }).MSStream;
       if (!standalone && !dismissed && isIOS) {
         setIos(true);
@@ -59,7 +64,7 @@ export function IosInstallBubble() {
     };
     const onInstalled = () => {
       try {
-        localStorage.setItem("estradox_pwa", "1");
+        localStorage.setItem("estradox_pwa", String(Date.now()));
       } catch {
         // ignore
       }
@@ -77,7 +82,7 @@ export function IosInstallBubble() {
 
   const close = () => {
     try {
-      localStorage.setItem("estradox_pwa", "1");
+      localStorage.setItem("estradox_pwa", String(Date.now()));
     } catch {
       // ignore
     }
@@ -119,7 +124,9 @@ export function IosInstallBubble() {
         </>
       ) : ios ? (
         <div className="ios-bubble-text">
-          En iPhone pulsa{" "}
+          {chrome ? "En Chrome pulsa" : "En Safari pulsa"}{" "}
+          {!chrome && <b>“⋯”</b>}
+          {!chrome && " y luego "}
           <b>
             Compartir{" "}
             <svg
@@ -138,7 +145,7 @@ export function IosInstallBubble() {
               <path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
             </svg>
           </b>{" "}
-          {chrome ? "en el menú de Chrome" : "en Safari"} y elige{" "}
+          {chrome && "(arriba, junto a la dirección)"} y elige{" "}
           <b>“Agregar a inicio”</b>. (En iPhone, Apple solo permite instalarla
           así.)
         </div>
