@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.estradox.app",
+      "sha256_cert_fingerprints": [
+        "B4:B2:00:09:84:46:5E:D5:03:07:E0:A6:55:38:A3:BA:93:24:EF:6E:50:E2:58:57:19:67:21:1E:C5:54:DA:16"
+      ]
+    }
+  }
+]
