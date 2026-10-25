@@ -154,7 +154,12 @@ type ResultadoLote = {
   frenado: boolean;
 };
 
-async function procesarGrupo(casos: CasoCola[], r: ResultadoLote) {
+/**
+ * Revisa un proceso de la Rama para uno o varios abogados. `notificar`: las
+ * actuaciones nuevas quedan para el resumen de las 7 a.m. (la cola nocturna);
+ * en el refresco manual no, porque el abogado ya las está viendo.
+ */
+async function procesarGrupo(casos: CasoCola[], r: ResultadoLote, notificar = true) {
   const idProceso = casos[0].idProceso;
   const ids = casos.map((c) => c.id);
 
@@ -196,7 +201,7 @@ async function procesarGrupo(casos: CasoCola[], r: ResultadoLote) {
         })),
         skipDuplicates: true,
       });
-      await prisma.$executeRawUnsafe(
+      if (notificar) await prisma.$executeRawUnsafe(
         `UPDATE "Actuacion" SET "pendingNotify" = true
          WHERE "caseId" = $1 AND "idRegActuacion" = ANY($2::text[]) AND "seenAt" IS NULL`,
         c.id,
@@ -394,6 +399,30 @@ async function procesarCola(): Promise<ResultadoLote> {
   };
   await Promise.all(Array.from({ length: CONCURRENCIA }, (_, i) => trabajador(i)));
   return r;
+}
+
+/**
+ * Refresco manual de un proceso (botón "Actualizar" y "Actualizar todos"):
+ * misma revisión liviana que la cola nocturna, así un abogado con muchos
+ * procesos no dispara cientos de consultas a la Rama.
+ */
+export async function revisarProcesoManual(caseId: string) {
+  await asegurarColumnasCola();
+  const [c] = await prisma.$queryRawUnsafe<CasoCola[]>(
+    `SELECT id, "userId", "idProceso", "lastActuacionDate", "lastFullSyncAt", "retryCount"
+     FROM "Case" WHERE id = $1`,
+    caseId,
+  );
+  if (!c) throw new Error("Proceso no encontrado");
+  const r: ResultadoLote = { revisados: 0, conNovedad: 0, actuacionesNuevas: 0, fallidos: 0, consultas: 0, frenado: false };
+  try {
+    await procesarGrupo([c], r, false);
+  } catch (err) {
+    const msg = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+    await prisma.case.update({ where: { id: caseId }, data: { lastError: msg } }).catch(() => {});
+    throw err;
+  }
+  return { nuevas: r.actuacionesNuevas };
 }
 
 // ---------- Resumen de las 7 a.m. ----------

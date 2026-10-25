@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { marcarActualizacionProceso, proximaActualizacionProceso } from "@/lib/limits";
-import { sincronizarProceso } from "@/lib/sync";
+import { revisarProcesoManual } from "@/lib/sync-queue";
 import { jsonError, withMobileUser } from "@/lib/mobile";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return jsonError("Este proceso ya se actualizó hoy. Podrás hacerlo de nuevo mañana.", 429);
     }
     try {
-      const r = await sincronizarProceso(id);
+      const r = await revisarProcesoManual(id);
       await marcarActualizacionProceso(id); // solo cuenta si funcionó
       return NextResponse.json({ ok: "Proceso actualizado.", nuevas: r.nuevas });
     } catch {

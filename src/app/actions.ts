@@ -41,11 +41,10 @@ import {
   setWhatsapp,
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
-import { tick } from "@/lib/sync-queue";
+import { revisarProcesoManual, tick } from "@/lib/sync-queue";
 import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
   agregarProcesoPorRadicado,
-  sincronizarProceso,
   marcarVistas,
 } from "@/lib/sync";
 import {
@@ -486,7 +485,7 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
   }
   let resultado: ActionState;
   try {
-    await sincronizarProceso(caseId);
+    await revisarProcesoManual(caseId);
     await marcarActualizacionProceso(caseId); // solo cuenta si funcionó
     resultado = { ok: "Proceso actualizado." };
   } catch {

@@ -122,6 +122,49 @@ function getFetcher(): Promise<Fetcher> {
 }
 
 /**
+ * Límite general de consultas a la Rama para TODA la plataforma (refresco
+ * manual, "Actualizar todos", cola nocturna y procesos nuevos): como máximo
+ * RAMA_MAX_CONCURRENT consultas a la vez y RAMA_MIN_GAP_MS entre el inicio de
+ * una y otra. Si muchos abogados actualizan a la vez, esperan su turno en
+ * lugar de disparar ráfagas que harían que la Rama bloquee la IP.
+ */
+const MAX_SIMULTANEAS = Math.max(1, Number(process.env.RAMA_MAX_CONCURRENT ?? 4) || 4);
+const ESPACIO_MS = Math.max(0, Number(process.env.RAMA_MIN_GAP_MS ?? 250) || 0);
+const FRENO_MS = 5 * 60_000;
+let frenoHasta = 0; // tras un 429/403, nadie consulta la Rama por 5 minutos
+let enCurso = 0;
+let ultimoInicio = 0;
+const enEspera: (() => void)[] = [];
+
+async function turno() {
+  if (enCurso >= MAX_SIMULTANEAS) {
+    await new Promise<void>((resolve) => enEspera.push(resolve));
+  } else {
+    enCurso++;
+  }
+  // Espacio mínimo entre consultas (se reserva el horario antes de esperar).
+  const ahora = Date.now();
+  const inicio = Math.max(ahora, ultimoInicio + ESPACIO_MS);
+  ultimoInicio = inicio;
+  if (inicio > ahora) await sleep(inicio - ahora);
+}
+function liberar() {
+  const siguiente = enEspera.shift();
+  if (siguiente) siguiente(); // el cupo pasa directo al siguiente en la fila
+  else enCurso--;
+}
+
+/** Cuántas consultas hay en curso y en espera (monitoreo). */
+export function cargaRama() {
+  return {
+    enCurso,
+    enEspera: enEspera.length,
+    maximo: MAX_SIMULTANEAS,
+    frenoHasta: frenoHasta > Date.now() ? new Date(frenoHasta) : null,
+  };
+}
+
+/**
  * GET con timeout + reintentos con backoff exponencial.
  * 429 (o 403 del firewall, que no responde JSON) es bloqueo por exceso de
  * consultas: no se reintenta y se marca isRateLimit para frenar la cola.
@@ -134,16 +177,31 @@ async function ramaGet<T>(
   const doFetch = await getFetcher();
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    if (Date.now() < frenoHasta) {
+      throw new RamaError("La Rama Judicial pidió pausar las consultas.", 429, true);
+    }
+    await turno();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    let text: string;
+    let res: Response;
     try {
-      const res = await doFetch(BASE + path, {
+      res = await doFetch(BASE + path, {
         signal: ctrl.signal,
         headers: { Accept: "application/json" },
       });
+      text = await res.text();
+    } catch (err) {
       clearTimeout(timer);
-
-      const text = await res.text();
+      liberar();
+      lastErr = err;
+      if (attempt === maxRetries) break;
+      await sleep(1500 * attempt);
+      continue;
+    }
+    clearTimeout(timer);
+    liberar();
+    try {
       let body: unknown = null;
       try {
         body = text ? JSON.parse(text) : null;
@@ -158,6 +216,7 @@ async function ramaGet<T>(
         const rateLimit = res.status === 429 || (res.status === 403 && body === null);
         // 400 (criterios), 404 (no encontrado) y bloqueos no se reintentan.
         const noReintentar = res.status === 400 || res.status === 404 || rateLimit;
+        if (rateLimit) frenoHasta = Date.now() + FRENO_MS;
         if (noReintentar || attempt === maxRetries) {
           throw new RamaError(msg, res.status, rateLimit);
         }

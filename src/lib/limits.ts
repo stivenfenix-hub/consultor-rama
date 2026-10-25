@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
-import { sincronizarProceso } from "./sync";
+import { revisarProcesoManual } from "./sync-queue";
 import { sendPushToUser } from "./push";
 
 // Límites de actualización MANUAL (el cron diario no cuenta):
@@ -103,7 +103,7 @@ export async function ejecutarActualizarTodos(userId: string) {
     for (let i = 0; i < casos.length; i++) {
       if (i > 0) await sleep(i % TANDA === 0 ? PAUSA_TANDA_MS : PAUSA_PROCESO_MS);
       try {
-        const r = await sincronizarProceso(casos[i].id);
+        const r = await revisarProcesoManual(casos[i].id);
         nuevas += r.nuevas;
         ok++;
       } catch {
