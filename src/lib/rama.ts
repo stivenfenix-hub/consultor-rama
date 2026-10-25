@@ -92,17 +92,54 @@ export class RamaError extends Error {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** GET con timeout + reintentos con backoff exponencial. */
-async function ramaGet<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+/**
+ * Proxy opcional (apagado por defecto). Si algún día la Rama bloquea la IP del
+ * servidor, se activa solo con variables de entorno:
+ *   USE_PROXY=true
+ *   PROXY_URL=http://usuario:clave@proxy:puerto      (proxy HTTP normal), o
+ *   PROXY_URL=https://api.scraperapi.com/?api_key=XXX&url={url}  (servicio que
+ *             recibe la URL destino: {url} se reemplaza por la URL de la Rama)
+ */
+const USE_PROXY = process.env.USE_PROXY === "true" && !!process.env.PROXY_URL;
+type Fetcher = (url: string, init: { signal: AbortSignal; headers: Record<string, string> }) => Promise<Response>;
+let proxyFetcher: Promise<Fetcher> | null = null;
+function getFetcher(): Promise<Fetcher> {
+  if (!USE_PROXY) {
+    return Promise.resolve((url, init) => fetch(url, { ...init, cache: "no-store" }));
+  }
+  proxyFetcher ??= (async () => {
+    const proxyUrl = process.env.PROXY_URL!;
+    if (proxyUrl.includes("{url}")) {
+      return (url, init) =>
+        fetch(proxyUrl.replace("{url}", encodeURIComponent(url)), { ...init, cache: "no-store" });
+    }
+    const { fetch: undiciFetch, ProxyAgent } = await import("undici");
+    const dispatcher = new ProxyAgent(proxyUrl);
+    return (url, init) =>
+      undiciFetch(url, { ...init, dispatcher }) as unknown as Promise<Response>;
+  })();
+  return proxyFetcher;
+}
+
+/**
+ * GET con timeout + reintentos con backoff exponencial.
+ * 429 (o 403 del firewall, que no responde JSON) es bloqueo por exceso de
+ * consultas: no se reintenta y se marca isRateLimit para frenar la cola.
+ */
+async function ramaGet<T>(
+  path: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  maxRetries = MAX_RETRIES,
+): Promise<T> {
+  const doFetch = await getFetcher();
   let lastErr: unknown;
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(BASE + path, {
+      const res = await doFetch(BASE + path, {
         signal: ctrl.signal,
         headers: { Accept: "application/json" },
-        cache: "no-store",
       });
       clearTimeout(timer);
 
@@ -118,10 +155,11 @@ async function ramaGet<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
         const msg =
           (body as { Message?: string } | null)?.Message ??
           `HTTP ${res.status}`;
-        // 400 (criterios) y 404 (no encontrado) no se reintentan.
-        const businessError = res.status === 400 || res.status === 404;
-        if (businessError || attempt === MAX_RETRIES) {
-          throw new RamaError(msg, res.status, res.status === 429);
+        const rateLimit = res.status === 429 || (res.status === 403 && body === null);
+        // 400 (criterios), 404 (no encontrado) y bloqueos no se reintentan.
+        const noReintentar = res.status === 400 || res.status === 404 || rateLimit;
+        if (noReintentar || attempt === maxRetries) {
+          throw new RamaError(msg, res.status, rateLimit);
         }
         lastErr = new RamaError(msg, res.status);
       } else {
@@ -129,14 +167,14 @@ async function ramaGet<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
       }
     } catch (err) {
       clearTimeout(timer);
-      // Errores de negocio (400/404): no reintentar.
       if (
         err instanceof RamaError &&
-        (err.status === 400 || err.status === 404)
+        (err.status === 400 || err.status === 404 || err.isRateLimit)
       ) {
         throw err;
       }
       lastErr = err;
+      if (attempt === maxRetries) break;
     }
     // backoff: 1.5s, 3s, ...
     await sleep(1500 * attempt);
@@ -175,8 +213,11 @@ export async function buscarPorNombre(
 }
 
 /** Trae el detalle de un proceso por su idProceso. */
-export async function obtenerDetalle(idProceso: string | number): Promise<ProcesoDetalle> {
-  return ramaGet<ProcesoDetalle>(`/Proceso/Detalle/${idProceso}`);
+export async function obtenerDetalle(
+  idProceso: string | number,
+  maxRetries = MAX_RETRIES,
+): Promise<ProcesoDetalle> {
+  return ramaGet<ProcesoDetalle>(`/Proceso/Detalle/${idProceso}`, DEFAULT_TIMEOUT_MS, maxRetries);
 }
 
 export interface Documento {
@@ -265,4 +306,44 @@ export async function obtenerActuaciones(
     pagina++;
   }
   return todas;
+}
+
+/**
+ * Revisión liviana para la cola nocturna: pide la página 1 de actuaciones y
+ * solo sigue con las siguientes si encuentra actuaciones desconocidas o si el
+ * total de la Rama no cuadra con lo que ya se conoce. Sin novedades = 1 consulta.
+ */
+export async function obtenerActuacionesNuevas(
+  idProceso: string | number,
+  conocidas: Set<string>,
+): Promise<{ nuevas: Actuacion[]; masReciente: Actuacion | null; consultas: number }> {
+  const nuevas: Actuacion[] = [];
+  let masReciente: Actuacion | null = null;
+  let vistas = 0;
+  let total = Infinity;
+  let pagina = 1;
+
+  while (pagina <= 100) {
+    // 1 solo intento: si falla, la cola lo reprograma.
+    const data = await ramaGet<{
+      actuaciones?: Actuacion[];
+      paginacion?: Paginacion;
+    }>(`/Proceso/Actuaciones/${idProceso}?pagina=${pagina}`, DEFAULT_TIMEOUT_MS, 1);
+
+    const lote = data.actuaciones ?? [];
+    if (data.paginacion?.cantidadRegistros != null) {
+      total = data.paginacion.cantidadRegistros;
+    }
+    if (lote.length === 0) break;
+    masReciente ??= lote[0];
+    vistas += lote.length;
+    const desconocidas = lote.filter((a) => !conocidas.has(String(a.idRegActuacion)));
+    nuevas.push(...desconocidas);
+
+    if (vistas >= total) break;
+    // Página toda conocida y las cuentas cuadran: no hay más novedades.
+    if (desconocidas.length === 0 && (total === Infinity || conocidas.size + nuevas.length >= total)) break;
+    pagina++;
+  }
+  return { nuevas, masReciente, consultas: pagina };
 }

@@ -25,6 +25,12 @@ function getTransporter() {
       port: PORT,
       secure: PORT === 465, // true para 465, STARTTLS para el resto
       auth: USER && PASS ? { user: USER, pass: PASS } : undefined,
+      // Conexiones reutilizadas y ritmo máximo para no ser marcados como spam
+      // cuando salen muchos resúmenes juntos (SMTP_RATE_PER_SEC, por defecto 5).
+      pool: true,
+      maxConnections: 2,
+      rateDelta: 1000,
+      rateLimit: Number(process.env.SMTP_RATE_PER_SEC ?? 5),
     });
   }
   return transporter;

@@ -1,23 +1,17 @@
 import { after, NextRequest, NextResponse } from "next/server";
-import { sincronizarTodos } from "@/lib/sync";
-import {
-  enviarAvisosDeSuscripcion,
-  enviarRecordatoriosPendientes,
-} from "@/lib/auto-emails";
+import { tick } from "@/lib/sync-queue";
 
 /**
- * Endpoint que refresca todos los procesos. Lo dispara un scheduler cada 24h.
+ * Cron de sincronización: se llama cada 5 minutos, todo el día.
+ *   curl -H "Authorization: Bearer <CRON_SECRET>" .../api/cron/refresh
  *
- * Protegido por CRON_SECRET: el scheduler debe mandar
- *   Authorization: Bearer <CRON_SECRET>
- *
- * Opciones para dispararlo cada 24h:
- *   - Vercel Cron (ver vercel.json)
- *   - Un worker local: `npm run cron` (usa scripts/cron-worker.ts)
- *   - Programador de tareas de Windows / cron de Linux haciendo curl
+ * El código decide qué hacer según la hora de Bogotá (ver lib/sync-queue.ts):
+ * de 8 p.m. a 6:45 a.m. revisa procesos por lotes y desde las 7 a.m. envía el
+ * resumen diario. Fuera de esos horarios la corrida no consulta la Rama.
+ * Recordatorios, avisos de suscripción y pagos van en /api/cron/recordatorios.
  */
 
-export const maxDuration = 300; // segundos (la Rama es lenta)
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 async function handle(req: NextRequest) {
@@ -28,31 +22,16 @@ async function handle(req: NextRequest) {
   }
 
   // El proxy de Hostinger corta las peticiones a los 60 s, así que se responde
-  // de inmediato y la sincronización sigue en segundo plano.
+  // de inmediato y la corrida sigue en segundo plano.
   after(async () => {
-    const inicio = Date.now();
     try {
-      const resultados = await sincronizarTodos();
-      const nuevas = resultados.reduce((n, r) => n + (r.nuevas ?? 0), 0);
-      console.log(
-        `[cron] fin: ${resultados.length} procesos, ${nuevas} actuaciones nuevas, ` +
-          `${resultados.filter((r) => !r.ok).length} fallidos, ${Date.now() - inicio} ms`,
-      );
+      const info = await tick();
+      console.log("[cron]", JSON.stringify(info));
     } catch (e) {
       console.error("[cron] error", e);
     }
-    // Respaldo del cron horario de recordatorios (/api/cron/recordatorios).
-    await enviarRecordatoriosPendientes().catch((e) =>
-      console.error("[cron] recordatorios", e),
-    );
-    await enviarAvisosDeSuscripcion().catch((e) =>
-      console.error("[cron] avisos de suscripcion", e),
-    );
   });
-  return NextResponse.json(
-    { ok: true, mensaje: "Sincronización iniciada en segundo plano." },
-    { status: 202 },
-  );
+  return NextResponse.json({ ok: true, mensaje: "Corrida iniciada en segundo plano." }, { status: 202 });
 }
 
 export const GET = handle;

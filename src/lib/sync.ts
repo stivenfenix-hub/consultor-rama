@@ -13,8 +13,6 @@ import {
   type Documento as RamaDocumento,
 } from "./rama";
 import { sendMail } from "./mailer";
-import { sendPushToUser } from "./push";
-import { usuariosConAcceso } from "./subscription";
 import { after } from "next/server";
 
 function parseFecha(f?: string | null): Date | null {
@@ -391,94 +389,8 @@ export async function marcarVistas(caseId: string) {
   await prisma.case.update({ where: { id: caseId }, data: { unseenCount: 0 } });
 }
 
-/**
- * Refresca TODOS los procesos (lo que llama el cron de 24h).
- * Procesa en serie con una pausa para no saturar a la Rama, y al final envia a
- * cada abogado UN correo-resumen con sus procesos que tuvieron actuaciones
- * nuevas.
- */
-export async function sincronizarTodos(pausaMs = 1500) {
-  // Solo procesos de cuentas con acceso (prueba o plan al día).
-  const conAcceso = await usuariosConAcceso().catch(() => null);
-  const todos = await prisma.case.findMany({
-    select: {
-      id: true,
-      radicado: true,
-      userId: true,
-      user: { select: { email: true, name: true } },
-    },
-  });
-  const casos = conAcceso ? todos.filter((c) => conAcceso.has(c.userId)) : todos;
-
-  const resultados: {
-    caseId: string;
-    ok: boolean;
-    nuevas?: number;
-    error?: string;
-  }[] = [];
-
-  // Agrupa por abogado; solo se notifica a quien tenga actuaciones nuevas.
-  type Pendiente = {
-    email: string;
-    name: string | null;
-    casos: { radicado: string; caseId: string; nuevas: RamaActuacion[] }[];
-  };
-  const porUsuario = new Map<string, Pendiente>();
-
-  for (const c of casos) {
-    const entry =
-      porUsuario.get(c.userId) ??
-      ({
-        email: c.user.email,
-        name: c.user.name,
-        casos: [],
-      } as Pendiente);
-    porUsuario.set(c.userId, entry);
-
-    try {
-      const r = await sincronizarProceso(c.id);
-      resultados.push({ caseId: c.id, ok: true, nuevas: r.nuevas });
-      if (r.nuevas > 0) {
-        entry.casos.push({
-          radicado: c.radicado,
-          caseId: c.id,
-          nuevas: r.nuevasList,
-        });
-      }
-    } catch (err) {
-      resultados.push({
-        caseId: c.id,
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    await new Promise((res) => setTimeout(res, pausaMs));
-  }
-
-  // Enviar correos + push solo a quien tuvo novedades; sin novedades no se
-  // notifica nada. (No romper la corrida del cron si falla el envio.)
-  for (const [userId, u] of porUsuario) {
-    try {
-      if (u.casos.length > 0) {
-        await enviarResumen(u.email, u.name, u.casos);
-        const totalNuevas = u.casos.reduce((n, c) => n + c.nuevas.length, 0);
-        await sendPushToUser(userId, {
-          title: "Actuaciones nuevas",
-          body: `Tienes ${totalNuevas} actuación(es) nueva(s) en ${u.casos.length} de tus procesos.`,
-          url: "/dashboard",
-          tag: "actuaciones",
-        }).catch(() => {});
-      }
-    } catch (err) {
-      console.error(`[mail] fallo enviando a ${u.email}:`, err);
-    }
-  }
-
-  return resultados;
-}
-
 /** Construye y envia el correo-resumen de actuaciones nuevas a un abogado. */
-async function enviarResumen(
+export async function enviarResumen(
   email: string,
   name: string | null,
   casos: { radicado: string; caseId: string; nuevas: RamaActuacion[] }[],
@@ -507,7 +419,7 @@ async function enviarResumen(
         <div style="margin:16px 0;padding:12px;border:1px solid #e5e7eb;border-radius:8px">
           <div style="font-family:monospace">${escapeHtml(c.radicado)}</div>
           <ul>${items}${extra}</ul>
-          <a href="${appUrl}/dashboard/${c.caseId}">Ver proceso</a>
+          <a href="${appUrl}/dashboard/procesos/${c.caseId}">Ver proceso</a>
         </div>`;
     })
     .join("");
@@ -526,7 +438,7 @@ async function enviarResumen(
     casos
       .map(
         (c) =>
-          `${c.radicado}: ${c.nuevas.length} nuevas\n  ${appUrl}/dashboard/${c.caseId}`,
+          `${c.radicado}: ${c.nuevas.length} nuevas\n  ${appUrl}/dashboard/procesos/${c.caseId}`,
       )
       .join("\n\n");
 

@@ -41,6 +41,7 @@ import {
   setWhatsapp,
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
+import { tick } from "@/lib/sync-queue";
 import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
   agregarProcesoPorRadicado,
@@ -607,4 +608,17 @@ export async function regalarDiasAction(userId: string, dias: number) {
   if (!Number.isInteger(dias) || dias < 1 || dias > 366) return;
   await extenderAcceso(userId, { dias });
   revalidatePath("/dashboard/admin/suscripciones");
+}
+
+/** El root lanza una corrida de la cola nocturna ahora (prueba / ponerse al día). */
+export async function ejecutarColaAction() {
+  await requireAdmin();
+  after(async () => {
+    try {
+      console.log("[cola manual]", JSON.stringify(await tick({ forzar: true })));
+    } catch (e) {
+      console.error("[cola manual] error", e);
+    }
+  });
+  revalidatePath("/dashboard/admin");
 }
