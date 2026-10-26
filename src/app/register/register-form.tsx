@@ -90,11 +90,7 @@ export function RegisterForm() {
         aria-hidden="true"
       />
 
-      <label className="check small" style={{ marginTop: 14 }}>
-        <input type="checkbox" name="ofertas" />
-        <span>Quiero recibir ofertas, novedades y boletines de Estradox (opcional).</span>
-      </label>
-      <p className="muted small" style={{ margin: "10px 0 0" }}>
+      <p className="muted small" style={{ margin: "14px 0 0" }}>
         Al crear tu cuenta aceptas los{" "}
         <Link href="/terminos" target="_blank">Términos y Condiciones</Link> y autorizas el
         tratamiento de tus datos según la{" "}
