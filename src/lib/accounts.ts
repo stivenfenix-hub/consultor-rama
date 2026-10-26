@@ -137,7 +137,7 @@ const BTN =
 
 async function enviarVerificacion(userId: string, email: string) {
   const raw = await createToken(userId, "verify", VERIFY_TTL);
-  const link = `${APP_URL}/verify?token=${raw}`;
+  const link = `${APP_URL}/verify/confirm?token=${raw}`;
   await sendMail({
     to: email,
     subject: "Verifica tu correo - Estradox",
@@ -163,9 +163,10 @@ export async function resendVerification(emailRaw: string) {
 }
 
 /** Verifica el correo a partir del token. Devuelve true si fue valido. */
-export async function verifyEmailToken(raw: string) {
+/** Verifica el correo; devuelve el id del usuario (para iniciarle sesión) o null. */
+export async function verifyEmailToken(raw: string): Promise<string | null> {
   const userId = await consumeToken("verify", raw);
-  if (!userId) return false;
+  if (!userId) return null;
   await prisma.user.update({
     where: { id: userId },
     data: { emailVerified: new Date() },
@@ -177,7 +178,7 @@ export async function verifyEmailToken(raw: string) {
   } catch {
     void enviarBienvenida(userId);
   }
-  return true;
+  return userId;
 }
 
 // ---------- Reset de contrasena ----------

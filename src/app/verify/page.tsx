@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { verifyEmailToken } from "@/lib/accounts";
+import { redirect } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
-import { Icon } from "@/components/icon";
 
 export default async function VerifyPage({
   searchParams,
@@ -9,7 +8,8 @@ export default async function VerifyPage({
   searchParams: Promise<{ token?: string }>;
 }) {
   const { token } = await searchParams;
-  const ok = token ? await verifyEmailToken(token) : false;
+  // Enlaces de correos enviados antes del cambio: verifican e inician sesión igual.
+  if (token) redirect(`/verify/confirm?token=${encodeURIComponent(token)}`);
 
   return (
     <div className="container">
@@ -18,29 +18,17 @@ export default async function VerifyPage({
           <div style={{ marginBottom: 12, justifyContent: "center", display: "flex" }}>
             <BrandLogo />
           </div>
-          {ok ? (
-            <>
-              <h1><Icon name="checkCircle" size={26} /> Correo verificado</h1>
-              <p className="muted">Tu cuenta quedó activada. Ya puedes iniciar sesión.</p>
-              <Link href="/login" className="btn" style={{ marginTop: 10 }}>
-                Iniciar sesión
-              </Link>
-            </>
-          ) : (
-            <>
-              <h1>Enlace inválido</h1>
-              <p className="muted">
-                El enlace de verificación no es válido o ya venció.
-              </p>
-              <p className="muted small" style={{ marginTop: 10 }}>
-                Inicia sesión para que te reenviemos uno nuevo, o{" "}
-                <Link href="/register">crea tu cuenta</Link>.
-              </p>
-              <Link href="/login" className="btn secondary" style={{ marginTop: 10 }}>
-                Ir a iniciar sesión
-              </Link>
-            </>
-          )}
+          <h1>Enlace inválido</h1>
+          <p className="muted">
+            El enlace de verificación no es válido, ya se usó o venció.
+          </p>
+          <p className="muted small" style={{ marginTop: 10 }}>
+            Si ya verificaste tu correo, inicia sesión. Si no, inicia sesión para que te
+            reenviemos uno nuevo, o <Link href="/register">crea tu cuenta</Link>.
+          </p>
+          <Link href="/login" className="btn secondary" style={{ marginTop: 10 }}>
+            Ir a iniciar sesión
+          </Link>
         </div>
       </div>
     </div>

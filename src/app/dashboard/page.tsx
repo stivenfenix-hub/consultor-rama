@@ -17,9 +17,14 @@ function fmt(d: Date | null | undefined) {
   });
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ verificado?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const { verificado } = await searchParams;
 
   const [stats, refreshAll] = await Promise.all([
     getDashboardStats(user.id),
@@ -37,6 +42,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="page">
+      {verificado && (
+        <div className="ok" style={{ marginBottom: 14 }}>
+          ¡Correo verificado! Bienvenido a Estradox. Agrega tu primer proceso para empezar.
+        </div>
+      )}
       <div className="page-head wrap">
         <h1>Dashboard</h1>
         <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
