@@ -5,16 +5,15 @@
  * corporativos (dominio propio) no se muestra nada: no sabemos dónde está su
  * bandeja.
  * En el celular abre la APP de correo (no una ventana dentro de Estradox):
- * Android con un enlace intent:// al paquete, iPhone con el esquema de la app;
- * si no está instalada, cae a la versión web. En computador, pestaña nueva.
+ * iPhone con el esquema de la app (si no está, la web); Android en el navegador
+ * Chrome, fuera de Estradox. En computador, pestaña nueva.
  */
 
 type Proveedor = {
   nombre: string;
   url: string;
   logo: React.ReactNode;
-  android?: string; // paquete de la app
-  appUrl?: string; // enlace web que la app abre (si difiere de url)
+  appUrl?: string; // enlace web para Android (sin "#", que usa el intent)
   ios?: string; // esquema de la app
 };
 
@@ -78,7 +77,6 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Gmail",
       url: "https://mail.google.com/mail/u/0/#search/in%3Aanywhere+Estradox",
       logo: GMAIL,
-      android: "com.google.android.gm",
       appUrl: "https://mail.google.com/mail/",
       ios: "googlegmail://",
     };
@@ -88,7 +86,6 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Outlook",
       url: "https://outlook.live.com/mail/0/",
       logo: OUTLOOK,
-      android: "com.microsoft.office.outlook",
       ios: "ms-outlook://",
     };
   }
@@ -97,7 +94,6 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Yahoo Mail",
       url: "https://mail.yahoo.com/",
       logo: YAHOO,
-      android: "com.yahoo.mobile.client.android.mail",
       ios: "ymail://",
     };
   }
@@ -109,7 +105,6 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Proton Mail",
       url: "https://mail.proton.me/",
       logo: PROTON,
-      android: "ch.protonmail.android",
       ios: "protonmail://",
     };
   }
@@ -117,7 +112,7 @@ function proveedorDe(email: string): Proveedor | null {
     return { nombre: "AOL Mail", url: "https://mail.aol.com/", logo: SOBRE };
   }
   if (/^zoho(mail)?\.[a-z.]+$/.test(dominio)) {
-    return { nombre: "Zoho Mail", url: "https://mail.zoho.com/", logo: SOBRE, android: "com.zoho.mail" };
+    return { nombre: "Zoho Mail", url: "https://mail.zoho.com/", logo: SOBRE };
   }
   return null; // correo corporativo / dominio propio
 }
@@ -127,15 +122,14 @@ function abrir(p: Proveedor) {
   const android = /android/i.test(ua);
   const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
 
-  if (android && p.android) {
-    // Chrome solo abre actividades "navegables", así que se le pide a la app
-    // que abra el enlace web de su correo (sus enlaces los maneja la app). Si no
-    // está instalada, Chrome abre la versión web.
+  if (android) {
+    // Chrome no deja que una web abra la bandeja de la app de correo (solo
+    // "redactar"). Se abre el correo AFUERA, en el navegador Chrome del celular
+    // (donde ya tiene la sesión iniciada), no dentro de la app de Estradox.
     const u = new URL(p.appUrl ?? p.url);
     window.location.href =
       `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;action=android.intent.action.VIEW;` +
-      `category=android.intent.category.BROWSABLE;package=${p.android};` +
-      `S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
+      `package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
     return;
   }
   if (ios && p.ios) {
