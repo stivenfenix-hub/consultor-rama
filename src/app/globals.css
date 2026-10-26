@@ -1053,3 +1053,20 @@ dd {
 .legal ul {
   padding-left: 20px;
 }
+
+/* Botón "Abrir Gmail / Outlook…" tras el registro */
+.btn.inbox-btn {
+  background: #fff;
+  color: #1f1f1f;
+  font-weight: 600;
+  gap: 10px;
+}
+.btn.inbox-btn:hover {
+  text-decoration: none;
+  filter: brightness(0.95);
+}
+.inbox-logo {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}

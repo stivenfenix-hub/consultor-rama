@@ -3,12 +3,15 @@
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { registerAction } from "@/app/actions";
+import { OpenInboxButton } from "@/components/open-inbox-button";
 
 export function RegisterForm() {
   const [state, formAction, pending] = useActionState(registerAction, {});
   const formRef = useRef<HTMLFormElement>(null);
   // Error detectado en el navegador antes de enviar (contraseñas distintas).
   const [local, setLocal] = useState<{ error: string; field: string } | null>(null);
+  // Correo enviado, para ofrecer el botón de su bandeja (Gmail, Outlook…).
+  const [email, setEmail] = useState("");
   const error = local ?? (state.error ? { error: state.error, field: state.field } : null);
 
   // Si hubo un error, borra y enfoca solo el campo equivocado; el resto se conserva.
@@ -30,6 +33,7 @@ export function RegisterForm() {
       return;
     }
     setLocal(null);
+    setEmail(String(fd.get("email") ?? ""));
     startTransition(() => formAction(fd));
   }
   // Marca en rojo el campo con error.
@@ -39,6 +43,7 @@ export function RegisterForm() {
     return (
       <div style={{ marginTop: 16 }}>
         <div className="ok">{state.ok}</div>
+        <OpenInboxButton email={email} />
         <p className="muted small" style={{ marginTop: 12 }}>
           ¿Ya verificaste? <Link href="/login">Inicia sesión</Link>.
         </p>
