@@ -12,7 +12,7 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
-import { sendPushToUsers } from "@/lib/push";
+import { sendPushToAll, sendPushToUsers } from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
 import {
   EMAIL_KINDS,
@@ -421,7 +421,18 @@ export async function enviarPromoAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  // Solo a quienes autorizaron recibir ofertas y novedades (Ley 1581).
+  // Avisos del servicio: a todos. Ofertas: solo a quienes las autorizaron (Ley 1581).
+  if (formData.get("tipo") !== "oferta") {
+    const res = await sendPushToAll({
+      title: parsed.data.title,
+      body: parsed.data.body,
+      url: parsed.data.url || "/dashboard",
+      tag: "aviso",
+    });
+    return {
+      ok: `Aviso del servicio enviado a todos: ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
+    };
+  }
   const destinatarios = await usuariosConOfertas();
   if (destinatarios.length === 0) {
     return { error: "Ningún usuario ha aceptado recibir ofertas y novedades todavía." };

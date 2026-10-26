@@ -141,15 +141,16 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   return sendToSubs(subs, payload);
 }
 
+/** Avisos del servicio para todos (no usar para ofertas: ver sendPushToUsers). */
+export async function sendPushToAll(payload: PushPayload) {
+  await guardarAviso(null, payload);
+  const subs = await prisma.pushSubscription.findMany();
+  return sendToSubs(subs, payload);
+}
+
 /** Push a un grupo de usuarios (p. ej. los que aceptaron ofertas). */
 export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
   for (const id of userIds) await guardarAviso(id, payload);
   const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
-  return sendToSubs(subs, payload);
-}
-
-export async function sendPushToAll(payload: PushPayload) {
-  await guardarAviso(null, payload);
-  const subs = await prisma.pushSubscription.findMany();
   return sendToSubs(subs, payload);
 }

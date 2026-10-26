@@ -14,6 +14,24 @@ export function PromoForm() {
 
   return (
     <form ref={ref} action={formAction}>
+      <fieldset style={{ border: 0, padding: 0, margin: "0 0 14px" }}>
+        <legend className="small muted" style={{ marginBottom: 6 }}>Tipo de mensaje</legend>
+        <label className="check small">
+          <input type="radio" name="tipo" value="servicio" defaultChecked />
+          <span>
+            <b>Aviso del servicio</b>: llega a <b>todos</b>. Solo información de Estradox:
+            funciones nuevas, mantenimientos, cambios importantes.
+          </span>
+        </label>
+        <label className="check small" style={{ marginTop: 8 }}>
+          <input type="radio" name="tipo" value="oferta" />
+          <span>
+            <b>Oferta o promoción</b>: llega <b>solo a quienes aceptaron ofertas</b>. Descuentos,
+            planes en promoción, invitaciones a comprar.
+          </span>
+        </label>
+      </fieldset>
+
       <label className="small muted" htmlFor="title">
         Título
       </label>
@@ -50,7 +68,7 @@ export function PromoForm() {
 
       <div style={{ height: 14 }} />
       <button className="btn" type="submit" disabled={pending}>
-        {pending ? "Enviando…" : <><Icon name="megaphone" /> Enviar a quienes aceptaron ofertas</>}
+        {pending ? "Enviando…" : <><Icon name="megaphone" /> Enviar</>}
       </button>
       {state.error && <div className="error">{state.error}</div>}
       {state.ok && <div className="ok">{state.ok}</div>}
