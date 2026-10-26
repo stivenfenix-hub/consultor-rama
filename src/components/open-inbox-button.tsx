@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 /**
  * Botón "Abrir Gmail / Outlook / …" según el dominio del correo. Para correos
  * corporativos (dominio propio) no se muestra nada: no sabemos dónde está su
@@ -120,49 +122,68 @@ function proveedorDe(email: string): Proveedor | null {
   return null; // correo corporativo / dominio propio
 }
 
-function abrir(p: Proveedor) {
-  const ua = navigator.userAgent;
-  const android = /android/i.test(ua);
-  const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+/**
+ * Android: enlace intent:// directo (Chrome lo trata como un enlace normal; sin
+ * pestaña nueva). Chrome no deja que una web abra la pantalla principal de otra
+ * app, pero Google Play sí: market://launch abre la app instalada. Si no está
+ * instalada, Chrome va a la versión web.
+ */
+function intentAndroid(p: Proveedor) {
+  return (
+    `intent://launch?id=${p.android}#Intent;scheme=market;package=com.android.vending;` +
+    `S.browser_fallback_url=${encodeURIComponent(p.url)};end`
+  );
+}
 
-  if (android && p.android) {
-    // Chrome no deja que una web abra directamente la pantalla principal de
-    // otra app, pero Google Play sí: market://launch abre la app instalada. Si
-    // no está instalada (o no hay Play), Chrome va a la versión web.
-    window.location.href =
-      `intent://launch?id=${p.android}#Intent;scheme=market;package=com.android.vending;` +
-      `S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
-    return;
-  }
-  if (ios && p.ios) {
-    // Si la app abre, la página pasa a segundo plano y no se usa la web.
-    const t = setTimeout(() => {
-      if (!document.hidden) window.location.href = p.url;
-    }, 1500);
-    document.addEventListener("visibilitychange", () => document.hidden && clearTimeout(t), { once: true });
-    window.location.href = p.ios;
-    return;
-  }
-  window.open(p.url, "_blank", "noopener,noreferrer");
+function abrirIos(p: Proveedor) {
+  // Si la app abre, la página pasa a segundo plano y no se usa la web.
+  const t = setTimeout(() => {
+    if (!document.hidden) window.location.href = p.url;
+  }, 1500);
+  document.addEventListener("visibilitychange", () => document.hidden && clearTimeout(t), { once: true });
+  window.location.href = p.ios!;
 }
 
 export function OpenInboxButton({ email }: { email: string }) {
   const p = proveedorDe(email);
+  const [so, setSo] = useState<"android" | "ios" | "otro">("otro");
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    if (/android/i.test(ua)) setSo("android");
+    else if (/iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) setSo("ios");
+  }, []);
   if (!p) return null;
+
+  const contenido = (
+    <>
+      <span className="inbox-logo">{p.logo}</span>
+      Abrir {p.nombre}
+    </>
+  );
+  const estilo = { width: "100%", justifyContent: "center", marginTop: 12 } as const;
+
+  if (so === "android" && p.android) {
+    return (
+      <a href={intentAndroid(p)} className="btn inbox-btn" style={estilo}>
+        {contenido}
+      </a>
+    );
+  }
   return (
     <a
       href={p.url}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => {
-        e.preventDefault();
-        abrir(p);
+        if (so === "ios" && p.ios) {
+          e.preventDefault();
+          abrirIos(p);
+        }
       }}
       className="btn inbox-btn"
-      style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
+      style={estilo}
     >
-      <span className="inbox-logo">{p.logo}</span>
-      Abrir {p.nombre}
+      {contenido}
     </a>
   );
 }
