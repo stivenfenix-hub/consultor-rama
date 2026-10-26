@@ -63,9 +63,12 @@ export default async function ProcesosPage() {
             {c.despacho ?? "Despacho no disponible"}
             {c.departamento ? ` · ${c.departamento}` : ""}
           </div>
-          {c.lastError && (
-            <div className="error small">Error última sync: {c.lastError}</div>
-          )}
+          {c.lastError &&
+            (c.lastError.startsWith("Proceso privado") ? (
+              <div className="muted small" style={{ marginTop: 4 }}>🔒 {c.lastError}</div>
+            ) : (
+              <div className="error small">Error última sync: {c.lastError}</div>
+            ))}
         </Link>
       ))}
     </div>

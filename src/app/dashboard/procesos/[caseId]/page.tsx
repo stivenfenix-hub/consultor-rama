@@ -138,7 +138,11 @@ export default async function CaseDetail({
 
       <p className="muted small">
         Sincronizado: {fmtHora(caso.lastSyncedAt)}
-        {caso.lastError ? " · con errores" : ""}
+        {caso.lastError
+          ? caso.lastError.startsWith("Proceso privado")
+            ? ` · 🔒 ${caso.lastError}`
+            : " · con errores"
+          : ""}
       </p>
 
       <CaseTabs

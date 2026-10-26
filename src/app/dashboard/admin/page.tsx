@@ -75,6 +75,12 @@ export default async function AdminDashboard() {
             )}
           </p>
           <RunSyncButton />
+          {sync.privados > 0 && (
+            <p className="muted small" style={{ margin: "8px 0 0" }}>
+              🔒 {sync.privados} proceso(s) privado(s): la Rama no publica sus actuaciones. Se
+              revisan una vez por semana.
+            </p>
+          )}
           {sync.pausaHasta && (
             <div className="error small">
               La Rama Judicial pidió frenar las consultas. Se reanuda a las {hora(sync.pausaHasta)}.

@@ -313,8 +313,28 @@ async function guardarDocumentos(caseIds: string[], docs: RamaDocumento[]) {
   }
 }
 
+/** Aviso para el abogado cuando la Rama no publica las actuaciones. */
+export const MSG_PRIVADO = "Proceso privado: la Rama Judicial no publica sus actuaciones.";
+
+/** La Rama responde "No se pueden ver actuaciones de un proceso privado". */
+export function esProcesoPrivado(err: unknown) {
+  return err instanceof Error && /privad/i.test(err.message);
+}
+
 async function marcarFallo(casos: CasoCola[], err: unknown) {
   const msg = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+  if (esProcesoPrivado(err)) {
+    // No es una falla: se revisa una vez por semana por si deja de ser privado.
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Case" SET "lastCheckedAt" = now(), "nextCheckAt" = $2::timestamptz,
+         "syncStatus" = 'privado', "retryCount" = 0, "lastError" = $3::text
+       WHERE id = ANY($1::text[])`,
+      casos.map((c) => c.id),
+      proximaHora(VENTANA_INICIO, 6),
+      MSG_PRIVADO,
+    );
+    return;
+  }
   const negocio = err instanceof RamaError && (err.status === 400 || err.status === 404);
   for (const c of casos) {
     const intentos = c.retryCount + 1;
@@ -418,7 +438,7 @@ export async function revisarProcesoManual(caseId: string) {
   try {
     await procesarGrupo([c], r, false);
   } catch (err) {
-    const msg = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+    const msg = esProcesoPrivado(err) ? MSG_PRIVADO : (err instanceof Error ? err.message : String(err)).slice(0, 500);
     await prisma.case.update({ where: { id: caseId }, data: { lastError: msg } }).catch(() => {});
     throw err;
   }
@@ -557,13 +577,14 @@ export async function estadoSincronizacion() {
   await asegurarColumnasCola();
   const desde = inicioVentanaActual();
   const [conteo] = await prisma.$queryRawUnsafe<
-    { total: bigint; revisados: bigint; pendientes: bigint; errores: bigint; bloqueados: bigint }[]
+    { total: bigint; revisados: bigint; pendientes: bigint; errores: bigint; bloqueados: bigint; privados: bigint }[]
   >(
     `SELECT count(*) AS total,
             count(*) FILTER (WHERE "lastCheckedAt" >= $1::timestamptz) AS revisados,
             count(*) FILTER (WHERE "nextCheckAt" IS NULL OR "nextCheckAt" <= now()) AS pendientes,
             count(*) FILTER (WHERE "syncStatus" = 'error') AS errores,
-            count(*) FILTER (WHERE "syncStatus" = 'rate_limited') AS bloqueados
+            count(*) FILTER (WHERE "syncStatus" = 'rate_limited') AS bloqueados,
+            count(*) FILTER (WHERE "syncStatus" = 'privado') AS privados
      FROM "Case"`,
     desde,
   );
@@ -594,6 +615,7 @@ export async function estadoSincronizacion() {
     pendientes: Number(conteo?.pendientes ?? 0),
     errores: Number(conteo?.errores ?? 0),
     bloqueados: Number(conteo?.bloqueados ?? 0),
+    privados: Number(conteo?.privados ?? 0),
     avisosPendientes: Number(avisos?.n ?? 0),
     ultimaCorridaAt: s?.lastTick ?? null,
     ultimaCorrida,

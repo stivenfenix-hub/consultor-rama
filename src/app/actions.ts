@@ -41,7 +41,7 @@ import {
   setWhatsapp,
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
-import { revisarProcesoManual, tick } from "@/lib/sync-queue";
+import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual, tick } from "@/lib/sync-queue";
 import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
 import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
@@ -495,9 +495,13 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
     await revisarProcesoManual(caseId);
     await marcarActualizacionProceso(caseId); // solo cuenta si funcionó
     resultado = { ok: "Proceso actualizado." };
-  } catch {
+  } catch (err) {
     // el error queda guardado en caso.lastError; no se gasta el intento del día
-    resultado = { error: "La Rama Judicial no respondió. Intenta de nuevo en un rato." };
+    resultado = {
+      error: esProcesoPrivado(err)
+        ? MSG_PRIVADO
+        : "La Rama Judicial no respondió. Intenta de nuevo en un rato.",
+    };
   }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
