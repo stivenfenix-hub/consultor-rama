@@ -7,15 +7,15 @@ import { useEffect, useState } from "react";
  * corporativos (dominio propio) no se muestra nada: no sabemos dónde está su
  * bandeja.
  * En el celular abre la APP de correo (no una ventana dentro de Estradox):
- * iPhone con el esquema de la app; Android pidiéndole a Google Play que la abra
- * (market://launch). Si no está instalada, la web. En computador, pestaña nueva.
+ * iPhone con el esquema de la app (si no está, la web). En Android, Chrome no
+ * deja que una web abra la app de correo: se abre la web y se sugiere la app.
+ * En computador, pestaña nueva.
  */
 
 type Proveedor = {
   nombre: string;
   url: string;
   logo: React.ReactNode;
-  android?: string; // paquete de la app en Android
   ios?: string; // esquema de la app
 };
 
@@ -25,7 +25,10 @@ const GMAIL = (
     <path fill="#34A853" d="M35 40h7a3 3 0 0 0 3-3V15l-10 7.5z" />
     <path fill="#FBBC04" d="M35 9.5v12.5l10-7.5v-4c0-3.7-4.2-5.8-7.2-3.6z" />
     <path fill="#EA4335" d="M13 22.5V9.5l11 8.25 11-8.25v12.5l-11 8.25z" />
-    <path fill="#C5221F" d="M3 10.5v4l10 7.5V9.5l-2.8-2.1C7.2 5.2 3 7.3 3 10.5z" />
+    <path
+      fill="#C5221F"
+      d="M3 10.5v4l10 7.5V9.5l-2.8-2.1C7.2 5.2 3 7.3 3 10.5z"
+    />
   </svg>
 );
 
@@ -33,7 +36,15 @@ const OUTLOOK = (
   <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
     <rect x="18" y="8" width="26" height="32" rx="3" fill="#28A8EA" />
     <rect x="4" y="12" width="24" height="24" rx="3" fill="#0A64C8" />
-    <ellipse cx="16" cy="24" rx="6" ry="7.5" fill="none" stroke="#fff" strokeWidth="3.4" />
+    <ellipse
+      cx="16"
+      cy="24"
+      rx="6"
+      ry="7.5"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="3.4"
+    />
   </svg>
 );
 
@@ -59,12 +70,25 @@ const ICLOUD = (
 const PROTON = (
   <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
     <rect width="48" height="48" rx="10" fill="#6D4AFF" />
-    <path fill="#fff" d="M12 14h24a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2zm1 4v.5L24 26l11-7.5V18L24 25.5z" />
+    <path
+      fill="#fff"
+      d="M12 14h24a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2zm1 4v.5L24 26l11-7.5V18L24 25.5z"
+    />
   </svg>
 );
 
 const SOBRE = (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <path d="m3 7 9 6 9-6" />
   </svg>
@@ -79,7 +103,6 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Gmail",
       url: "https://mail.google.com/mail/u/0/#search/in%3Aanywhere+Estradox",
       logo: GMAIL,
-      android: "com.google.android.gm",
       ios: "googlegmail://",
     };
   }
@@ -88,7 +111,6 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Outlook",
       url: "https://outlook.live.com/mail/0/",
       logo: OUTLOOK,
-      android: "com.microsoft.office.outlook",
       ios: "ms-outlook://",
     };
   }
@@ -97,19 +119,22 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Yahoo Mail",
       url: "https://mail.yahoo.com/",
       logo: YAHOO,
-      android: "com.yahoo.mobile.client.android.mail",
       ios: "ymail://",
     };
   }
   if (["icloud.com", "me.com", "mac.com"].includes(dominio)) {
-    return { nombre: "iCloud Mail", url: "https://www.icloud.com/mail", logo: ICLOUD, ios: "message://" };
+    return {
+      nombre: "iCloud Mail",
+      url: "https://www.icloud.com/mail",
+      logo: ICLOUD,
+      ios: "message://",
+    };
   }
   if (["proton.me", "protonmail.com", "pm.me"].includes(dominio)) {
     return {
       nombre: "Proton Mail",
       url: "https://mail.proton.me/",
       logo: PROTON,
-      android: "ch.protonmail.android",
       ios: "protonmail://",
     };
   }
@@ -122,25 +147,16 @@ function proveedorDe(email: string): Proveedor | null {
   return null; // correo corporativo / dominio propio
 }
 
-/**
- * Android: enlace intent:// directo (Chrome lo trata como un enlace normal; sin
- * pestaña nueva). Chrome no deja que una web abra la pantalla principal de otra
- * app, pero Google Play sí: market://launch abre la app instalada. Si no está
- * instalada, Chrome va a la versión web.
- */
-function intentAndroid(p: Proveedor) {
-  return (
-    `intent://launch?id=${p.android}#Intent;scheme=market;package=com.android.vending;` +
-    `S.browser_fallback_url=${encodeURIComponent(p.url)};end`
-  );
-}
-
 function abrirIos(p: Proveedor) {
   // Si la app abre, la página pasa a segundo plano y no se usa la web.
   const t = setTimeout(() => {
     if (!document.hidden) window.location.href = p.url;
   }, 1500);
-  document.addEventListener("visibilitychange", () => document.hidden && clearTimeout(t), { once: true });
+  document.addEventListener(
+    "visibilitychange",
+    () => document.hidden && clearTimeout(t),
+    { once: true },
+  );
   window.location.href = p.ios!;
 }
 
@@ -150,7 +166,11 @@ export function OpenInboxButton({ email }: { email: string }) {
   useEffect(() => {
     const ua = navigator.userAgent;
     if (/android/i.test(ua)) setSo("android");
-    else if (/iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) setSo("ios");
+    else if (
+      /iphone|ipad|ipod/i.test(ua) ||
+      (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)
+    )
+      setSo("ios");
   }, []);
   if (!p) return null;
 
@@ -160,30 +180,38 @@ export function OpenInboxButton({ email }: { email: string }) {
       Abrir {p.nombre}
     </>
   );
-  const estilo = { width: "100%", justifyContent: "center", marginTop: 12 } as const;
+  const estilo = {
+    width: "100%",
+    justifyContent: "center",
+    marginTop: 12,
+  } as const;
 
-  if (so === "android" && p.android) {
-    return (
-      <a href={intentAndroid(p)} className="btn inbox-btn" style={estilo}>
+  return (
+    <>
+      <a
+        href={p.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          if (so === "ios" && p.ios) {
+            e.preventDefault();
+            abrirIos(p);
+          }
+        }}
+        className="btn inbox-btn"
+        style={estilo}
+      >
         {contenido}
       </a>
-    );
-  }
-  return (
-    <a
-      href={p.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => {
-        if (so === "ios" && p.ios) {
-          e.preventDefault();
-          abrirIos(p);
-        }
-      }}
-      className="btn inbox-btn"
-      style={estilo}
-    >
-      {contenido}
-    </a>
+      {so === "android" && (
+        <p
+          className="muted small"
+          style={{ margin: "8px 0 0", textAlign: "center" }}
+        >
+          ¿Usas la app de {p.nombre}? Ábrela y busca el correo de Estradox
+          (revisa también spam).
+        </p>
+      )}
+    </>
   );
 }
