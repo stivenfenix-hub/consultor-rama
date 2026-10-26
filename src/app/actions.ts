@@ -12,7 +12,7 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
-import { sendPushToAll } from "@/lib/push";
+import { sendPushToUsers } from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
 import {
   EMAIL_KINDS,
@@ -42,6 +42,7 @@ import {
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
 import { revisarProcesoManual, tick } from "@/lib/sync-queue";
+import { registrarConsentimientoInicial, setOfertas, usuariosConOfertas } from "@/lib/consent";
 import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
   agregarProcesoPorRadicado,
@@ -112,7 +113,11 @@ export async function registerAction(
     };
   }
   try {
-    await registerUser(parsed.data);
+    const nuevo = await registerUser(parsed.data);
+    // Prueba de la autorización (Ley 1581). No se bloquea el registro si falla.
+    await registrarConsentimientoInicial(nuevo.id, formData.get("ofertas") === "on").catch((e) =>
+      console.error("[consentimiento]", e),
+    );
     return {
       ok: "¡Listo! Te enviamos un correo para verificar tu cuenta. Revisa tu bandeja (y spam).",
     };
@@ -416,14 +421,19 @@ export async function enviarPromoAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  const res = await sendPushToAll({
+  // Solo a quienes autorizaron recibir ofertas y novedades (Ley 1581).
+  const destinatarios = await usuariosConOfertas();
+  if (destinatarios.length === 0) {
+    return { error: "Ningún usuario ha aceptado recibir ofertas y novedades todavía." };
+  }
+  const res = await sendPushToUsers(destinatarios, {
     title: parsed.data.title,
     body: parsed.data.body,
     url: parsed.data.url || "/dashboard",
     tag: "promo",
   });
   return {
-    ok: `Enviado a ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
+    ok: `Enviado a ${destinatarios.length} usuario(s) que aceptaron ofertas: ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
   };
 }
 
@@ -620,4 +630,16 @@ export async function ejecutarColaAction() {
     }
   });
   revalidatePath("/dashboard/admin");
+}
+
+/** El usuario activa o retira el permiso de ofertas y boletines. */
+export async function updateOfertasAction(valor: boolean): Promise<ActionState> {
+  const user = await requireUser();
+  await setOfertas(user.id, valor);
+  revalidatePath("/dashboard/configuracion");
+  return {
+    ok: valor
+      ? "Listo: te enviaremos ofertas y novedades de Estradox."
+      : "Listo: ya no te enviaremos ofertas ni boletines.",
+  };
 }

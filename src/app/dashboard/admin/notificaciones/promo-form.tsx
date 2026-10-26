@@ -50,7 +50,7 @@ export function PromoForm() {
 
       <div style={{ height: 14 }} />
       <button className="btn" type="submit" disabled={pending}>
-        {pending ? "Enviando…" : <><Icon name="megaphone" /> Enviar a todos</>}
+        {pending ? "Enviando…" : <><Icon name="megaphone" /> Enviar a quienes aceptaron ofertas</>}
       </button>
       {state.error && <div className="error">{state.error}</div>}
       {state.ok && <div className="ok">{state.ok}</div>}
