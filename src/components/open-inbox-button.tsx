@@ -5,15 +5,15 @@
  * corporativos (dominio propio) no se muestra nada: no sabemos dónde está su
  * bandeja.
  * En el celular abre la APP de correo (no una ventana dentro de Estradox):
- * iPhone con el esquema de la app (si no está, la web); Android en el navegador
- * Chrome, fuera de Estradox. En computador, pestaña nueva.
+ * iPhone con el esquema de la app; Android pidiéndole a Google Play que la abra
+ * (market://launch). Si no está instalada, la web. En computador, pestaña nueva.
  */
 
 type Proveedor = {
   nombre: string;
   url: string;
   logo: React.ReactNode;
-  appUrl?: string; // enlace web para Android (sin "#", que usa el intent)
+  android?: string; // paquete de la app en Android
   ios?: string; // esquema de la app
 };
 
@@ -77,7 +77,7 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Gmail",
       url: "https://mail.google.com/mail/u/0/#search/in%3Aanywhere+Estradox",
       logo: GMAIL,
-      appUrl: "https://mail.google.com/mail/",
+      android: "com.google.android.gm",
       ios: "googlegmail://",
     };
   }
@@ -86,6 +86,7 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Outlook",
       url: "https://outlook.live.com/mail/0/",
       logo: OUTLOOK,
+      android: "com.microsoft.office.outlook",
       ios: "ms-outlook://",
     };
   }
@@ -94,6 +95,7 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Yahoo Mail",
       url: "https://mail.yahoo.com/",
       logo: YAHOO,
+      android: "com.yahoo.mobile.client.android.mail",
       ios: "ymail://",
     };
   }
@@ -105,6 +107,7 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Proton Mail",
       url: "https://mail.proton.me/",
       logo: PROTON,
+      android: "ch.protonmail.android",
       ios: "protonmail://",
     };
   }
@@ -122,14 +125,13 @@ function abrir(p: Proveedor) {
   const android = /android/i.test(ua);
   const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
 
-  if (android) {
-    // Chrome no deja que una web abra la bandeja de la app de correo (solo
-    // "redactar"). Se abre el correo AFUERA, en el navegador Chrome del celular
-    // (donde ya tiene la sesión iniciada), no dentro de la app de Estradox.
-    const u = new URL(p.appUrl ?? p.url);
+  if (android && p.android) {
+    // Chrome no deja que una web abra directamente la pantalla principal de
+    // otra app, pero Google Play sí: market://launch abre la app instalada. Si
+    // no está instalada (o no hay Play), Chrome va a la versión web.
     window.location.href =
-      `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;action=android.intent.action.VIEW;` +
-      `package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
+      `intent://launch?id=${p.android}#Intent;scheme=market;package=com.android.vending;` +
+      `S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
     return;
   }
   if (ios && p.ios) {
