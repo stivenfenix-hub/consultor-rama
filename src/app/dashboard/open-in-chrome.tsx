@@ -3,27 +3,21 @@
 import { useEffect, useState } from "react";
 
 /**
- * Tras verificar el correo desde la app de Gmail, la página queda en el
- * navegador interno de Gmail. En Android, este botón la abre en Chrome (la
- * sesión ya iniciada se comparte, así que entra directo).
+ * Tras verificar el correo desde una app de correo (Gmail, Outlook…), la página
+ * queda en el navegador interno de esa app. Ese navegador es Chrome por dentro,
+ * así que ningún enlace lo saca: solo su menú "Abrir en Chrome". Se muestra la
+ * indicación únicamente cuando la página viene de una app de Android
+ * (referrer android-app://…); la sesión ya iniciada se comparte con Chrome.
  */
 export function OpenInChrome() {
-  const [android, setAndroid] = useState(false);
-  useEffect(() => setAndroid(/android/i.test(navigator.userAgent)), []);
-  if (!android) return null;
+  const [enApp, setEnApp] = useState(false);
+  useEffect(() => setEnApp(document.referrer.startsWith("android-app://")), []);
+  if (!enApp) return null;
 
-  const destino = `${window.location.host}/dashboard`;
   return (
-    <div style={{ marginTop: 10 }}>
-      <a
-        className="btn secondary"
-        href={`intent://${destino}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(`https://${destino}`)};end`}
-      >
-        Abrir en Chrome
-      </a>
-      <div className="small" style={{ marginTop: 6, opacity: 0.85 }}>
-        ¿Abriste el enlace desde la app de Gmail? Sigue en Chrome con tu sesión ya iniciada.
-      </div>
+    <div className="small" style={{ marginTop: 8, opacity: 0.9 }}>
+      Para seguir en Chrome: toca <b>⋮</b> (arriba a la derecha) y elige <b>Abrir en Chrome</b>. Tu
+      sesión ya está iniciada.
     </div>
   );
 }
