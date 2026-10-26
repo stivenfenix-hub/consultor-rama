@@ -1,10 +1,21 @@
+"use client";
+
 /**
  * Botón "Abrir Gmail / Outlook / …" según el dominio del correo. Para correos
  * corporativos (dominio propio) no se muestra nada: no sabemos dónde está su
  * bandeja.
+ * En el celular abre la APP de correo (no una ventana dentro de Estradox):
+ * Android con un enlace intent:// al paquete, iPhone con el esquema de la app;
+ * si no está instalada, cae a la versión web. En computador, pestaña nueva.
  */
 
-type Proveedor = { nombre: string; url: string; logo: React.ReactNode };
+type Proveedor = {
+  nombre: string;
+  url: string;
+  logo: React.ReactNode;
+  android?: string; // paquete de la app
+  ios?: string; // esquema de la app
+};
 
 const GMAIL = (
   <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
@@ -66,27 +77,71 @@ function proveedorDe(email: string): Proveedor | null {
       nombre: "Gmail",
       url: "https://mail.google.com/mail/u/0/#search/in%3Aanywhere+Estradox",
       logo: GMAIL,
+      android: "com.google.android.gm",
+      ios: "googlegmail://",
     };
   }
   if (/^(hotmail|outlook|live|msn)\.[a-z.]+$/.test(dominio)) {
-    return { nombre: "Outlook", url: "https://outlook.live.com/mail/0/", logo: OUTLOOK };
+    return {
+      nombre: "Outlook",
+      url: "https://outlook.live.com/mail/0/",
+      logo: OUTLOOK,
+      android: "com.microsoft.office.outlook",
+      ios: "ms-outlook://",
+    };
   }
   if (/^(yahoo|ymail|rocketmail)\.[a-z.]+$/.test(dominio)) {
-    return { nombre: "Yahoo Mail", url: "https://mail.yahoo.com/", logo: YAHOO };
+    return {
+      nombre: "Yahoo Mail",
+      url: "https://mail.yahoo.com/",
+      logo: YAHOO,
+      android: "com.yahoo.mobile.client.android.mail",
+      ios: "ymail://",
+    };
   }
   if (["icloud.com", "me.com", "mac.com"].includes(dominio)) {
-    return { nombre: "iCloud Mail", url: "https://www.icloud.com/mail", logo: ICLOUD };
+    return { nombre: "iCloud Mail", url: "https://www.icloud.com/mail", logo: ICLOUD, ios: "message://" };
   }
   if (["proton.me", "protonmail.com", "pm.me"].includes(dominio)) {
-    return { nombre: "Proton Mail", url: "https://mail.proton.me/", logo: PROTON };
+    return {
+      nombre: "Proton Mail",
+      url: "https://mail.proton.me/",
+      logo: PROTON,
+      android: "ch.protonmail.android",
+      ios: "protonmail://",
+    };
   }
   if (["aol.com"].includes(dominio)) {
     return { nombre: "AOL Mail", url: "https://mail.aol.com/", logo: SOBRE };
   }
   if (/^zoho(mail)?\.[a-z.]+$/.test(dominio)) {
-    return { nombre: "Zoho Mail", url: "https://mail.zoho.com/", logo: SOBRE };
+    return { nombre: "Zoho Mail", url: "https://mail.zoho.com/", logo: SOBRE, android: "com.zoho.mail" };
   }
   return null; // correo corporativo / dominio propio
+}
+
+function abrir(p: Proveedor) {
+  const ua = navigator.userAgent;
+  const android = /android/i.test(ua);
+  const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+
+  if (android && p.android) {
+    // Abre la app; si no está instalada, Chrome va a la versión web.
+    window.location.href =
+      `intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;` +
+      `package=${p.android};S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
+    return;
+  }
+  if (ios && p.ios) {
+    // Si la app abre, la página pasa a segundo plano y no se usa la web.
+    const t = setTimeout(() => {
+      if (!document.hidden) window.location.href = p.url;
+    }, 1500);
+    document.addEventListener("visibilitychange", () => document.hidden && clearTimeout(t), { once: true });
+    window.location.href = p.ios;
+    return;
+  }
+  window.open(p.url, "_blank", "noopener,noreferrer");
 }
 
 export function OpenInboxButton({ email }: { email: string }) {
@@ -97,6 +152,10 @@ export function OpenInboxButton({ email }: { email: string }) {
       href={p.url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={(e) => {
+        e.preventDefault();
+        abrir(p);
+      }}
       className="btn inbox-btn"
       style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
     >
