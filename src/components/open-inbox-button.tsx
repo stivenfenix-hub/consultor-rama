@@ -7,9 +7,9 @@ import { useEffect, useState } from "react";
  * corporativos (dominio propio) no se muestra nada: no sabemos dónde está su
  * bandeja.
  * En el celular abre la APP de correo (no una ventana dentro de Estradox):
- * iPhone con el esquema de la app (si no está, la web). En Android, Chrome no
- * deja que una web abra la app de correo: se abre la web y se sugiere la app.
- * En computador, pestaña nueva.
+ * iPhone con el esquema de la app (si no está, la web). En Android, Chrome solo
+ * deja abrir la app de correo con un enlace mailto: (abre en "Redactar"; el
+ * usuario lo cierra y queda en su bandeja). En computador, pestaña nueva.
  */
 
 type Proveedor = {
@@ -17,6 +17,7 @@ type Proveedor = {
   url: string;
   logo: React.ReactNode;
   ios?: string; // esquema de la app
+  android?: string; // paquete de la app (se abre con mailto:)
 };
 
 const GMAIL = (
@@ -104,6 +105,7 @@ function proveedorDe(email: string): Proveedor | null {
       url: "https://mail.google.com/mail/u/0/#search/in%3Aanywhere+Estradox",
       logo: GMAIL,
       ios: "googlegmail://",
+      android: "com.google.android.gm",
     };
   }
   if (/^(hotmail|outlook|live|msn)\.[a-z.]+$/.test(dominio)) {
@@ -112,6 +114,7 @@ function proveedorDe(email: string): Proveedor | null {
       url: "https://outlook.live.com/mail/0/",
       logo: OUTLOOK,
       ios: "ms-outlook://",
+      android: "com.microsoft.office.outlook",
     };
   }
   if (/^(yahoo|ymail|rocketmail)\.[a-z.]+$/.test(dominio)) {
@@ -120,6 +123,7 @@ function proveedorDe(email: string): Proveedor | null {
       url: "https://mail.yahoo.com/",
       logo: YAHOO,
       ios: "ymail://",
+      android: "com.yahoo.mobile.client.android.mail",
     };
   }
   if (["icloud.com", "me.com", "mac.com"].includes(dominio)) {
@@ -136,6 +140,7 @@ function proveedorDe(email: string): Proveedor | null {
       url: "https://mail.proton.me/",
       logo: PROTON,
       ios: "protonmail://",
+      android: "ch.protonmail.android",
     };
   }
   if (["aol.com"].includes(dominio)) {
@@ -186,11 +191,18 @@ export function OpenInboxButton({ email }: { email: string }) {
     marginTop: 12,
   } as const;
 
+  // Android: mailto: dirigido al paquete de la app (lo único que Chrome deja
+  // abrir desde una web). Si no está instalada, la versión web.
+  const android = so === "android" && p.android;
+  const href = android
+    ? `intent:#Intent;scheme=mailto;package=${p.android};S.browser_fallback_url=${encodeURIComponent(p.url)};end`
+    : p.url;
+
   return (
     <>
       <a
-        href={p.url}
-        target="_blank"
+        href={href}
+        target={android ? undefined : "_blank"}
         rel="noopener noreferrer"
         onClick={(e) => {
           if (so === "ios" && p.ios) {
@@ -208,8 +220,9 @@ export function OpenInboxButton({ email }: { email: string }) {
           className="muted small"
           style={{ margin: "8px 0 0", textAlign: "center" }}
         >
-          ¿Usas la app de {p.nombre}? Ábrela y busca el correo de Estradox
-          (revisa también spam).
+          {android
+            ? `Se abrirá ${p.nombre} en "Redactar": ciérralo con la ✕ y busca el correo de Estradox en tu bandeja (o en spam).`
+            : `¿Usas la app de ${p.nombre}? Ábrela y busca el correo de Estradox (revisa también spam).`}
         </p>
       )}
     </>
