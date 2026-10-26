@@ -93,7 +93,7 @@ export function RegisterForm() {
       <p className="muted small" style={{ margin: "14px 0 0" }}>
         Al crear tu cuenta aceptas los{" "}
         <Link href="/terminos" target="_blank">Términos y Condiciones</Link> y autorizas el
-        tratamiento de tus datos según la{" "}
+        tratamiento de tus datos, incluido el envío de ofertas y novedades, según la{" "}
         <Link href="/privacidad" target="_blank">Política de Tratamiento de Datos</Link>.
       </p>
 

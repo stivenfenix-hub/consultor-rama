@@ -12,7 +12,7 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
-import { sendPushToAll, sendPushToUsers } from "@/lib/push";
+import { sendPushToUsers } from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
 import {
   EMAIL_KINDS,
@@ -42,7 +42,7 @@ import {
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
 import { revisarProcesoManual, tick } from "@/lib/sync-queue";
-import { registrarConsentimientoInicial, setOfertas, usuariosConOfertas } from "@/lib/consent";
+import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
 import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
   agregarProcesoPorRadicado,
@@ -115,7 +115,7 @@ export async function registerAction(
   try {
     const nuevo = await registerUser(parsed.data);
     // Prueba de la autorización (Ley 1581). No se bloquea el registro si falla.
-    await registrarConsentimientoInicial(nuevo.id, formData.get("ofertas") === "on").catch((e) =>
+    await registrarConsentimientoInicial(nuevo.id).catch((e) =>
       console.error("[consentimiento]", e),
     );
     return {
@@ -421,22 +421,8 @@ export async function enviarPromoAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  // Avisos del servicio: a todos. Ofertas: solo a quienes las autorizaron (Ley 1581).
-  if (formData.get("tipo") !== "oferta") {
-    const res = await sendPushToAll({
-      title: parsed.data.title,
-      body: parsed.data.body,
-      url: parsed.data.url || "/dashboard",
-      tag: "aviso",
-    });
-    return {
-      ok: `Aviso del servicio enviado a todos: ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
-    };
-  }
-  const destinatarios = await usuariosConOfertas();
-  if (destinatarios.length === 0) {
-    return { error: "Ningún usuario ha aceptado recibir ofertas y novedades todavía." };
-  }
+  // A todos los usuarios, menos quienes desactivaron ofertas en Configuración.
+  const destinatarios = await usuariosParaAvisos();
   const res = await sendPushToUsers(destinatarios, {
     title: parsed.data.title,
     body: parsed.data.body,
@@ -444,7 +430,7 @@ export async function enviarPromoAction(
     tag: "promo",
   });
   return {
-    ok: `Enviado a ${destinatarios.length} usuario(s) que aceptaron ofertas: ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
+    ok: `Enviado a ${destinatarios.length} usuario(s): ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
   };
 }
 
@@ -650,7 +636,7 @@ export async function updateOfertasAction(valor: boolean): Promise<ActionState> 
   revalidatePath("/dashboard/configuracion");
   return {
     ok: valor
-      ? "Listo: te enviaremos ofertas y novedades de Estradox."
-      : "Listo: ya no te enviaremos ofertas ni boletines.",
+      ? "Listo: volverás a recibir ofertas y novedades de Estradox."
+      : "Listo: ya no te enviaremos ofertas ni novedades.",
   };
 }

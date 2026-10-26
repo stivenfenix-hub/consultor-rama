@@ -57,9 +57,9 @@ export default function PrivacidadPage() {
         <li>Mantener la seguridad, prevenir fraudes y mejorar el servicio.</li>
         <li>Cumplir obligaciones legales y requerimientos de autoridades.</li>
         <li>
-          <b>Solo con autorización expresa y opcional:</b> enviar ofertas, novedades y boletines de{" "}
-          {L.marca}. Esta autorización se puede retirar en cualquier momento desde Configuración,
-          sin que afecte el servicio.
+          Enviar ofertas, novedades y boletines de {L.marca} por correo, notificaciones o
+          WhatsApp. El titular autoriza esta finalidad al aceptar esta Política y puede revocarla
+          en cualquier momento desde Configuración, sin que afecte el servicio.
         </li>
       </ul>
 
@@ -98,7 +98,7 @@ export default function PrivacidadPage() {
       <ul>
         <li>
           Desde la plataforma, el usuario puede actualizar su WhatsApp, activar o retirar las
-          ofertas y eliminar su cuenta (en Configuración).
+          desactivar las ofertas y eliminar su cuenta (en Configuración).
         </li>
         <li>Por correo a {L.correo}, indicando nombre, correo de la cuenta y la solicitud.</li>
         <li>

@@ -5,21 +5,23 @@ import { ensureColumn } from "./runtime-columns";
 
 /**
  * Consentimientos (Ley 1581 de 2012): aceptación de Términos y Política de
- * datos al registrarse, y permiso OPCIONAL para ofertas y boletines.
+ * datos al registrarse (incluye ofertas y novedades). Quien no quiera ofertas
+ * las desactiva en Configuración y queda excluido de los envíos.
  * Cada cambio queda en ConsentEvent (cuándo, qué versión, IP y navegador): es
  * la prueba de la autorización que exige la SIC.
  */
 
 // Cambiar al publicar una nueva versión de los Términos o la Política.
-export const VERSION_LEGAL = "2026-10-25";
+export const VERSION_LEGAL = "2026-10-25.2";
 
 let listo: Promise<void> | null = null;
 function asegurar() {
   listo ??= (async () => {
     await ensureColumn("User", "termsAcceptedAt", "TIMESTAMPTZ");
     await ensureColumn("User", "termsVersion", "TEXT");
-    await ensureColumn("User", "marketingOptIn", "BOOLEAN NOT NULL DEFAULT false");
-    await ensureColumn("User", "marketingOptInAt", "TIMESTAMPTZ");
+    // true = el usuario desactivó ofertas y novedades en Configuración.
+    await ensureColumn("User", "marketingOptOut", "BOOLEAN NOT NULL DEFAULT false");
+    await ensureColumn("User", "marketingOptOutAt", "TIMESTAMPTZ");
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "ConsentEvent" (
         id SERIAL PRIMARY KEY,
@@ -65,50 +67,48 @@ async function registrarEvento(userId: string, tipo: "terminos" | "ofertas", val
   );
 }
 
-/** Al crear la cuenta: aceptó Términos/Política y eligió (o no) recibir ofertas. */
-export async function registrarConsentimientoInicial(userId: string, ofertas: boolean) {
+/** Al crear la cuenta: aceptó Términos y Política (que incluyen ofertas y novedades). */
+export async function registrarConsentimientoInicial(userId: string) {
   await asegurar();
   await prisma.$executeRawUnsafe(
-    `UPDATE "User" SET "termsAcceptedAt" = now(), "termsVersion" = $2,
-       "marketingOptIn" = $3, "marketingOptInAt" = now()
-     WHERE id = $1`,
+    `UPDATE "User" SET "termsAcceptedAt" = now(), "termsVersion" = $2 WHERE id = $1`,
     userId,
     VERSION_LEGAL,
-    ofertas,
   );
   await registrarEvento(userId, "terminos", true);
-  await registrarEvento(userId, "ofertas", ofertas);
+  await registrarEvento(userId, "ofertas", true);
 }
 
+/** ¿Recibe ofertas y novedades? (sí, salvo que las haya desactivado). */
 export async function getOfertas(userId: string): Promise<boolean> {
   try {
     await asegurar();
     const rows = await prisma.$queryRawUnsafe<{ v: boolean }[]>(
-      `SELECT "marketingOptIn" AS v FROM "User" WHERE id = $1`,
+      `SELECT "marketingOptOut" AS v FROM "User" WHERE id = $1`,
       userId,
     );
-    return rows[0]?.v ?? false;
+    return !(rows[0]?.v ?? false);
   } catch {
-    return false;
+    return true;
   }
 }
 
-/** El usuario activa o retira el permiso de ofertas desde Configuración. */
+/** El usuario activa o desactiva ofertas y novedades desde Configuración. */
 export async function setOfertas(userId: string, valor: boolean) {
   await asegurar();
   await prisma.$executeRawUnsafe(
-    `UPDATE "User" SET "marketingOptIn" = $2, "marketingOptInAt" = now() WHERE id = $1`,
+    `UPDATE "User" SET "marketingOptOut" = $2, "marketingOptOutAt" = now() WHERE id = $1`,
     userId,
-    valor,
+    !valor,
   );
   await registrarEvento(userId, "ofertas", valor);
 }
 
-/** Usuarios que autorizaron ofertas y boletines (para envíos promocionales). */
-export async function usuariosConOfertas(): Promise<string[]> {
+/** Destinatarios de notificaciones: todos, menos quienes desactivaron ofertas. */
+export async function usuariosParaAvisos(): Promise<string[]> {
   await asegurar();
   const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT id FROM "User" WHERE "marketingOptIn"`,
+    `SELECT id FROM "User" WHERE NOT "marketingOptOut"`,
   );
   return rows.map((r) => r.id);
 }

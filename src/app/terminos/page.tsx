@@ -100,8 +100,9 @@ export default function TerminosPage() {
       <p>
         {L.marca} enviará al correo, WhatsApp o al dispositivo del usuario los mensajes necesarios
         para prestar el servicio: verificación de la cuenta, avisos de actuaciones, estado de la
-        suscripción y pagos. Las ofertas, novedades y boletines solo se envían a quien lo autorizó,
-        y ese permiso se puede retirar en cualquier momento desde Configuración.
+        suscripción y pagos. Al aceptar estos Términos, el usuario también autoriza recibir ofertas,
+        novedades y boletines de {L.marca}; puede dejar de recibirlos en cualquier momento desde
+        Configuración, sin que afecte el servicio.
       </p>
 
       <h2>7. Responsabilidad</h2>

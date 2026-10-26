@@ -22,8 +22,8 @@ export default async function NotificacionesAdmin() {
       </div>
       <p className="muted small" style={{ marginTop: -8, marginBottom: 16 }}>
         Usuarios con notificaciones activas: <b>{usuarios}</b> usuario(s),{" "}
-        <b>{dispositivos}</b> dispositivo(s). Por ley (Ley 1581), las promociones solo
-        se envían a quienes aceptaron recibir ofertas y novedades.
+        <b>{dispositivos}</b> dispositivo(s). Se envía a todos, menos a quienes
+        desactivaron las ofertas en Configuración.
       </p>
       <div className="card" style={{ maxWidth: 520 }}>
         <PromoForm />
