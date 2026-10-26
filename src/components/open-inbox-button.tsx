@@ -14,6 +14,7 @@ type Proveedor = {
   url: string;
   logo: React.ReactNode;
   android?: string; // paquete de la app
+  appUrl?: string; // enlace web que la app abre (si difiere de url)
   ios?: string; // esquema de la app
 };
 
@@ -78,6 +79,7 @@ function proveedorDe(email: string): Proveedor | null {
       url: "https://mail.google.com/mail/u/0/#search/in%3Aanywhere+Estradox",
       logo: GMAIL,
       android: "com.google.android.gm",
+      appUrl: "https://mail.google.com/mail/",
       ios: "googlegmail://",
     };
   }
@@ -126,10 +128,14 @@ function abrir(p: Proveedor) {
   const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
 
   if (android && p.android) {
-    // Abre la app; si no está instalada, Chrome va a la versión web.
+    // Chrome solo abre actividades "navegables", así que se le pide a la app
+    // que abra el enlace web de su correo (sus enlaces los maneja la app). Si no
+    // está instalada, Chrome abre la versión web.
+    const u = new URL(p.appUrl ?? p.url);
     window.location.href =
-      `intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;` +
-      `package=${p.android};S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
+      `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;action=android.intent.action.VIEW;` +
+      `category=android.intent.category.BROWSABLE;package=${p.android};` +
+      `S.browser_fallback_url=${encodeURIComponent(p.url)};end`;
     return;
   }
   if (ios && p.ios) {
