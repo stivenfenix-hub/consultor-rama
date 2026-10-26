@@ -644,3 +644,19 @@ export async function updateOfertasAction(valor: boolean): Promise<ActionState> 
       : "Listo: ya no te enviaremos ofertas ni novedades.",
   };
 }
+
+/** Tras crear la cuenta con Google: guarda el WhatsApp (obligatorio) y entra. */
+export async function completarRegistroAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const n = normalizarWhatsapp(String(formData.get("whatsapp") ?? ""));
+  if (!n) return { error: "Ingresa un número de WhatsApp válido (ej. 300 123 4567)." };
+  try {
+    await setWhatsapp(user.id, n);
+  } catch {
+    return { error: "No se pudo guardar el número. Intenta de nuevo." };
+  }
+  redirect(homePath(user.role));
+}

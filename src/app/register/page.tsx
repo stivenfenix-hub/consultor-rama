@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, homePath } from "@/lib/auth";
 import { BrandLogo } from "@/components/brand-logo";
 import { RegisterForm } from "./register-form";
+import { GoogleButton } from "@/components/google-button";
 
 export default async function RegisterPage() {
   const user = await getCurrentUser();
@@ -16,6 +17,7 @@ export default async function RegisterPage() {
           <p className="muted small">
             Regístrate para empezar a seguir tus procesos judiciales.
           </p>
+          <GoogleButton separador="o regístrate con tu correo" />
           <RegisterForm />
         </div>
       </div>

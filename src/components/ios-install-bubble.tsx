@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icon } from "./icon";
 
 // Páginas de acceso donde no se muestra la burbuja.
-const SIN_BURBUJA = ["/login", "/register", "/forgot", "/reset", "/verify"];
+const SIN_BURBUJA = ["/login", "/register", "/forgot", "/reset", "/verify", "/completar-registro"];
 const OCULTAR_MS = 7 * 24 * 60 * 60 * 1000;
 
 type BeforeInstallPromptEvent = Event & {

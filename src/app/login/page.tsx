@@ -3,8 +3,19 @@ import { getCurrentUser, homePath } from "@/lib/auth";
 import { getSiteSettings } from "@/lib/settings";
 import { BrandLogo } from "@/components/brand-logo";
 import { LoginForm } from "./login-form";
+import { GoogleButton } from "@/components/google-button";
 
-export default async function LoginPage() {
+const ERROR_GOOGLE: Record<string, string> = {
+  error: "No pudimos ingresar con Google. Intenta de nuevo o usa tu correo y contraseña.",
+  cancelado: "Se canceló el ingreso con Google.",
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string }>;
+}) {
+  const { google } = await searchParams;
   const user = await getCurrentUser();
   if (user) redirect(homePath(user.role));
   const s = await getSiteSettings();
@@ -22,6 +33,10 @@ export default async function LoginPage() {
           >
             Ingresa a tu cuenta para seguir tus procesos judiciales.
           </p>
+          {google && ERROR_GOOGLE[google] && (
+            <div className="error" style={{ marginTop: 12 }}>{ERROR_GOOGLE[google]}</div>
+          )}
+          <GoogleButton separador="o ingresa con tu correo" />
           <LoginForm />
           <div className="login-by">
             <span>By</span>

@@ -1070,3 +1070,20 @@ dd {
   width: 20px;
   height: 20px;
 }
+
+/* Separador "o" entre Google y el formulario */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

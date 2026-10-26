@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { faltaWhatsappGoogle } from "@/lib/google-auth";
 import { getCurrentUser } from "@/lib/auth";
 import { getSiteSettings } from "@/lib/settings";
 import { boldConfigurado, getSuscripcion, ofertaRelampago, tieneAcceso } from "@/lib/subscription";
@@ -18,11 +19,14 @@ export default async function AppLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const [settings, sub, h] = await Promise.all([
+  const [settings, sub, h, sinWhatsapp] = await Promise.all([
     getSiteSettings(),
     getSuscripcion(user.id),
     headers(),
+    faltaWhatsappGoogle(user.id),
   ]);
+  // Cuenta creada con Google: el WhatsApp es obligatorio antes de entrar.
+  if (sinWhatsapp) redirect("/completar-registro");
   const pathname = h.get("x-pathname") ?? "";
   const vencida = !tieneAcceso(sub);
   if (vencida && !pathname.startsWith(PAGINA_PAGO)) redirect(PAGINA_PAGO);
