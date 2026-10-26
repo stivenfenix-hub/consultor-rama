@@ -6,6 +6,7 @@ import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
 import { RefreshAllButton } from "./refresh-all-button";
 import { estadoActualizarTodos } from "@/lib/limits";
+import { OpenInChrome } from "./open-in-chrome";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -45,6 +46,7 @@ export default async function DashboardPage({
       {verificado && (
         <div className="ok" style={{ marginBottom: 14 }}>
           ¡Correo verificado! Bienvenido a Estradox. Agrega tu primer proceso para empezar.
+          <OpenInChrome />
         </div>
       )}
       <div className="page-head wrap">
