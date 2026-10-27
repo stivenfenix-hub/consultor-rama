@@ -67,12 +67,12 @@ export function CaseTabs({
   const [tab, setTab] = useState<TabKey>("resumen");
   const [visor, setVisor] = useState<ViewerDoc | null>(null);
 
-  const tabs: { key: TabKey; label: string }[] = [
+  const tabs: { key: TabKey; label: string; n?: number }[] = [
     { key: "resumen", label: "Resumen" },
-    { key: "actuaciones", label: `Actuaciones (${actuaciones.length})` },
-    { key: "documentos", label: "Documentos" },
-    { key: "partes", label: "Partes" },
-    { key: "grabaciones", label: "Grabaciones" },
+    { key: "actuaciones", label: "Actuaciones", n: actuaciones.length },
+    { key: "documentos", label: "Documentos", n: documentos.length },
+    { key: "partes", label: "Partes", n: partes.length },
+    { key: "grabaciones", label: "Grabaciones", n: grabaciones.length },
     { key: "sincronizacion", label: "Sincronización" },
   ];
 
@@ -86,6 +86,7 @@ export function CaseTabs({
             onClick={() => setTab(t.key)}
           >
             {t.label}
+            {!!t.n && <span className="tab-count">{t.n}</span>}
           </button>
         ))}
       </div>

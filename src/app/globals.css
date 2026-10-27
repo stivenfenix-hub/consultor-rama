@@ -643,33 +643,62 @@ input:-webkit-autofill:focus {
   font-variant-numeric: tabular-nums;
 }
 
-/* Pestañas del proceso */
+/* Pestañas del proceso: píldoras dentro de una cápsula (como la landing) */
 .tabbar {
   display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
   margin-bottom: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
   overflow-x: auto;
+  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
+.tabbar::-webkit-scrollbar {
+  display: none;
+}
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
   background: none;
   border: none;
+  border-radius: 10px;
   color: var(--muted);
-  padding: 11px 15px;
+  padding: 9px 15px;
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  transition: background 0.15s, color 0.15s;
 }
 .tab:hover {
   color: var(--text);
+  background: var(--panel-2);
 }
 .tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: #fff;
+  background: var(--brand-grad);
+  box-shadow: 0 4px 14px rgba(139, 61, 255, 0.35);
+}
+.tab-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.tab.active .tab-count {
+  background: #fff;
+  color: var(--accent-2);
 }
 
 /* Filas de documentos */
