@@ -29,6 +29,8 @@ export function IosInstallBubble() {
   const [ios, setIos] = useState(false);
   const [chrome, setChrome] = useState(false);
   const [android, setAndroid] = useState(false);
+  // Android con la app ya instalada pero abierto en el navegador.
+  const [instalada, setInstalada] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -61,8 +63,8 @@ export function IosInstallBubble() {
     }
 
     // Android: Chrome no siempre lanza beforeinstallprompt (poco uso del sitio,
-    // Samsung Internet, etc.). Si no llega, se muestran los pasos del menú ⋮,
-    // salvo que la app ya esté instalada.
+    // Samsung Internet, etc.). Si no llega, se muestran los pasos del menú ⋮;
+    // si la app ya está instalada, se invita a abrirla en vez de instalarla.
     let espera: ReturnType<typeof setTimeout> | undefined;
     if (!standalone && !dismissed && /android/i.test(navigator.userAgent)) {
       espera = setTimeout(async () => {
@@ -70,7 +72,11 @@ export function IosInstallBubble() {
           const nav = navigator as unknown as {
             getInstalledRelatedApps?: () => Promise<unknown[]>;
           };
-          if (nav.getInstalledRelatedApps && (await nav.getInstalledRelatedApps()).length) return;
+          if (nav.getInstalledRelatedApps && (await nav.getInstalledRelatedApps()).length) {
+            setInstalada(true);
+            setShow(true);
+            return;
+          }
         } catch {
           // ignore
         }
@@ -131,9 +137,17 @@ export function IosInstallBubble() {
       <button className="ios-bubble-close" onClick={close} aria-label="Cerrar">
         <Icon name="close" size={16} />
       </button>
-      <div className="ios-bubble-title"><Icon name="phone" /> Instala Estradox</div>
+      <div className="ios-bubble-title">
+        <Icon name="phone" /> {instalada ? "Ya tienes la app" : "Instala Estradox"}
+      </div>
 
-      {deferred ? (
+      {instalada ? (
+        <div className="ios-bubble-text">
+          Úsala desde la app: es más rápida y te llegan las notificaciones. Ábrela con
+          el ícono de <b>Estradox</b> en tu pantalla de inicio, o toca el menú <b>⋮</b>{" "}
+          y elige <b>“Abrir en la app”</b>.
+        </div>
+      ) : deferred ? (
         <>
           <div className="ios-bubble-text">
             Instálala para abrirla como app, en su propia ventana y sin barras
@@ -172,7 +186,7 @@ export function IosInstallBubble() {
           </b>{" "}
           {chrome && "(arriba, junto a la dirección)"} y elige{" "}
           <b>“Agregar a inicio”</b>. (En iPhone, Apple solo permite instalarla
-          así.)
+          así.) ¿Ya la instalaste? Ábrela desde el ícono de <b>Estradox</b>.
         </div>
       ) : android ? (
         <div className="ios-bubble-text">
