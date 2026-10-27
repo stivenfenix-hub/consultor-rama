@@ -102,7 +102,7 @@ export function NotificationsPrompt() {
             </div>
           ) : (
             <div className="row" style={{ gap: 8, marginTop: 10 }}>
-              <button className="btn" onClick={activar} disabled={busy}>
+              <button className={`btn ${busy ? "" : "btn-pulse"}`} onClick={activar} disabled={busy}>
                 {busy ? "Activando…" : "Activar"}
               </button>
               <button className="btn secondary" onClick={dismiss} disabled={busy}>
