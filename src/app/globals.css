@@ -700,6 +700,9 @@ input:-webkit-autofill:focus {
   background: #fff;
   color: var(--accent-2);
 }
+a.tab {
+  text-decoration: none;
+}
 /* Celular: las 6 pestañas a la vista en una cuadrícula, sin deslizar. */
 @media (max-width: 720px) {
   .tabbar {
@@ -721,8 +724,14 @@ input:-webkit-autofill:focus {
   }
 }
 @media (max-width: 360px) {
-  .tabbar {
+  .tabbar:not(.tabbar-3) {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+/* Filtro de la lista de procesos: 3 pestañas; "Con novedades" es la más larga. */
+@media (max-width: 720px) {
+  .tabbar-3 {
+    grid-template-columns: 1fr 1.45fr 1fr;
   }
 }
 

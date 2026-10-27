@@ -14,14 +14,32 @@ function fmt(d: Date | null | undefined) {
   });
 }
 
-export default async function ProcesosPage() {
+type Filtro = "todos" | "novedades" | "aldia";
+
+export default async function ProcesosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filtro?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const cases = await prisma.case.findMany({
+  const todos = await prisma.case.findMany({
     where: { userId: user.id },
     orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
   });
+
+  // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
+  const { filtro: f } = await searchParams;
+  const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
+  const conNovedades = todos.filter((c) => c.unseenCount > 0);
+  const alDia = todos.filter((c) => c.unseenCount === 0);
+  const cases = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : todos;
+  const pestanas: { key: Filtro; label: string; n: number }[] = [
+    { key: "todos", label: "Todos", n: todos.length },
+    { key: "novedades", label: "Con novedades", n: conNovedades.length },
+    { key: "aldia", label: "Al día", n: alDia.length },
+  ];
 
   return (
     <div className="page">
@@ -34,11 +52,32 @@ export default async function ProcesosPage() {
         <AddCaseForm />
       </div>
 
-      <p className="muted small">{cases.length} proceso(s)</p>
+      {todos.length > 0 && (
+        <nav className="tabbar tabbar-3">
+          {pestanas.map((p) => (
+            <Link
+              key={p.key}
+              href={p.key === "todos" ? "/dashboard/procesos" : `/dashboard/procesos?filtro=${p.key}`}
+              className={`tab ${filtro === p.key ? "active" : ""}`}
+              scroll={false}
+            >
+              {p.label}
+              <span className="tab-count">{p.n}</span>
+            </Link>
+          ))}
+        </nav>
+      )}
 
-      {cases.length === 0 && (
+      {todos.length === 0 && (
         <p className="muted">
           Aún no sigues ningún proceso. Agrega uno con su radicado de 23 dígitos.
+        </p>
+      )}
+      {todos.length > 0 && cases.length === 0 && (
+        <p className="muted">
+          {filtro === "novedades"
+            ? "No hay novedades sin revisar. Todos tus procesos están al día."
+            : "Todos tus procesos tienen novedades por revisar."}
         </p>
       )}
 
