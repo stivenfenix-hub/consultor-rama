@@ -10,8 +10,8 @@ import { sendMail } from "./mailer";
  * o por la app (actuaciones nuevas, recordatorio de cargar procesos, acceso por
  * vencer o vencido; la bienvenida no) se guarda también aquí en texto. A las
  * 7:30 a.m. se manda al root un Excel sin encabezado con lo acumulado desde el
- * reporte anterior, una fila por abogado:
- *   A: "Nombre - aviso(s)"   B: teléfono (573001234567)
+ * reporte anterior, una fila por aviso (cada uno es un mensaje aparte):
+ *   A: "Nombre - aviso"   B: teléfono (573001234567)
  */
 
 const APP_URL = process.env.APP_URL ?? "https://app.estradox.com";
@@ -131,7 +131,10 @@ export async function excelReporte(filas: { mensaje: string; telefono: string }[
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-/** Junta los avisos de cada abogado en una sola fila: "Nombre - aviso1\n\naviso2". */
+/**
+ * Una fila por aviso ("Nombre - aviso"): cada uno se envía como mensaje aparte.
+ * Las filas de un mismo abogado quedan juntas (actuaciones primero).
+ */
 export function agruparPorAbogado(
   avisos: { userId: string; tipo: string; mensaje: string; firstName: string | null; name: string | null; whatsapp: string | null }[],
 ) {
@@ -142,12 +145,10 @@ export function agruparPorAbogado(
     const telefono = (lista[0].whatsapp ?? "").replace(/\D/g, "");
     if (!telefono) continue; // sin WhatsApp no se le puede enviar
     const orden = (t: string) => ORDEN.indexOf(t as TipoAviso);
-    // Un mismo tipo repetido (p. ej. dos días de actuaciones) se deja una vez por texto.
-    const textos = [...new Set([...lista].sort((a, b) => orden(a.tipo) - orden(b.tipo)).map((a) => a.mensaje))];
-    filas.push({
-      mensaje: `${primerNombre(lista[0].firstName, lista[0].name)} - ${textos.join("\n\n")}`,
-      telefono,
-    });
+    const nombre = primerNombre(lista[0].firstName, lista[0].name);
+    // El mismo texto repetido no se manda dos veces.
+    const textos = new Set([...lista].sort((a, b) => orden(a.tipo) - orden(b.tipo)).map((a) => a.mensaje));
+    for (const t of textos) filas.push({ mensaje: `${nombre} - ${t}`, telefono });
   }
   return filas;
 }
@@ -210,9 +211,9 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
   for (const a of admins) {
     await sendMail({
       to: a.email,
-      subject: `Reporte WhatsApp ${hoy}: ${filas.length} abogado(s)`,
-      text: `Adjunto el Excel con los avisos de ${filas.length} abogado(s) para enviar por WhatsApp.`,
-      html: `<div style="font-family:system-ui,sans-serif"><p>Adjunto el Excel con los avisos de <b>${filas.length}</b> abogado(s) para enviar por WhatsApp (actuaciones nuevas, procesos sin cargar y pagos por vencer o vencidos).</p><p style="color:#777;font-size:13px">Columna A: nombre y avisos. Columna B: teléfono.</p></div>`,
+      subject: `Reporte WhatsApp ${hoy}: ${filas.length} aviso(s)`,
+      text: `Adjunto el Excel con ${filas.length} aviso(s) para enviar por WhatsApp (una fila por mensaje).`,
+      html: `<div style="font-family:system-ui,sans-serif"><p>Adjunto el Excel con <b>${filas.length}</b> aviso(s) para enviar por WhatsApp, uno por fila (actuaciones nuevas, procesos sin cargar y pagos por vencer o vencidos).</p><p style="color:#777;font-size:13px">Columna A: nombre y aviso. Columna B: teléfono.</p></div>`,
       attachments: [
         {
           filename: `avisos-whatsapp-${hoy}.xlsx`,
