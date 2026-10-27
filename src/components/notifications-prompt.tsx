@@ -1,29 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { pushSupported, subscribeToPush } from "@/lib/push-client";
+import { isSubscribed, pushSupported, subscribeToPush } from "@/lib/push-client";
 import { Icon } from "./icon";
 
 /**
- * Aviso que, al entrar, pregunta si quiere activar notificaciones.
- * Se muestra una sola vez: si ya decidió (permiso dado/negado) o ya lo cerró,
- * no vuelve a aparecer.
+ * Aviso para activar notificaciones.
+ * - App instalada (standalone): insiste. Aparece en cada apertura, recarga o
+ *   ingreso mientras las notificaciones no estén activas; "Cerrar" solo la oculta
+ *   hasta la próxima vez.
+ * - En el navegador: una sola vez (ahí la prioridad es la burbuja de instalar).
+ * Si el permiso está bloqueado, el navegador ya no deja preguntar: se explica
+ * cómo activarlas en los ajustes del celular.
  */
 export function NotificationsPrompt() {
   const [show, setShow] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [ios, setIos] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      if (!pushSupported()) return;
-      if (localStorage.getItem("estradox_notif_asked") === "1") return;
-      // Solo si aún no ha decidido (ni concedido ni bloqueado).
-      if (Notification.permission !== "default") return;
-      setShow(true);
-    } catch {
-      // ignore
-    }
+    (async () => {
+      try {
+        if (!pushSupported()) return;
+        const standalone =
+          (navigator as unknown as { standalone?: boolean }).standalone === true ||
+          window.matchMedia("(display-mode: standalone)").matches;
+        const permiso = Notification.permission;
+        if (permiso === "granted" && (await isSubscribed())) return; // ya activas
+        if (!standalone) {
+          if (localStorage.getItem("estradox_notif_asked") === "1") return;
+          if (permiso !== "default") return;
+        }
+        setBloqueado(permiso === "denied");
+        setIos(/iphone|ipad|ipod/i.test(navigator.userAgent));
+        setShow(true);
+      } catch {
+        // ignore
+      }
+    })();
   }, []);
 
   if (!show) return null;
@@ -49,10 +65,10 @@ export function NotificationsPrompt() {
       setMsg("¡Listo! Te avisaremos de las novedades.");
       setTimeout(() => setShow(false), 1500);
     } else if (r === "denied") {
-      setMsg("Sin problema, puedes activarlas luego en Configuración.");
-      setTimeout(() => setShow(false), 2000);
+      if (Notification.permission === "denied") setBloqueado(true);
+      else setMsg("Sin problema, puedes activarlas luego en Configuración.");
     } else {
-      setShow(false);
+      setMsg("No se pudieron activar. Inténtalo de nuevo en Configuración.");
     }
     setBusy(false);
   };
@@ -62,23 +78,39 @@ export function NotificationsPrompt() {
       <button className="ios-bubble-close" onClick={dismiss} aria-label="Cerrar">
         <Icon name="close" size={16} />
       </button>
-      <div className="ios-bubble-title"><Icon name="bell" /> ¿Activar notificaciones?</div>
-      <div className="ios-bubble-text">
-        Te avisamos apenas haya <b>actuaciones nuevas</b> en tus procesos.
-      </div>
-      {msg ? (
-        <div className="ok small" style={{ marginTop: 8 }}>
-          {msg}
+      <div className="ios-bubble-title"><Icon name="bell" /> Activa las notificaciones</div>
+      {bloqueado ? (
+        <div className="ios-bubble-text">
+          Están bloqueadas y así no te enteras de las <b>actuaciones nuevas</b>.{" "}
+          {ios ? (
+            <>Ve a <b>Ajustes → Notificaciones → Estradox</b> y activa <b>Permitir notificaciones</b>.</>
+          ) : (
+            <>
+              Mantén presionado el ícono de Estradox → <b>Info de la app</b> →{" "}
+              <b>Notificaciones</b> y actívalas.
+            </>
+          )}
         </div>
       ) : (
-        <div className="row" style={{ gap: 8, marginTop: 10 }}>
-          <button className="btn" onClick={activar} disabled={busy}>
-            {busy ? "Activando…" : "Activar"}
-          </button>
-          <button className="btn secondary" onClick={dismiss} disabled={busy}>
-            Ahora no
-          </button>
-        </div>
+        <>
+          <div className="ios-bubble-text">
+            Te avisamos apenas haya <b>actuaciones nuevas</b> en tus procesos.
+          </div>
+          {msg ? (
+            <div className="ok small" style={{ marginTop: 8 }}>
+              {msg}
+            </div>
+          ) : (
+            <div className="row" style={{ gap: 8, marginTop: 10 }}>
+              <button className="btn" onClick={activar} disabled={busy}>
+                {busy ? "Activando…" : "Activar"}
+              </button>
+              <button className="btn secondary" onClick={dismiss} disabled={busy}>
+                Ahora no
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
