@@ -13,11 +13,6 @@ export async function POST(req: NextRequest) {
     if (!email || !password) return jsonError("Ingresa correo y contraseña.", 400);
     const res = await checkPassword(email, password);
     if (res.status === "invalid") return jsonError("Correo o contraseña incorrectos.", 401);
-    if (res.status === "unverified") {
-      return jsonError("Tu correo aún no está verificado. Revisa tu bandeja.", 403, {
-        needsVerify: res.email,
-      });
-    }
     const token = await createMobileSession(res.user.id, str(b.device) || null);
     return NextResponse.json({ token, ...(await perfil(res.user)) });
   });

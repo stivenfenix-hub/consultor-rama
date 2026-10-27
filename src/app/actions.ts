@@ -83,11 +83,6 @@ export async function loginAction(
 
   const res = await loginWithPassword(email, password);
   if (res.status === "invalid") return { error: "Correo o contraseña incorrectos." };
-  if (res.status === "unverified")
-    return {
-      error: "Tu correo aún no está verificado. Revisa tu bandeja.",
-      needsVerify: res.email,
-    };
   redirect(homePath(res.role));
 }
 

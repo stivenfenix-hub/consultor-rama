@@ -85,13 +85,11 @@ export async function hashPassword(plain: string) {
 
 /**
  * Resultado de intentar iniciar sesion.
- * - ok: credenciales correctas y correo verificado -> crea la sesion.
- * - unverified: credenciales correctas pero falta verificar el correo.
+ * - ok: credenciales correctas -> crea la sesion.
  * - invalid: correo o contrasena incorrectos.
  */
 export type LoginResult =
   | { status: "ok"; role: string }
-  | { status: "unverified"; email: string }
   | { status: "invalid" };
 
 /**
@@ -106,10 +104,14 @@ export async function checkPassword(emailRaw: string, password: string) {
     user?.passwordHash ?? "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidin";
   const okPass = await bcrypt.compare(password, hash);
   if (!user || !user.passwordHash || !okPass) return { status: "invalid" as const };
-  if (!user.emailVerified) return { status: "unverified" as const, email };
+  // Por ahora no se exige verificar el correo: las cuentas que quedaron
+  // pendientes (de antes de quitar la verificación) se activan al entrar.
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+      ...(user.emailVerified ? {} : { emailVerified: new Date() }),
+    },
   });
   return { status: "ok" as const, user };
 }
