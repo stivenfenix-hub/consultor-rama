@@ -71,7 +71,19 @@ export function RegisterForm() {
       </div>
       <div style={{ height: 10 }} />
       <label className="small muted" htmlFor="email">Correo</label>
-      <input id="email" className={cls("email")} name="email" type="email" required placeholder="abogado@ejemplo.com" />
+      <input
+        id="email"
+        className={cls("email")}
+        name="email"
+        type="email"
+        required
+        placeholder="abogado@ejemplo.com"
+        aria-describedby="email-ayuda"
+      />
+      <div id="email-ayuda" className="muted small" style={{ marginTop: 4 }}>
+        📩 A este correo te llegarán los avisos de <b>actuaciones nuevas</b> de tus
+        procesos. Usa el que revisas a diario.
+      </div>
       <div style={{ height: 10 }} />
       <label className="small muted" htmlFor="whatsapp">WhatsApp</label>
       <input

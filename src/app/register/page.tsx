@@ -15,7 +15,9 @@ export default async function RegisterPage() {
           <div style={{ marginBottom: 12 }}><BrandLogo /></div>
           <h1>Crear cuenta</h1>
           <p className="muted small">
-            Regístrate para empezar a seguir tus procesos judiciales.
+            Regístrate para empezar a seguir tus procesos judiciales. Las novedades
+            de tus procesos te llegarán al correo con el que te registres (si usas
+            Google, al de tu cuenta de Google).
           </p>
           <GoogleButton separador="o regístrate con tu correo" />
           <RegisterForm />
