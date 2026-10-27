@@ -9,7 +9,7 @@ import { Icon } from "./icon";
 const SIN_BURBUJA = ["/register", "/forgot", "/reset", "/verify", "/completar-registro"];
 // Si Chrome no ofrece su instalación en este tiempo, se dan instrucciones manuales.
 const ESPERA_PROMPT_MS = 4000;
-const OCULTAR_MS = 7 * 24 * 60 * 60 * 1000;
+const OCULTAR_MS = 24 * 60 * 60 * 1000; // "Cerrar" la oculta 1 día
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -39,7 +39,7 @@ export function IosInstallBubble() {
     let dismissed = false;
     let standalone = false;
     try {
-      // "Cerrar" la oculta 7 días (antes era para siempre: valor "1").
+      // "Cerrar" la oculta por OCULTAR_MS (antes era para siempre: valor "1").
       dismissed =
         Date.now() - Number(localStorage.getItem("estradox_pwa") ?? 0) < OCULTAR_MS;
       standalone =
