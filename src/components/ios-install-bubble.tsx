@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Icon } from "./icon";
 
-// Páginas de acceso donde no se muestra la burbuja.
-const SIN_BURBUJA = ["/login", "/register", "/forgot", "/reset", "/verify", "/completar-registro"];
+// Páginas donde no se muestra la burbuja (en medio de registro o recuperación).
+// En /login sí: es lo primero que ve quien entra desde el navegador del celular.
+const SIN_BURBUJA = ["/register", "/forgot", "/reset", "/verify", "/completar-registro"];
+// Si Chrome no ofrece su instalación en este tiempo, se dan instrucciones manuales.
+const ESPERA_PROMPT_MS = 4000;
 const OCULTAR_MS = 7 * 24 * 60 * 60 * 1000;
 
 type BeforeInstallPromptEvent = Event & {
@@ -25,6 +28,7 @@ export function IosInstallBubble() {
   const [show, setShow] = useState(false);
   const [ios, setIos] = useState(false);
   const [chrome, setChrome] = useState(false);
+  const [android, setAndroid] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -56,8 +60,28 @@ export function IosInstallBubble() {
       // ignore
     }
 
+    // Android: Chrome no siempre lanza beforeinstallprompt (poco uso del sitio,
+    // Samsung Internet, etc.). Si no llega, se muestran los pasos del menú ⋮,
+    // salvo que la app ya esté instalada.
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    if (!standalone && !dismissed && /android/i.test(navigator.userAgent)) {
+      espera = setTimeout(async () => {
+        try {
+          const nav = navigator as unknown as {
+            getInstalledRelatedApps?: () => Promise<unknown[]>;
+          };
+          if (nav.getInstalledRelatedApps && (await nav.getInstalledRelatedApps()).length) return;
+        } catch {
+          // ignore
+        }
+        setAndroid(true);
+        setShow(true);
+      }, ESPERA_PROMPT_MS);
+    }
+
     const onBIP = (e: Event) => {
       e.preventDefault();
+      clearTimeout(espera);
       if (standalone || dismissed) return;
       setDeferred(e as BeforeInstallPromptEvent);
       setShow(true);
@@ -73,6 +97,7 @@ export function IosInstallBubble() {
     window.addEventListener("beforeinstallprompt", onBIP);
     window.addEventListener("appinstalled", onInstalled);
     return () => {
+      clearTimeout(espera);
       window.removeEventListener("beforeinstallprompt", onBIP);
       window.removeEventListener("appinstalled", onInstalled);
     };
@@ -148,6 +173,11 @@ export function IosInstallBubble() {
           {chrome && "(arriba, junto a la dirección)"} y elige{" "}
           <b>“Agregar a inicio”</b>. (En iPhone, Apple solo permite instalarla
           así.)
+        </div>
+      ) : android ? (
+        <div className="ios-bubble-text">
+          Toca el menú <b>⋮</b> del navegador (arriba a la derecha) y elige{" "}
+          <b>“Instalar app”</b> o <b>“Agregar a la pantalla principal”</b>.
         </div>
       ) : null}
     </div>

@@ -13,6 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
+    // Permite saber (getInstalledRelatedApps) si la app ya está instalada en Android.
+    related_applications: [{ platform: "webapp", url: "https://app.estradox.com/manifest.webmanifest" }],
     orientation: "portrait",
     background_color: "#0a0820",
     theme_color: "#0a0820",
