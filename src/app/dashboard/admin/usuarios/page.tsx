@@ -1,6 +1,7 @@
 import { listUsers } from "@/lib/admin";
 import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
+import { EliminarUsuario } from "./eliminar-usuario";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -49,6 +50,7 @@ export default async function UsuariosAdmin() {
                 <th>Procesos</th>
                 <th>Último acceso</th>
                 <th>Registro</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -80,6 +82,9 @@ export default async function UsuariosAdmin() {
                   <td>{u._count.cases}</td>
                   <td className="muted">{fmt(u.lastLoginAt)}</td>
                   <td className="muted">{fmt(u.createdAt)}</td>
+                  <td>
+                    {u.role !== "admin" && <EliminarUsuario id={u.id} email={u.email} />}
+                  </td>
                 </tr>
               ))}
             </tbody>

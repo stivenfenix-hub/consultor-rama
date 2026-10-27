@@ -659,3 +659,21 @@ export async function completarRegistroAction(
   }
   redirect(homePath(user.role));
 }
+
+/**
+ * Root: elimina un usuario y todo lo suyo (procesos, actuaciones, documentos,
+ * pagos, avisos y sesiones de la app caen en cascada). No se puede eliminar a
+ * sí mismo ni a otro administrador.
+ */
+export async function eliminarUsuarioAction(userId: string): Promise<ActionState> {
+  const admin = await requireAdmin();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return { error: "El usuario ya no existe." };
+  if (user.id === admin.id || user.role === "admin") {
+    return { error: "No se puede eliminar una cuenta de administrador." };
+  }
+  await prisma.user.delete({ where: { id: userId } });
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/usuarios");
+  return { ok: `Usuario ${user.email} eliminado.` };
+}
