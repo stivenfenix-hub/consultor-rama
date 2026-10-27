@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  createSession,
   homePath,
   loginWithPassword,
   logout,
@@ -128,14 +129,14 @@ export async function registerAction(
     await registrarConsentimientoInicial(nuevo.id).catch((e) =>
       console.error("[consentimiento]", e),
     );
-    return {
-      ok: "¡Listo! Te enviamos un correo para verificar tu cuenta. Revisa tu bandeja (y spam).",
-    };
+    // Sin verificación de correo: entra de una vez.
+    await createSession(nuevo.id);
   } catch (err) {
     // El único error de cuenta al registrar es el correo ya registrado.
     if (err instanceof AccountError) return { error: err.message, field: "email" };
     return { error: "No se pudo crear la cuenta. Intenta de nuevo." };
   }
+  redirect(homePath("user"));
 }
 
 export async function resendVerificationAction(

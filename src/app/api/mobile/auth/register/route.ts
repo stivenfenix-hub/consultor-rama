@@ -6,7 +6,7 @@ import { body, jsonError, publicMobile } from "@/lib/mobile";
 export const dynamic = "force-dynamic";
 
 // POST { firstName, lastName, email, whatsapp, password } -> { ok }
-// La cuenta queda pendiente de verificar el correo (igual que en la web).
+// La cuenta queda activa de una vez (sin verificar el correo, igual que en la web).
 export async function POST(req: NextRequest) {
   return publicMobile(req, async () => {
     const parsed = registerSchema.safeParse(await body(req));
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       throw err;
     }
     return NextResponse.json({
-      ok: "¡Listo! Te enviamos un correo para verificar tu cuenta. Revisa tu bandeja (y spam).",
+      ok: "¡Cuenta creada! Ya puedes ingresar.",
     });
   });
 }

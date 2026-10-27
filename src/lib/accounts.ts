@@ -123,11 +123,17 @@ export async function registerUser(input: {
       lastName: input.lastName.trim(),
       name: `${input.firstName.trim()} ${input.lastName.trim()}`.trim(),
       passwordHash: await hashPassword(input.password),
-      emailVerified: null,
+      // Por ahora sin verificar el correo: entra directo a usar la plataforma
+      // (menos fricción en las campañas y no gasta el cupo diario de correos).
+      emailVerified: new Date(),
     },
   });
   await setWhatsapp(user.id, input.whatsapp);
-  await enviarVerificacion(user.id, email);
+  try {
+    after(() => enviarBienvenida(user.id));
+  } catch {
+    void enviarBienvenida(user.id);
+  }
   return user;
 }
 
