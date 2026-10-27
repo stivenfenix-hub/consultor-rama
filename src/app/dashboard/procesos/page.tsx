@@ -2,7 +2,32 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Icon } from "@/components/icon";
 import { AddCaseForm } from "./add-case-form";
+
+// Lo que gana el abogado al agregar sus procesos (pantalla vacía).
+const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
+  {
+    icon: "scale",
+    titulo: "Agrega todos los que quieras",
+    texto: "Sin límite de procesos. Pega varios radicados a la vez y listo.",
+  },
+  {
+    icon: "download",
+    titulo: "Ve y descarga los documentos",
+    texto: "Autos, providencias y demás documentos de las actuaciones, en PDF, sin entrar a la Rama.",
+  },
+  {
+    icon: "bell",
+    titulo: "Te avisamos de cada novedad",
+    texto: "Revisamos tus procesos cada noche y te notificamos cuando hay actuaciones nuevas.",
+  },
+  {
+    icon: "eye",
+    titulo: "Todo en una sola pantalla",
+    texto: "Estado, despacho, partes, actuaciones y grabaciones de cada expediente.",
+  },
+];
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -69,9 +94,23 @@ export default async function ProcesosPage({
       )}
 
       {todos.length === 0 && (
-        <p className="muted">
-          Aún no sigues ningún proceso. Agrega uno con su radicado de 23 dígitos.
-        </p>
+        <div className="card empty-benefits">
+          <h2>Agrega tus procesos y empieza a ahorrar tiempo</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Escribe arriba el radicado de 23 dígitos. Esto es lo que obtienes:
+          </p>
+          <div className="benefit-grid">
+            {BENEFICIOS.map((b) => (
+              <div key={b.titulo} className="benefit">
+                <span className="benefit-icon"><Icon name={b.icon} size={20} /></span>
+                <div>
+                  <div className="benefit-title">{b.titulo}</div>
+                  <div className="muted small">{b.texto}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       {todos.length > 0 && cases.length === 0 && (
         <p className="muted">
