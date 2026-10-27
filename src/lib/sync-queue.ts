@@ -14,6 +14,7 @@ import {
 import { usuariosConAcceso } from "./subscription";
 import { enviarResumen } from "./sync";
 import { sendPushToUser } from "./push";
+import { enviarReporteWhatsapp, registrarAvisoWhatsapp } from "./reporte-whatsapp";
 
 /**
  * Sincronización nocturna por cola.
@@ -48,6 +49,7 @@ const VENTANA_FIN = 6 * 60 + 45; // 6:45 a.m.
 const SEGUNDA_PASADA = 3 * 60; // 3:00 a.m.
 const RESUMEN_DESDE = 7 * 60; // 7:00 a.m.
 const RESUMEN_HASTA = 20 * 60; // no se avisa de noche
+const REPORTE_WA = 7 * 60 + 30; // 7:30 a.m.: Excel de avisos para WhatsApp
 
 const MIN = 60_000;
 const HORA = 60 * MIN;
@@ -516,6 +518,7 @@ export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
         }
         const casos = [...porCaso.values()];
         await enviarResumen(lista[0].email, lista[0].name, casos);
+        await registrarAvisoWhatsapp(userId, casos);
         await sendPushToUser(userId, {
           title: "Actuaciones nuevas",
           body: `Tienes ${sinVer.length} actuación(es) nueva(s) en ${casos.length} de tus procesos.`,
@@ -551,6 +554,18 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     const m = minutosBogota();
     if (m >= RESUMEN_DESDE && m < RESUMEN_HASTA) {
       info.resumenesEnviados = await enviarResumenesPendientes();
+    }
+    // Reporte de WhatsApp para el root: 7:30 a.m., cuando ya salieron los
+    // resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).
+    if (m >= REPORTE_WA && m < RESUMEN_HASTA) {
+      const [p] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+        `SELECT count(*) AS n FROM "Actuacion" WHERE "pendingNotify"`,
+      );
+      if (Number(p?.n ?? 0) === 0 || m >= 9 * 60) {
+        info.reporteWhatsapp = await enviarReporteWhatsapp().catch((e) => ({
+          error: e instanceof Error ? e.message : String(e),
+        }));
+      }
     }
 
     if (!opts.forzar && !enVentanaNocturna()) {

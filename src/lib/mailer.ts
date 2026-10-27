@@ -55,6 +55,7 @@ export async function sendMail(opts: {
   subject: string;
   html: string;
   text?: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }) {
   const t = getTransporter();
   if (!t) {
@@ -69,6 +70,7 @@ export async function sendMail(opts: {
     subject: opts.subject,
     text: opts.text ? `${opts.text}\n\nBy UNOR Group` : undefined,
     html: opts.html + (await pieBy()),
+    attachments: opts.attachments,
   });
   return { skipped: false };
 }
