@@ -318,7 +318,7 @@ function DocButtons({
         <Icon name="eye" size={16} /> {etiqueta}
       </button>
       <button
-        className="btn secondary small"
+        className="btn small"
         disabled={bajando}
         title="Descargar"
         aria-label={`Descargar ${doc.nombre}`}
