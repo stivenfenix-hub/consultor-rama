@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { agregarProcesoPorRadicado } from "@/lib/sync";
-import { parseRadicados } from "@/lib/validation";
+import { agregarRadicados, mensajeAgregar } from "@/lib/sync";
+import { analizarRadicados, MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { body, jsonError, str, withMobileUser } from "@/lib/mobile";
 
 export const dynamic = "force-dynamic";
@@ -35,31 +35,29 @@ export async function GET(req: NextRequest) {
 // POST { radicados: "uno o varios, separados por coma o espacio" } -> { ok, agregados, fallidos }
 export async function POST(req: NextRequest) {
   return withMobileUser(req, async (user) => {
-    const radicados = parseRadicados(str((await body(req)).radicados));
-    if (radicados.length === 0) {
+    const { validos, invalidos } = analizarRadicados(str((await body(req)).radicados));
+    if (validos.length === 0) {
       return jsonError(
-        "Ingresa uno o más radicados de 23 dígitos (separados por coma o espacio).",
+        invalidos.length
+          ? `El radicado debe tener 23 dígitos. Revisa: ${invalidos.join(", ")}.`
+          : "Ingresa uno o más radicados de 23 dígitos (separados por coma o espacio).",
         400,
       );
     }
-    let agregados = 0;
-    let fallidos = 0;
-    for (const rad of radicados) {
-      try {
-        await agregarProcesoPorRadicado(user.id, rad);
-        agregados++;
-      } catch {
-        fallidos++;
-      }
-    }
-    if (agregados === 0) {
+    if (validos.length > MAX_RADICADOS_POR_ENVIO) {
       return jsonError(
-        "No se pudo agregar ningún proceso (la Rama puede estar lenta o los radicados no existen).",
-        502,
+        `Agrega máximo ${MAX_RADICADOS_POR_ENVIO} radicados a la vez (pegaste ${validos.length}).`,
+        400,
       );
     }
+    const r = await agregarRadicados(user.id, validos);
+    const m = mensajeAgregar(r, invalidos);
+    const agregados = r.agregados + r.pendientes + r.privados + r.yaEstaban;
+    const fallidos = validos.length - agregados;
+    if (!m.ok) return jsonError(m.error ?? "No se pudo agregar ningún proceso.", 502);
     return NextResponse.json({
-      ok: `${agregados} proceso(s) agregado(s)${fallidos ? `, ${fallidos} con error` : ""}.`,
+      // La app muestra solo "ok": se le suma el aviso de los que fallaron.
+      ok: m.error ? `${m.ok} ${m.error}` : m.ok,
       agregados,
       fallidos,
     });

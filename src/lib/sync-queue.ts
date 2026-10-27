@@ -184,7 +184,25 @@ async function procesarGrupo(casos: CasoCola[], r: ResultadoLote, notificar = tr
   for (const c of casos) {
     const conocidas = porCaso.get(c.id)!;
     const suyas = nuevas.filter((a) => !conocidas.has(String(a.idRegActuacion)));
-    if (suyas.length > 0) {
+    // Primera carga (se agregó pero la Rama no respondió en ese momento): el
+    // historial no es novedad; se guarda como visto y sin avisar.
+    const primeraCarga = conocidas.size === 0 && !c.lastActuacionDate;
+    if (suyas.length > 0 && primeraCarga) {
+      await prisma.actuacion.createMany({
+        data: suyas.map((a) => ({
+          caseId: c.id,
+          idRegActuacion: String(a.idRegActuacion),
+          consActuacion: a.consActuacion ?? null,
+          actuacion: a.actuacion ?? null,
+          anotacion: a.anotacion ?? null,
+          fechaActuacion: parseFecha(a.fechaActuacion),
+          fechaRegistro: parseFecha(a.fechaRegistro),
+          conDocumentos: a.conDocumentos ?? false,
+          seenAt: ahora,
+        })),
+        skipDuplicates: true,
+      });
+    } else if (suyas.length > 0) {
       huboNovedad = true;
       r.actuacionesNuevas += suyas.length;
       await prisma.actuacion.createMany({

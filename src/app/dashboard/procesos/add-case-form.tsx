@@ -8,8 +8,9 @@ export function AddCaseForm() {
   const ref = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (state.ok) ref.current?.reset();
-  }, [state.ok]);
+    // Si alguno falló se deja el texto para que pueda corregirlo o reintentar.
+    if (state.ok && !state.error) ref.current?.reset();
+  }, [state]);
 
   return (
     <form ref={ref} action={formAction}>

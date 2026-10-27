@@ -42,6 +42,92 @@ export async function agregarProcesoPorRadicado(
   return creados;
 }
 
+export type ResultadoAgregar = {
+  agregados: number;
+  yaEstaban: number;
+  /** Quedaron en la lista pero la Rama no entregó las actuaciones todavía. */
+  pendientes: number;
+  privados: number;
+  noEncontrados: string[];
+  fallidos: string[];
+  /** La Rama pidió pausar: estos no se intentaron. */
+  sinIntentar: string[];
+};
+
+/** Agrega varios radicados y cuenta qué pasó con cada uno. */
+export async function agregarRadicados(
+  userId: string,
+  radicados: string[],
+): Promise<ResultadoAgregar> {
+  const r: ResultadoAgregar = {
+    agregados: 0,
+    yaEstaban: 0,
+    pendientes: 0,
+    privados: 0,
+    noEncontrados: [],
+    fallidos: [],
+    sinIntentar: [],
+  };
+  for (let i = 0; i < radicados.length; i++) {
+    const rad = radicados[i];
+    try {
+      const creados = await agregarProcesoPorRadicado(userId, rad);
+      if (creados.every((c) => !c.nuevo)) r.yaEstaban++;
+      else if (creados.some((c) => c.privado)) r.privados++;
+      else if (creados.some((c) => c.pendiente)) r.pendientes++;
+      else r.agregados++;
+    } catch (err) {
+      if (err instanceof RamaError && err.isRateLimit) {
+        r.sinIntentar.push(...radicados.slice(i));
+        break;
+      }
+      if (err instanceof RamaError && err.status === 404) r.noEncontrados.push(rad);
+      else r.fallidos.push(rad);
+    }
+  }
+  return r;
+}
+
+/** Mensajes para el usuario a partir del resultado (y los radicados mal escritos). */
+export function mensajeAgregar(
+  r: ResultadoAgregar,
+  invalidos: string[] = [],
+): { ok?: string; error?: string } {
+  const ok: string[] = [];
+  if (r.agregados) ok.push(`${r.agregados} proceso(s) agregado(s).`);
+  if (r.pendientes) {
+    ok.push(
+      `${r.pendientes} agregado(s); la Rama no entregó sus actuaciones a tiempo y se cargarán en la próxima actualización.`,
+    );
+  }
+  if (r.privados) {
+    ok.push(`${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones.`);
+  }
+  if (r.yaEstaban) ok.push(`${r.yaEstaban} ya estaba(n) en tu lista.`);
+
+  const err: string[] = [];
+  if (invalidos.length) {
+    err.push(`No tienen 23 dígitos: ${invalidos.join(", ")}.`);
+  }
+  if (r.noEncontrados.length) {
+    err.push(`No existen en la Rama Judicial: ${r.noEncontrados.join(", ")}.`);
+  }
+  if (r.fallidos.length) {
+    err.push(
+      `La Rama no respondió para: ${r.fallidos.join(", ")}. Intenta de nuevo en un rato.`,
+    );
+  }
+  if (r.sinIntentar.length) {
+    err.push(
+      `La Rama pidió pausar las consultas; intenta en unos minutos con: ${r.sinIntentar.join(", ")}.`,
+    );
+  }
+  return {
+    ok: ok.length ? ok.join(" ") : undefined,
+    error: err.length ? err.join(" ") : undefined,
+  };
+}
+
 async function upsertProceso(userId: string, resumen: ProcesoResumen) {
   const idProceso = String(resumen.idProceso);
 
@@ -65,10 +151,16 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
   });
 
   // Carga rápida: todo menos los documentos por actuación (eso es lo lento).
-  await sincronizarProceso(caseRow.id, {
-    marcarComoVistas: !existing,
-    docsActuacion: false,
-  });
+  // Si la Rama falla, el proceso igual queda en la lista: la cola lo completa.
+  try {
+    await sincronizarProceso(caseRow.id, {
+      marcarComoVistas: !existing,
+      docsActuacion: false,
+    });
+  } catch (err) {
+    const privado = err instanceof Error && /privad/i.test(err.message);
+    return { ...caseRow, nuevo: !existing, pendiente: !privado, privado };
+  }
   // Los documentos descargables (por actuación) se traen en segundo plano
   // para que agregar sea rápido; aparecen a los pocos segundos.
   const id = caseRow.id;
@@ -79,7 +171,7 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
     // Fuera de una petición (p. ej. scripts): ejecutar sin esperar.
     void cargarDocumentosActuacionEnFondo(id).catch(() => {});
   }
-  return caseRow;
+  return { ...caseRow, nuevo: !existing, pendiente: false, privado: false };
 }
 
 /**

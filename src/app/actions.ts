@@ -45,10 +45,16 @@ import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual, tick } from "@/lib
 import { marcarRegistroNuevo } from "@/lib/meta-registro";
 import { avisarNuevoUsuario } from "@/lib/aviso-admin";
 import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
-import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
-  agregarProcesoPorRadicado,
+  analizarRadicados,
+  MAX_RADICADOS_POR_ENVIO,
+  passwordSchema,
+  registerSchema,
+} from "@/lib/validation";
+import {
+  agregarRadicados,
   marcarVistas,
+  mensajeAgregar,
 } from "@/lib/sync";
 import {
   ejecutarActualizarTodos,
@@ -450,36 +456,24 @@ export async function agregarProcesoAction(
   const user = await requireUser();
   const sinAcceso = await bloqueoPorSuscripcion(user.id);
   if (sinAcceso) return sinAcceso;
-  const radicados = parseRadicados(String(formData.get("radicado") ?? ""));
-  if (radicados.length === 0) {
+  const { validos, invalidos } = analizarRadicados(String(formData.get("radicado") ?? ""));
+  if (validos.length === 0) {
     return {
-      error:
-        "Ingresa uno o más radicados de 23 dígitos (separados por coma o espacio).",
+      error: invalidos.length
+        ? `El radicado debe tener 23 dígitos. Revisa: ${invalidos.join(", ")}.`
+        : "Ingresa uno o más radicados de 23 dígitos (separados por coma o espacio).",
+    };
+  }
+  if (validos.length > MAX_RADICADOS_POR_ENVIO) {
+    return {
+      error: `Agrega máximo ${MAX_RADICADOS_POR_ENVIO} radicados a la vez (pegaste ${validos.length}).`,
     };
   }
 
-  let agregados = 0;
-  let fallidos = 0;
-  for (const rad of radicados) {
-    try {
-      await agregarProcesoPorRadicado(user.id, rad);
-      agregados++;
-    } catch {
-      fallidos++;
-    }
-  }
+  const r = await agregarRadicados(user.id, validos);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
-
-  if (agregados === 0) {
-    return {
-      error:
-        "No se pudo agregar ningún proceso (la Rama puede estar lenta o los radicados no existen).",
-    };
-  }
-  return {
-    ok: `${agregados} proceso(s) agregado(s)${fallidos ? `, ${fallidos} con error` : ""}.`,
-  };
+  return mensajeAgregar(r, invalidos);
 }
 
 // Actualización manual de un proceso: una vez por día (el admin sin límite).
