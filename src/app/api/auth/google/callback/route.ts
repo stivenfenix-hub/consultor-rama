@@ -6,6 +6,7 @@ import { getWhatsapp } from "@/lib/accounts";
 import { enviarBienvenida } from "@/lib/auto-emails";
 import { registrarConsentimientoInicial } from "@/lib/consent";
 import { marcarRegistroNuevo } from "@/lib/meta-registro";
+import { avisarNuevoUsuario } from "@/lib/aviso-admin";
 import { COOKIE_ESTADO, cuentaGoogle, perfilDesdeCodigo } from "@/lib/google-auth";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
       // Al crear la cuenta con Google acepta Términos y Política (texto bajo el botón).
       await registrarConsentimientoInicial(user.id).catch((e) => console.error("[consentimiento]", e));
       after(() => enviarBienvenida(user.id));
+      after(() => avisarNuevoUsuario(user.id, "Google"));
       await marcarRegistroNuevo(user.id); // conversión para el Píxel de Meta
     }
     // El WhatsApp es obligatorio: si no lo tiene, se le pide antes de entrar.
