@@ -700,6 +700,31 @@ input:-webkit-autofill:focus {
   background: #fff;
   color: var(--accent-2);
 }
+/* Celular: las 6 pestañas a la vista en una cuadrícula, sin deslizar. */
+@media (max-width: 720px) {
+  .tabbar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
+    overflow: visible;
+  }
+  .tab {
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 4px;
+    font-size: 13px;
+  }
+  .tab-count {
+    min-width: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+  }
+}
+@media (max-width: 360px) {
+  .tabbar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 
 /* Filas de documentos */
 .doc-row {
