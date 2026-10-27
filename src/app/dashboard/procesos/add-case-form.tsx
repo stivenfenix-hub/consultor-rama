@@ -18,8 +18,10 @@ export function AddCaseForm() {
           name="radicado"
           required
           rows={2}
-          placeholder="Uno o varios radicados de 23 dígitos (separados por coma, espacio o línea)"
+          aria-describedby="radicado-ayuda"
+          placeholder="Ej: 76001418900220190062800"
           style={{
+            fontFamily: "inherit",
             width: "100%",
             background: "var(--panel-2)",
             border: "1px solid var(--border)",
@@ -30,6 +32,11 @@ export function AddCaseForm() {
             resize: "vertical",
           }}
         />
+        {/* La explicación va fuera del campo: en el celular el placeholder se cortaba. */}
+        <div id="radicado-ayuda" className="muted small" style={{ marginTop: -4 }}>
+          Radicado de 23 dígitos. Puedes pegar varios, separados por coma, espacio o
+          una línea cada uno.
+        </div>
         <button
           className="btn"
           type="submit"
