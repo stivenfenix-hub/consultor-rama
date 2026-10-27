@@ -62,12 +62,14 @@ export function IosInstallBubble() {
       // ignore
     }
 
-    // Android: Chrome no siempre lanza beforeinstallprompt (poco uso del sitio,
-    // Samsung Internet, etc.). Si no llega, se muestran los pasos del menú ⋮;
-    // si la app ya está instalada, se invita a abrirla en vez de instalarla.
+    // Android: si la app ya está instalada se invita a abrirla, siempre (no
+    // depende de "Cerrar": al instalar también se guarda esa marca, y el
+    // navegador y la app comparten el almacenamiento). Si no está instalada y
+    // Chrome no lanza beforeinstallprompt (poco uso del sitio, Samsung Internet,
+    // etc.), se muestran los pasos del menú ⋮.
     let espera: ReturnType<typeof setTimeout> | undefined;
-    if (!standalone && !dismissed && /android/i.test(navigator.userAgent)) {
-      espera = setTimeout(async () => {
+    if (!standalone && /android/i.test(navigator.userAgent)) {
+      (async () => {
         try {
           const nav = navigator as unknown as {
             getInstalledRelatedApps?: () => Promise<unknown[]>;
@@ -80,9 +82,12 @@ export function IosInstallBubble() {
         } catch {
           // ignore
         }
-        setAndroid(true);
-        setShow(true);
-      }, ESPERA_PROMPT_MS);
+        if (dismissed) return;
+        espera = setTimeout(() => {
+          setAndroid(true);
+          setShow(true);
+        }, ESPERA_PROMPT_MS);
+      })();
     }
 
     const onBIP = (e: Event) => {
@@ -112,6 +117,8 @@ export function IosInstallBubble() {
   if (!show || SIN_BURBUJA.some((p) => pathname.startsWith(p))) return null;
 
   const close = () => {
+    // "Ya tienes la app": se oculta solo por esta visita.
+    if (instalada) return setShow(false);
     try {
       localStorage.setItem("estradox_pwa", String(Date.now()));
     } catch {
