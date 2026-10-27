@@ -14,7 +14,7 @@ import {
 import { usuariosConAcceso } from "./subscription";
 import { enviarResumen } from "./sync";
 import { sendPushToUser } from "./push";
-import { enviarReporteWhatsapp, registrarAvisoWhatsapp } from "./reporte-whatsapp";
+import { enviarReporteWhatsapp, registrarAvisoWhatsapp, textoActuaciones } from "./reporte-whatsapp";
 
 /**
  * Sincronización nocturna por cola.
@@ -518,7 +518,7 @@ export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
         }
         const casos = [...porCaso.values()];
         await enviarResumen(lista[0].email, lista[0].name, casos);
-        await registrarAvisoWhatsapp(userId, casos);
+        await registrarAvisoWhatsapp(userId, "actuaciones", textoActuaciones(casos));
         await sendPushToUser(userId, {
           title: "Actuaciones nuevas",
           body: `Tienes ${sinVer.length} actuación(es) nueva(s) en ${casos.length} de tus procesos.`,

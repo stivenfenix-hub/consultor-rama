@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
 import { sendMail } from "./mailer";
+import { registrarAvisoWhatsapp, textoAutomatico } from "./reporte-whatsapp";
 
 // Correos automáticos que el root edita en Panel admin → Correos automáticos:
 //  - "welcome": bienvenida, al activar la cuenta (confirmar el correo).
@@ -309,7 +310,10 @@ export async function enviarAvisosDeSuscripcion(): Promise<number> {
       await marcarAviso(id, tipo, hasta);
       const dias = Math.max(1, Math.ceil((hasta.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
       try {
-        await enviarPlantilla(kind, id, { fecha: fechaTxt(hasta), dias: String(dias), precio: precioTxt });
+        const vars = { fecha: fechaTxt(hasta), dias: String(dias), precio: precioTxt };
+        await enviarPlantilla(kind, id, vars);
+        const tipoWa = kind === "subEnding" ? "porVencer" : "vencido";
+        await registrarAvisoWhatsapp(id, tipoWa, textoAutomatico(tipoWa, vars));
         enviados++;
       } catch (e) {
         console.error(`[${kind}] no se pudo enviar`, id, e);
