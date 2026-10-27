@@ -12,7 +12,7 @@ import { ensureColumn } from "./runtime-columns";
  */
 
 // Cambiar al publicar una nueva versión de los Términos o la Política.
-export const VERSION_LEGAL = "2026-10-25.2";
+export const VERSION_LEGAL = "2026-10-26";
 
 let listo: Promise<void> | null = null;
 function asegurar() {

@@ -12,5 +12,5 @@ export const LEGAL = {
   correo: "notificaciones@estradox.com",
   telefono: "304 229 0025",
   sitio: "https://app.estradox.com",
-  actualizado: "25 de octubre de 2026",
+  actualizado: "26 de octubre de 2026",
 };

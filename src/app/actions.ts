@@ -42,6 +42,7 @@ import {
 } from "@/lib/accounts";
 import { prisma } from "@/lib/db";
 import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual, tick } from "@/lib/sync-queue";
+import { marcarRegistroNuevo } from "@/lib/meta-registro";
 import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
 import { parseRadicados, passwordSchema, registerSchema } from "@/lib/validation";
 import {
@@ -114,6 +115,7 @@ export async function registerAction(
   }
   try {
     const nuevo = await registerUser(parsed.data);
+    await marcarRegistroNuevo(nuevo.id); // conversión para el Píxel de Meta
     // Prueba de la autorización (Ley 1581). No se bloquea el registro si falla.
     await registrarConsentimientoInicial(nuevo.id).catch((e) =>
       console.error("[consentimiento]", e),

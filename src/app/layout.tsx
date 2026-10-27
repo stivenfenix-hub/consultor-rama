@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { createHash } from "node:crypto";
 import { getFaviconDataUrl, getSiteSettings } from "@/lib/settings";
 import { IosInstallBubble } from "@/components/ios-install-bubble";
+import { MetaPixel } from "@/components/meta-pixel";
 import "./globals.css";
 
 const BASE_METADATA: Metadata = {
@@ -56,6 +57,7 @@ export default async function RootLayout({
       <body>
         {children}
         <IosInstallBubble />
+        <MetaPixel />
       </body>
     </html>
   );

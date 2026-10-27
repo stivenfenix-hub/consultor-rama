@@ -74,7 +74,7 @@ export default function PrivacidadPage() {
       <p>
         No vendemos datos personales. Para prestar el servicio los compartimos con proveedores que
         actúan como encargados del tratamiento, bajo obligaciones de confidencialidad y seguridad:
-        alojamiento del sitio (Hostinger), base de datos (Supabase), pagos (Bold), envío de correos
+        alojamiento del sitio (Hostinger), base de datos (Supabase), pagos (Bold), medición de anuncios (Meta Platforms), envío de correos
         y servicios de notificaciones push (como Google Firebase). Algunos están ubicados fuera de
         Colombia, por ejemplo en Estados Unidos. Al aceptar esta Política, el titular autoriza esa
         transmisión, que se hace con niveles adecuados de protección.
@@ -119,10 +119,15 @@ export default function PrivacidadPage() {
         sus datos y procesos, salvo los registros que la ley obliga a conservar.
       </p>
 
-      <h2>9. Cookies</h2>
+      <h2>9. Cookies y medición de publicidad</h2>
       <p>
-        Usamos solo las cookies necesarias para mantener la sesión iniciada. No usamos cookies de
-        publicidad de terceros.
+        Usamos cookies necesarias para mantener la sesión iniciada. Además usamos el Píxel de Meta
+        (Facebook e Instagram), que guarda cookies en el navegador para medir cuántas personas
+        llegan a {L.marca} desde nuestros anuncios y cuántas crean su cuenta. Meta recibe datos
+        técnicos como la página visitada, el navegador y la dirección IP; no le enviamos el
+        nombre, el correo, el WhatsApp ni la información de los procesos. El usuario puede borrar
+        o bloquear estas cookies desde la configuración de su navegador, y ajustar sus
+        preferencias de anuncios en su cuenta de Meta.
       </p>
 
       <h2>10. Vigencia y cambios</h2>

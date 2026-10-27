@@ -4,6 +4,7 @@ import { startTransition, useActionState, useEffect, useRef, useState } from "re
 import Link from "next/link";
 import { registerAction } from "@/app/actions";
 import { OpenInboxButton } from "@/components/open-inbox-button";
+import { enviarRegistroPendiente } from "@/components/meta-pixel";
 
 export function RegisterForm() {
   const [state, formAction, pending] = useActionState(registerAction, {});
@@ -36,6 +37,11 @@ export function RegisterForm() {
     setEmail(String(fd.get("email") ?? ""));
     startTransition(() => formAction(fd));
   }
+  // Cuenta creada: conversión para Meta Ads (una sola vez; ver MetaPixel).
+  useEffect(() => {
+    if (state.ok) enviarRegistroPendiente();
+  }, [state.ok]);
+
   // Marca en rojo el campo con error.
   const cls = (name: string) => (error?.field === name ? "input-error" : undefined);
 
