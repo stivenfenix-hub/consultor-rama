@@ -60,6 +60,22 @@ export default async function ProcesosPage({
   const conNovedades = todos.filter((c) => c.unseenCount > 0);
   const alDia = todos.filter((c) => c.unseenCount === 0);
   const cases = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : todos;
+
+  // Un radicado puede estar en dos sistemas de la Rama (p. ej. Justicia XXI y
+  // SIUGJ): son dos registros del mismo proceso y en la lista se veían iguales.
+  const porRadicado = new Map<string, typeof todos>();
+  for (const c of todos) porRadicado.set(c.radicado, [...(porRadicado.get(c.radicado) ?? []), c]);
+  const registro = (c: (typeof todos)[number]) => {
+    const grupo = porRadicado.get(c.radicado) ?? [];
+    if (grupo.length < 2) return null;
+    const sistema = c.ubicacion?.replace(/^Software:\s*/i, "").trim();
+    // El grupo viene ordenado por última actuación: el primero es el más al día.
+    return {
+      etiqueta: sistema || `Registro ${grupo.indexOf(c) + 1}`,
+      masReciente: grupo[0].id === c.id,
+      total: grupo.length,
+    };
+  };
   const pestanas: { key: Filtro; label: string; n: number }[] = [
     { key: "todos", label: "Todos", n: todos.length },
     { key: "novedades", label: "Con novedades", n: conNovedades.length },
@@ -120,7 +136,9 @@ export default async function ProcesosPage({
         </p>
       )}
 
-      {cases.map((c) => (
+      {cases.map((c) => {
+        const reg = registro(c);
+        return (
         <Link
           key={c.id}
           href={`/dashboard/procesos/${c.id}`}
@@ -132,6 +150,8 @@ export default async function ProcesosPage({
               <span className="badge new">{c.unseenCount} nuevas</span>
             )}
             {c.esPrivado && <span className="badge">privado</span>}
+            {reg && <span className="badge">{reg.etiqueta}</span>}
+            {reg?.masReciente && <span className="badge reciente">más reciente</span>}
             <div className="spacer" />
             <span className="muted small">
               Últ. actuación: {fmt(c.lastActuacionDate)}
@@ -141,6 +161,11 @@ export default async function ProcesosPage({
             {c.despacho ?? "Despacho no disponible"}
             {c.departamento ? ` · ${c.departamento}` : ""}
           </div>
+          {reg && (
+            <div className="muted small" style={{ marginTop: 4 }}>
+              Este radicado tiene {reg.total} registros en la Rama (uno por sistema).
+            </div>
+          )}
           {c.lastError &&
             (c.lastError.startsWith("Proceso privado") ? (
               <div className="muted small" style={{ marginTop: 4 }}>🔒 {c.lastError}</div>
@@ -148,7 +173,8 @@ export default async function ProcesosPage({
               <div className="error small">Error última sync: {c.lastError}</div>
             ))}
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

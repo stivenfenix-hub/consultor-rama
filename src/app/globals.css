@@ -223,6 +223,11 @@ input:-webkit-autofill:focus {
   color: #4ac26b;
   border-color: rgba(46, 160, 67, 0.4);
 }
+.badge.reciente {
+  background: rgba(139, 61, 255, 0.15);
+  color: var(--accent-2);
+  border-color: rgba(139, 61, 255, 0.4);
+}
 
 .case {
   display: block;
