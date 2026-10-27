@@ -19,7 +19,7 @@ export function AddCaseForm() {
           required
           rows={2}
           aria-describedby="radicado-ayuda"
-          placeholder="Ej: 76001418900220190062800"
+          placeholder="Escribe o pega el radicado"
           style={{
             fontFamily: "inherit",
             width: "100%",
