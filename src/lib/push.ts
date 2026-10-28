@@ -255,6 +255,9 @@ export async function marcarAvisoLeido(userId: string, noticeId: number) {
  * actuaciones.
  */
 export async function marcarAvisosDeRuta(userId: string, ruta: string) {
+  // El inicio es la página por defecto de muchos avisos (promos, avisos del
+  // root): entrar ahí no significa haberlos leído.
+  if (ruta === "/dashboard" || ruta === "/dashboard/admin") return;
   await asegurarLecturas();
   await prisma.$executeRawUnsafe(
     `INSERT INTO "MobileNoticeRead" ("noticeId", "userId")
