@@ -32,10 +32,51 @@ const DEFAULTS: SiteSettings = {
   colorPanel: "#151140",
 };
 
-/** Lee los ajustes del sitio (crea la fila por defecto si no existe). */
+/**
+ * Los ajustes (con los logos en base64, ~100 KB) se leían de Supabase en cada
+ * página, varias veces: era casi todo el egress de la base. Ahora se guardan en
+ * memoria 5 minutos por proceso; un cambio en Apariencia tarda como mucho eso
+ * en verse en los demás procesos.
+ */
+const TTL_MS = 5 * 60_000;
+let memo: { v: SiteSettings; at: number } | null = null;
+let memoFavicon: { v: string | null; at: number } | null = null;
+
+/** Lee los ajustes del sitio (por defecto si la fila no existe). */
 export async function getSiteSettings(): Promise<SiteSettings> {
+  if (memo && Date.now() - memo.at < TTL_MS) return memo.v;
+  const v = await leerSiteSettings();
+  if (v) memo = { v, at: Date.now() };
+  return v ?? DEFAULTS;
+}
+
+/** Firma corta de una imagen, para que su URL cambie cuando cambia el logo. */
+export function versionImagen(dataUrl: string | null) {
+  if (!dataUrl) return "0";
+  let h = 0;
+  for (let i = 0; i < dataUrl.length; i += 97) h = (h * 31 + dataUrl.charCodeAt(i)) | 0;
+  return `${dataUrl.length.toString(36)}${(h >>> 0).toString(36)}`;
+}
+
+async function leerSiteSettings(): Promise<SiteSettings | null> {
   try {
-    const s = await prisma.siteSetting.findUnique({ where: { id: "site" } });
+    const s = await prisma.siteSetting.findUnique({
+      where: { id: "site" },
+      select: {
+        id: true,
+        brandName: true,
+        logoDataUrl: true,
+        emailLogoDataUrl: true,
+        byLogoDataUrl: true,
+        byUrl: true,
+        notifIconDataUrl: true,
+        notifBadgeDataUrl: true,
+        colorAccent: true,
+        colorAccent2: true,
+        colorBg: true,
+        colorPanel: true,
+      },
+    });
     if (!s) return DEFAULTS;
     return {
       id: s.id,
@@ -52,13 +93,14 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       colorPanel: s.colorPanel,
     };
   } catch {
-    return DEFAULTS;
+    return null;
   }
 }
 
 export async function updateSiteSettings(
   data: Partial<Omit<SiteSettings, "id">>,
 ) {
+  memo = null;
   await prisma.siteSetting.upsert({
     where: { id: "site" },
     update: data,
@@ -73,18 +115,22 @@ const ensureFaviconColumn = () =>
 
 /** Favicon subido por el admin (data URL) o null si usa el de por defecto. */
 export async function getFaviconDataUrl(): Promise<string | null> {
+  if (memoFavicon && Date.now() - memoFavicon.at < TTL_MS) return memoFavicon.v;
   try {
     await ensureFaviconColumn();
     const rows = await prisma.$queryRawUnsafe<{ f: string | null }[]>(
       `SELECT "faviconDataUrl" AS f FROM "SiteSetting" WHERE id = 'site'`,
     );
-    return rows[0]?.f ?? null;
+    const v = rows[0]?.f ?? null;
+    memoFavicon = { v, at: Date.now() };
+    return v;
   } catch {
     return null;
   }
 }
 
 export async function setFaviconDataUrl(dataUrl: string | null) {
+  memoFavicon = null;
   await ensureFaviconColumn();
   await prisma.siteSetting.upsert({
     where: { id: "site" },

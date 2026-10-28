@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { faltaWhatsappGoogle } from "@/lib/google-auth";
 import { getCurrentUser } from "@/lib/auth";
-import { getSiteSettings } from "@/lib/settings";
+import { getSiteSettings, versionImagen } from "@/lib/settings";
 import { boldConfigurado, getSuscripcion, ofertaRelampago, tieneAcceso } from "@/lib/subscription";
 import { FlashOffer } from "@/components/flash-offer";
 import { logoutAction } from "@/app/actions";
@@ -76,8 +76,12 @@ export default async function AppLayout({
   return (
     <AppShell
       userLabel={user.name ?? user.email}
-      logoUrl={settings.logoDataUrl ?? "/logo-estradox.png"}
-      byLogoUrl={settings.byLogoDataUrl ?? "/unor-logo.png"}
+      logoUrl={
+        settings.logoDataUrl ? `/api/logo/logo?v=${versionImagen(settings.logoDataUrl)}` : "/logo-estradox.png"
+      }
+      byLogoUrl={
+        settings.byLogoDataUrl ? `/api/logo/by?v=${versionImagen(settings.byLogoDataUrl)}` : "/unor-logo.png"
+      }
       byUrl={settings.byUrl}
       isAdmin={user.role === "admin"}
       soloPago={vencida}
