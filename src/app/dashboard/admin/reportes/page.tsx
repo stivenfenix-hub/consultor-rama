@@ -1,12 +1,13 @@
 import { fechaBogotaHace, filasSinProcesosDelDia } from "@/lib/reporte-whatsapp";
 
 function fechaLarga(f: string) {
-  return new Date(`${f}T12:00:00-05:00`).toLocaleDateString("es-CO", {
+  const t = new Date(`${f}T12:00:00-05:00`).toLocaleDateString("es-CO", {
     weekday: "long",
     day: "numeric",
     month: "long",
     timeZone: "America/Bogota",
   });
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 export default async function ReportesAdmin({
@@ -45,7 +46,7 @@ export default async function ReportesAdmin({
             <tbody>
               {conteos.map((c) => (
                 <tr key={c.fecha} style={c.fecha === f ? { background: "rgba(139, 61, 255, 0.1)" } : undefined}>
-                  <td style={{ textTransform: "capitalize" }}>{fechaLarga(c.fecha)}</td>
+                  <td>{fechaLarga(c.fecha)}</td>
                   <td>{c.n}</td>
                   <td>
                     {c.n > 0 ? (
