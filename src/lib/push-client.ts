@@ -66,6 +66,37 @@ export async function subscribeToPush(): Promise<SubResult> {
   }
 }
 
+/**
+ * Con el permiso ya dado, se asegura de que el servidor tenga la suscripción
+ * vigente de este dispositivo. El navegador puede cambiarla o vencerla sin
+ * avisar (el servidor la borra al recibir 410) y entonces las push dejan de
+ * llegar aunque todo se vea "activado": por eso se vuelve a enviar en cada
+ * apertura, y si ya no existe se crea otra sin preguntar.
+ */
+export async function sincronizarSuscripcion(): Promise<boolean> {
+  if (!pushSupported() || Notification.permission !== "granted") return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const VAPID = await vapidKey();
+      if (!VAPID) return false;
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID),
+      });
+    }
+    const r = await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(sub),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function unsubscribeFromPush(): Promise<void> {
   if (!pushSupported()) return;
   try {

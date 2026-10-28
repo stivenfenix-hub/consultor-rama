@@ -6,7 +6,7 @@ import { sendPushToUsers } from "@/lib/push";
  * push y aviso en la app. Útil mientras arrancan las campañas y hay pocos
  * registros; nunca debe romper el registro, así que los errores solo se anotan.
  */
-export async function avisarNuevoUsuario(userId: string, via: "correo" | "Google") {
+export async function avisarNuevoUsuario(userId: string, via: "correo" | "Google" | "la app Android") {
   try {
     const [user, admins] = await Promise.all([
       prisma.user.findUnique({

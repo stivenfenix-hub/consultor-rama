@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { avisarNuevoUsuario } from "@/lib/aviso-admin";
 import { AccountError, registerUser } from "@/lib/accounts";
 import { registerSchema } from "@/lib/validation";
 import { body, jsonError, publicMobile } from "@/lib/mobile";
@@ -17,7 +18,8 @@ export async function POST(req: NextRequest) {
       });
     }
     try {
-      await registerUser(parsed.data);
+      const nuevo = await registerUser(parsed.data);
+      after(() => avisarNuevoUsuario(nuevo.id, "la app Android"));
     } catch (err) {
       if (err instanceof AccountError) return jsonError(err.message, 409, { field: "email" });
       throw err;

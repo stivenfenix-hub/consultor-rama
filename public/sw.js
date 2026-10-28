@@ -27,6 +27,31 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// El navegador renovó o venció la suscripción: se crea otra y se le avisa al
+// servidor (si no, las push dejan de llegar sin que nadie lo note).
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const key =
+    (event.oldSubscription && event.oldSubscription.options.applicationServerKey) || null;
+  event.waitUntil(
+    (async () => {
+      let sub = event.newSubscription;
+      if (!sub && key) {
+        sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+      }
+      if (!sub) return;
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(sub),
+      });
+    })().catch(() => {}),
+  );
+});
+
 // Al tocar la notificación, abre/enfoca la app.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

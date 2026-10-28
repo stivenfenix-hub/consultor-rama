@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isSubscribed, pushSupported, subscribeToPush } from "@/lib/push-client";
+import { pushSupported, sincronizarSuscripcion, subscribeToPush } from "@/lib/push-client";
 import { Icon } from "./icon";
 
 /**
@@ -28,7 +28,7 @@ export function NotificationsPrompt() {
           (navigator as unknown as { standalone?: boolean }).standalone === true ||
           window.matchMedia("(display-mode: standalone)").matches;
         const permiso = Notification.permission;
-        if (permiso === "granted" && (await isSubscribed())) return; // ya activas
+        if (permiso === "granted" && (await sincronizarSuscripcion())) return; // ya activas
         if (!standalone) {
           if (localStorage.getItem("estradox_notif_asked") === "1") return;
           if (permiso !== "default") return;

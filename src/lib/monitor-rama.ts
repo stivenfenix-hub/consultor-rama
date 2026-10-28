@@ -65,7 +65,7 @@ async function probar(): Promise<{ ok: true; ms: number } | { ok: false; ms: num
   try {
     const d = await obtenerDetalle(c.idProceso, 2);
     const ms = Date.now() - inicio;
-    if (!d || typeof d !== "object") return { ok: false, ms, error: "La Rama respondió vacío o con datos no válidos." };
+    if (!d || typeof d !== "object" || !d.llaveProceso) return { ok: false, ms, error: "La Rama respondió vacío o con datos no válidos." };
     return { ok: true, ms };
   } catch (err) {
     const ms = Date.now() - inicio;
