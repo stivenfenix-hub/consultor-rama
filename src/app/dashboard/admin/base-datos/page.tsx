@@ -54,7 +54,21 @@ export default async function BaseDatosPage() {
     ),
   ]);
 
-  const totalTablas = (tablas ?? []).reduce((s, t) => s + Number(t.total), 0);
+  // Cómo se conecta Estradox (sin usuario ni contraseña).
+  let conexion = "—";
+  try {
+    const u = new URL(process.env.DATABASE_URL ?? "");
+    const p = u.searchParams;
+    conexion = [
+      u.hostname.includes("pooler") ? "pooler de Supabase" : u.hostname.includes("supabase") ? "conexión directa" : u.hostname,
+      `puerto ${u.port || "5432"} (${u.port === "6543" ? "modo transacción" : "modo sesión"})`,
+      `pgbouncer=${p.get("pgbouncer") ?? "no"}`,
+      `connection_limit=${p.get("connection_limit") ?? "por defecto de Prisma"}`,
+      `pool_timeout=${p.get("pool_timeout") ?? "10 s"}`,
+    ].join(" · ");
+  } catch {}
+
+  const totalTablas =(tablas ?? []).reduce((s, t) => s + Number(t.total), 0);
 
   return (
     <div className="page">
@@ -98,7 +112,11 @@ export default async function BaseDatosPage() {
 
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Conexiones abiertas</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>Máximo del servidor: {maxConn?.[0]?.v ?? "—"}</p>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Estradox se conecta por: <b>{conexion}</b>
+          <br />
+          Máximo del servidor: {maxConn?.[0]?.v ?? "—"}
+        </p>
         <div className="table-wrap">
           <table className="table">
             <tbody>
