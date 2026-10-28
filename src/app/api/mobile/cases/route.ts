@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
     const r = await agregarRadicados(user.id, validos);
     const m = mensajeAgregar(r, invalidos);
-    const agregados = r.agregados + r.pendientes + r.privados + r.yaEstaban;
+    const agregados = r.agregados + r.pendientes + r.privados + r.yaEstaban + r.enFondo;
     const fallidos = validos.length - agregados;
     if (!m.ok) return jsonError(m.error ?? "No se pudo agregar ningún proceso.", 502);
     return NextResponse.json({

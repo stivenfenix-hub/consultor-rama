@@ -29,6 +29,7 @@ function parseFecha(f?: string | null): Date | null {
 export async function agregarProcesoPorRadicado(
   userId: string,
   radicado: string,
+  limite = Infinity,
 ) {
   const procesos = await buscarPorRadicado(radicado);
   if (procesos.length === 0) {
@@ -38,9 +39,26 @@ export async function agregarProcesoPorRadicado(
   // Registramos todos los que devuelva.
   const creados = [];
   for (const p of procesos) {
-    creados.push(await upsertProceso(userId, p));
+    creados.push(await upsertProceso(userId, p, limite));
   }
   return creados;
+}
+
+/**
+ * El proxy de Hostinger corta las peticiones a los 60 s y la Rama a veces
+ * tarda 10-20 s por consulta: lo que no alcance en este tiempo sigue en
+ * segundo plano (after) y el abogado recibe un aviso cuando termina.
+ */
+const PRESUPUESTO_AGREGAR_MS = 30_000;
+
+/** Corre después de responder (o sin esperar si no hay petición en curso). */
+function enFondo(tarea: () => Promise<unknown>) {
+  const segura = () => tarea().catch((e) => console.error("[agregar] fondo", e));
+  try {
+    after(segura);
+  } catch {
+    void segura();
+  }
 }
 
 export type ResultadoAgregar = {
@@ -53,12 +71,16 @@ export type ResultadoAgregar = {
   fallidos: string[];
   /** La Rama pidió pausar: estos no se intentaron. */
   sinIntentar: string[];
+  /** Se siguen cargando en segundo plano (la Rama estaba lenta). */
+  enFondo: number;
 };
 
 /** Agrega varios radicados y cuenta qué pasó con cada uno. */
 export async function agregarRadicados(
   userId: string,
   radicados: string[],
+  presupuestoMs = PRESUPUESTO_AGREGAR_MS,
+  alAvanzar?: (hechos: number) => Promise<void>,
 ): Promise<ResultadoAgregar> {
   const r: ResultadoAgregar = {
     agregados: 0,
@@ -68,14 +90,24 @@ export async function agregarRadicados(
     noEncontrados: [],
     fallidos: [],
     sinIntentar: [],
+    enFondo: 0,
   };
+  const limite = Date.now() + presupuestoMs;
   for (let i = 0; i < radicados.length; i++) {
     const rad = radicados[i];
+    if (Date.now() > limite) {
+      // Sin tiempo: el resto se agrega en segundo plano.
+      const resto = radicados.slice(i);
+      r.enFondo += resto.length;
+      enFondo(() => agregarEnFondo(userId, resto));
+      break;
+    }
     try {
-      const creados = await agregarProcesoPorRadicado(userId, rad);
+      const creados = await agregarProcesoPorRadicado(userId, rad, limite);
       if (creados.every((c) => !c.nuevo)) r.yaEstaban++;
       else if (creados.some((c) => c.privado)) r.privados++;
       else if (creados.some((c) => c.pendiente)) r.pendientes++;
+      else if (creados.some((c) => c.cargando)) r.enFondo++;
       else r.agregados++;
     } catch (err) {
       if (err instanceof RamaError && err.isRateLimit) {
@@ -85,8 +117,121 @@ export async function agregarRadicados(
       if (err instanceof RamaError && err.status === 404) r.noEncontrados.push(rad);
       else r.fallidos.push(rad);
     }
+    await alAvanzar?.(i + 1);
   }
   return r;
+}
+
+/** Agrega en segundo plano lo que no alcanzó (app móvil) y avisa al terminar. */
+async function agregarEnFondo(userId: string, radicados: string[]) {
+  const r = await agregarRadicados(userId, radicados, Infinity);
+  await avisarCargaLista(userId, r);
+}
+
+async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
+  const listos = r.agregados + r.pendientes + r.privados + r.enFondo;
+  const { sendPushToUser } = await import("./push");
+  await sendPushToUser(userId, {
+    title: listos > 0 ? "✅ Tus procesos ya están cargados" : "⚠️ No pudimos cargar tus procesos",
+    body:
+      (listos > 0 ? `Cargamos ${listos} proceso(s) de la Rama Judicial. Ya puedes revisarlos.` : "") +
+      (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
+      (r.noEncontrados.length ? ` No existen en la Rama: ${r.noEncontrados.join(", ")}.` : "") +
+      (r.fallidos.length + r.sinIntentar.length
+        ? ` La Rama no respondió para: ${[...r.fallidos, ...r.sinIntentar].join(", ")}; intenta de nuevo luego.`
+        : ""),
+    url: "/dashboard/procesos",
+    tag: `agregados-${Date.now()}`,
+  }).catch(() => {});
+}
+
+// ---------- Carga de procesos en segundo plano (web) ----------
+// El abogado pega los radicados y sigue usando Estradox: la carga corre después
+// de responder y la página de Procesos muestra el avance y el resultado.
+export type CargaProcesos = {
+  id: number;
+  total: number;
+  listos: number;
+  estado: "cargando" | "listo";
+  ok: string | null;
+  error: string | null;
+  createdAt: Date;
+};
+
+let cargasListas = false;
+async function asegurarCargas() {
+  if (cargasListas) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CargaProcesos" (
+      id SERIAL PRIMARY KEY,
+      "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      total INTEGER NOT NULL,
+      listos INTEGER NOT NULL DEFAULT 0,
+      estado TEXT NOT NULL DEFAULT 'cargando',
+      ok TEXT,
+      error TEXT,
+      visto BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  cargasListas = true;
+}
+
+/** Registra la carga y la corre en segundo plano. */
+export async function iniciarCargaProcesos(userId: string, radicados: string[], invalidos: string[] = []) {
+  await asegurarCargas();
+  const [c] = await prisma.$queryRawUnsafe<{ id: number }[]>(
+    `INSERT INTO "CargaProcesos" ("userId", total) VALUES ($1, $2) RETURNING id`,
+    userId,
+    radicados.length,
+  );
+  enFondo(async () => {
+    let r: ResultadoAgregar;
+    try {
+      r = await agregarRadicados(userId, radicados, Infinity, async (n) => {
+        await prisma
+          .$executeRawUnsafe(`UPDATE "CargaProcesos" SET listos = $2 WHERE id = $1`, c.id, n)
+          .catch(() => {});
+      });
+    } catch (e) {
+      console.error("[carga] fallo", e);
+      r = { agregados: 0, yaEstaban: 0, pendientes: 0, privados: 0, noEncontrados: [], fallidos: radicados, sinIntentar: [], enFondo: 0 };
+    }
+    const m = mensajeAgregar(r, invalidos);
+    await prisma.$executeRawUnsafe(
+      `UPDATE "CargaProcesos" SET estado = 'listo', listos = total, ok = $2, error = $3 WHERE id = $1`,
+      c.id,
+      m.ok ?? null,
+      m.error ?? null,
+    );
+    await avisarCargaLista(userId, r);
+  });
+}
+
+/** Cargas recientes que el abogado aún no cerró (para el aviso en Procesos). */
+export async function cargasPendientesDeVer(userId: string): Promise<CargaProcesos[]> {
+  await asegurarCargas();
+  // Si el servidor se reinició a mitad de una carga, no se queda "cargando" para siempre.
+  await prisma.$executeRawUnsafe(
+    `UPDATE "CargaProcesos" SET estado = 'listo',
+       error = 'La carga se interrumpió. Revisa tu lista y vuelve a agregar los que falten.'
+     WHERE "userId" = $1 AND estado = 'cargando' AND "createdAt" < now() - interval '15 minutes'`,
+    userId,
+  );
+  return prisma.$queryRawUnsafe<CargaProcesos[]>(
+    `SELECT id, total, listos, estado, ok, error, "createdAt" FROM "CargaProcesos"
+     WHERE "userId" = $1 AND NOT visto AND "createdAt" > now() - interval '2 days'
+     ORDER BY id DESC LIMIT 3`,
+    userId,
+  );
+}
+
+export async function marcarCargaVista(userId: string, id: number) {
+  await asegurarCargas();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "CargaProcesos" SET visto = true WHERE id = $1 AND "userId" = $2 AND estado = 'listo'`,
+    id,
+    userId,
+  );
 }
 
 /** Mensajes para el usuario a partir del resultado (y los radicados mal escritos). */
@@ -103,6 +248,11 @@ export function mensajeAgregar(
   }
   if (r.privados) {
     ok.push(`${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones.`);
+  }
+  if (r.enFondo) {
+    ok.push(
+      `${r.enFondo} se está(n) cargando en segundo plano porque la Rama Judicial está lenta: aparecerán en tu lista en unos minutos y te avisamos al terminar.`,
+    );
   }
   if (r.yaEstaban) ok.push(`${r.yaEstaban} ya estaba(n) en tu lista.`);
 
@@ -129,7 +279,7 @@ export function mensajeAgregar(
   };
 }
 
-async function upsertProceso(userId: string, resumen: ProcesoResumen) {
+async function upsertProceso(userId: string, resumen: ProcesoResumen, limite = Infinity) {
   const idProceso = String(resumen.idProceso);
 
   const existing = await prisma.case.findUnique({
@@ -151,28 +301,29 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
     },
   });
 
-  // Carga rápida: todo menos los documentos por actuación (eso es lo lento).
-  // Si la Rama falla, el proceso igual queda en la lista: la cola lo completa.
-  try {
-    await sincronizarProceso(caseRow.id, {
-      marcarComoVistas: !existing,
-      docsActuacion: false,
+  const id = caseRow.id;
+  const opts = { marcarComoVistas: !existing, docsActuacion: false };
+
+  // Se acabó el tiempo de la petición: ya está en la lista y se carga después.
+  if (Date.now() > limite) {
+    enFondo(async () => {
+      await sincronizarProceso(id, opts);
+      await cargarDocumentosActuacionEnFondo(id);
     });
+    return { ...caseRow, nuevo: !existing, pendiente: false, privado: false, cargando: true };
+  }
+
+  // Carga rápida: detalle y actuaciones. Partes y documentos van en segundo
+  // plano. Si la Rama falla, el proceso igual queda en la lista: la cola lo completa.
+  try {
+    await sincronizarProceso(id, { ...opts, extrasEnFondo: true });
   } catch (err) {
     const privado = err instanceof Error && /privad/i.test(err.message);
-    return { ...caseRow, nuevo: !existing, pendiente: !privado, privado };
+    return { ...caseRow, nuevo: !existing, pendiente: !privado, privado, cargando: false };
   }
-  // Los documentos descargables (por actuación) se traen en segundo plano
-  // para que agregar sea rápido; aparecen a los pocos segundos.
-  const id = caseRow.id;
-  try {
-    // after(): corre DESPUÉS de enviar la respuesta (no hace esperar al usuario).
-    after(() => cargarDocumentosActuacionEnFondo(id));
-  } catch {
-    // Fuera de una petición (p. ej. scripts): ejecutar sin esperar.
-    void cargarDocumentosActuacionEnFondo(id).catch(() => {});
-  }
-  return { ...caseRow, nuevo: !existing, pendiente: false, privado: false };
+  // Los documentos descargables (por actuación) aparecen a los pocos segundos.
+  enFondo(() => cargarDocumentosActuacionEnFondo(id));
+  return { ...caseRow, nuevo: !existing, pendiente: false, privado: false, cargando: false };
 }
 
 /**
@@ -181,7 +332,12 @@ async function upsertProceso(userId: string, resumen: ProcesoResumen) {
  */
 export async function sincronizarProceso(
   caseId: string,
-  opts: { marcarComoVistas?: boolean; docsActuacion?: boolean } = {},
+  opts: {
+    marcarComoVistas?: boolean;
+    docsActuacion?: boolean;
+    /** Partes y documentos después de responder (al agregar, para no hacer esperar). */
+    extrasEnFondo?: boolean;
+  } = {},
 ) {
   const caseRow = await prisma.case.findUnique({ where: { id: caseId } });
   if (!caseRow) throw new Error("Proceso no encontrado");
@@ -257,15 +413,13 @@ export async function sincronizarProceso(
     });
 
     // Partes y Documentos (cada uno con su propio registro, sin romper el sync).
-    await Promise.all([
-      sincronizarSujetos(caseId, caseRow.idProceso),
-      sincronizarDocumentos(
-        caseId,
-        caseRow.idProceso,
-        actuaciones,
-        opts.docsActuacion !== false,
-      ),
-    ]);
+    const extras = () =>
+      Promise.all([
+        sincronizarSujetos(caseId, caseRow.idProceso),
+        sincronizarDocumentos(caseId, caseRow.idProceso, actuaciones, opts.docsActuacion !== false),
+      ]);
+    if (opts.extrasEnFondo) enFondo(extras);
+    else await extras();
 
     return {
       nuevas: nuevas.length,
