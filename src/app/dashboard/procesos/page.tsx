@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { Icon } from "@/components/icon";
 import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
-import { cargasPendientesDeVer } from "@/lib/sync";
+import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
@@ -52,12 +52,13 @@ export default async function ProcesosPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todos, cargas] = await Promise.all([
+  const [todos, cargas, reintentos] = await Promise.all([
     prisma.case.findMany({
       where: { userId: user.id },
       orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
     }),
     cargasPendientesDeVer(user.id).catch(() => []),
+    reintentosDelUsuario(user.id).catch(() => []),
   ]);
 
   // Un radicado puede estar en varios sistemas de la Rama (p. ej. Justicia XXI
@@ -96,7 +97,9 @@ export default async function ProcesosPage({
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
       </div>
 
-      {cargas.length > 0 && <CargaAviso cargas={cargas} esAdmin={user.role === "admin"} />}
+      {(cargas.length > 0 || reintentos.length > 0) && (
+        <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} />
+      )}
 
       {todos.length > 0 && (
         <nav className="tabbar tabbar-3">

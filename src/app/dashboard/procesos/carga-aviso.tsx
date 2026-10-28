@@ -19,7 +19,15 @@ type Carga = {
  * Avance de las cargas en segundo plano. Mientras alguna está cargando, la
  * página se refresca sola cada 4 s; al terminar muestra el resultado.
  */
-export function CargaAviso({ cargas, esAdmin = false }: { cargas: Carga[]; esAdmin?: boolean }) {
+export function CargaAviso({
+  cargas,
+  reintentos = [],
+  esAdmin = false,
+}: {
+  cargas: Carga[];
+  reintentos?: { radicado: string; intentos: number }[];
+  esAdmin?: boolean;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const cargando = cargas.some((c) => c.estado === "cargando");
@@ -32,6 +40,19 @@ export function CargaAviso({ cargas, esAdmin = false }: { cargas: Carga[]; esAdm
 
   return (
     <>
+      {reintentos.length > 0 && (
+        <div className="carga-aviso cargando">
+          <div className="carga-spin" aria-hidden />
+          <div style={{ flex: 1 }}>
+            <b>Reintentando automáticamente</b>
+            <div className="small muted">
+              La Rama Judicial no respondió para{" "}
+              {reintentos.map((r) => r.radicado).join(", ")}. Lo seguimos intentando solos y te
+              avisamos cuando quede cargado; no tienes que volver a agregarlo.
+            </div>
+          </div>
+        </div>
+      )}
       {cargas.map((c) =>
         c.estado === "cargando" ? (
           <div key={c.id} className="carga-aviso cargando">
@@ -50,7 +71,7 @@ export function CargaAviso({ cargas, esAdmin = false }: { cargas: Carga[]; esAdm
           <div key={c.id} className={`carga-aviso ${c.ok ? "listo" : "falla"}`}>
             <Icon name={c.ok ? "check" : "alert"} size={22} />
             <div style={{ flex: 1 }}>
-              <b>{c.ok ? "¡Tus procesos ya están cargados! Ya puedes revisarlos." : "No pudimos cargar tus procesos"}</b>
+              <b>{c.ok ? "¡Tus procesos ya están cargados! Ya puedes revisarlos." : "Aún no pudimos cargar tus procesos"}</b>
               {c.ok && <div className="small">{c.ok}</div>}
               {c.error && <div className="small error" style={{ margin: "4px 0 0" }}>{c.error}</div>}
               {esAdmin && c.detalle && (

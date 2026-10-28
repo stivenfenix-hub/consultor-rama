@@ -12,7 +12,7 @@ import {
   type Documento as RamaDocumento,
 } from "./rama";
 import { usuariosConAcceso } from "./subscription";
-import { enviarResumen } from "./sync";
+import { enviarResumen, procesarReintentos } from "./sync";
 import { sendPushToUser } from "./push";
 import { revisarRama } from "./monitor-rama";
 import {
@@ -583,6 +583,8 @@ export async function tick(opts: { forzar?: boolean } = {}) {
 
     // ¿La Rama está respondiendo? Si falla seguido, avisa al root.
     info.rama = await revisarRama().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    // Radicados que la Rama no respondió al agregarlos: se reintentan solos.
+    info.reintentos = await procesarReintentos().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
 
     if (!opts.forzar && !enVentanaNocturna()) {
       info.cola = "fuera de horario";

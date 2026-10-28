@@ -125,6 +125,10 @@ export async function agregarRadicados(
     }
     await alAvanzar?.(i + 1);
   }
+  // Lo que la Rama no respondió se reintenta solo (ver procesarReintentos).
+  await programarReintentos(userId, [...r.fallidos, ...r.sinIntentar]).catch((e) =>
+    console.error("[agregar] reintentos", e),
+  );
   return r;
 }
 
@@ -138,13 +142,18 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
   const listos = r.agregados + r.pendientes + r.privados + r.enFondo;
   const { sendPushToUser } = await import("./push");
   await sendPushToUser(userId, {
-    title: listos > 0 ? "✅ Tus procesos ya están cargados" : "⚠️ No pudimos cargar tus procesos",
+    title:
+      listos > 0
+        ? "✅ Tus procesos ya están cargados"
+        : r.fallidos.length + r.sinIntentar.length
+          ? "⏳ La Rama Judicial no respondió todavía"
+          : "⚠️ No pudimos cargar tus procesos",
     body:
       (listos > 0 ? `Cargamos ${listos} proceso(s) de la Rama Judicial. Ya puedes revisarlos.` : "") +
       (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
       (r.noEncontrados.length ? ` No existen en la Rama: ${r.noEncontrados.join(", ")}.` : "") +
       (r.fallidos.length + r.sinIntentar.length
-        ? ` La Rama no respondió para: ${[...r.fallidos, ...r.sinIntentar].join(", ")}; intenta de nuevo luego.`
+        ? ` La Rama no respondió para: ${[...r.fallidos, ...r.sinIntentar].join(", ")}; lo seguimos intentando solos y te avisamos.`
         : ""),
     url: "/dashboard/procesos",
     tag: `agregados-${Date.now()}`,
@@ -214,8 +223,7 @@ export async function iniciarCargaProcesos(userId: string, radicados: string[], 
       c.id,
       m.ok ?? null,
       m.error ?? null,
-      r.errores?.join("
-") ?? null,
+      r.errores?.join("\n") ?? null,
     );
     await avisarCargaLista(userId, r);
   });
@@ -248,6 +256,112 @@ export async function marcarCargaVista(userId: string, id: number) {
   );
 }
 
+// ---------- Reintentos automáticos ----------
+// Si la Rama no responde al agregar, el radicado queda aquí y el cron lo vuelve
+// a intentar cada vez más espaciado (~31 h en total). El abogado no tiene que
+// volver a pegarlo: se le avisa cuando queda cargado (o si no existe).
+const ESPERAS_MIN = [5, 10, 20, 30, 60, 60, 120, 120, 240, 240, 480, 480];
+
+let reintentosListos = false;
+async function asegurarReintentos() {
+  if (reintentosListos) return;
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "RadicadoReintento" (
+      "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      radicado TEXT NOT NULL,
+      intentos INTEGER NOT NULL DEFAULT 0,
+      "proximoAt" TIMESTAMPTZ NOT NULL DEFAULT now() + interval '5 minutes',
+      "ultimoError" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY ("userId", radicado)
+    )`);
+  reintentosListos = true;
+}
+
+async function programarReintentos(userId: string, radicados: string[]) {
+  if (radicados.length === 0) return;
+  await asegurarReintentos();
+  for (const rad of radicados) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "RadicadoReintento" ("userId", radicado) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      userId,
+      rad,
+    );
+  }
+}
+
+/** Radicados del abogado que se están reintentando (para mostrarlos en Procesos). */
+export async function reintentosDelUsuario(userId: string) {
+  await asegurarReintentos();
+  return prisma.$queryRawUnsafe<{ radicado: string; intentos: number; proximoAt: Date }[]>(
+    `SELECT radicado, intentos, "proximoAt" FROM "RadicadoReintento" WHERE "userId" = $1 ORDER BY "createdAt"`,
+    userId,
+  );
+}
+
+/** Lo llama el cron: reintenta los radicados que ya toca. */
+export async function procesarReintentos(presupuestoMs = 90_000) {
+  await asegurarReintentos();
+  const inicio = Date.now();
+  const filas = await prisma.$queryRawUnsafe<{ userId: string; radicado: string; intentos: number }[]>(
+    `SELECT "userId", radicado, intentos FROM "RadicadoReintento"
+     WHERE "proximoAt" <= now() ORDER BY "proximoAt" LIMIT 20`,
+  );
+  const { sendPushToUser } = await import("./push");
+  let cargados = 0;
+  let fallidos = 0;
+  for (const f of filas) {
+    if (Date.now() - inicio > presupuestoMs) break;
+    try {
+      await agregarProcesoPorRadicado(f.userId, f.radicado);
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "RadicadoReintento" WHERE "userId" = $1 AND radicado = $2`,
+        f.userId,
+        f.radicado,
+      );
+      cargados++;
+      await sendPushToUser(f.userId, {
+        title: "✅ Ya cargamos tu proceso",
+        body: `La Rama Judicial respondió y el radicado ${f.radicado} ya está en tu lista. Ya puedes revisarlo.`,
+        url: "/dashboard/procesos",
+        tag: `reintento-${f.radicado}`,
+      }).catch(() => {});
+    } catch (err) {
+      if (err instanceof RamaError && err.isRateLimit) break; // la Rama pidió pausar
+      const noExiste = err instanceof RamaError && err.status === 404;
+      const intentos = f.intentos + 1;
+      if (noExiste || intentos >= ESPERAS_MIN.length) {
+        await prisma.$executeRawUnsafe(
+          `DELETE FROM "RadicadoReintento" WHERE "userId" = $1 AND radicado = $2`,
+          f.userId,
+          f.radicado,
+        );
+        await sendPushToUser(f.userId, {
+          title: "⚠️ No pudimos cargar un proceso",
+          body: noExiste
+            ? `El radicado ${f.radicado} no existe en la Rama Judicial. Revisa el número.`
+            : `La Rama Judicial no respondió por más de un día para ${f.radicado}. Intenta agregarlo de nuevo más tarde.`,
+          url: "/dashboard/procesos",
+          tag: `reintento-${f.radicado}`,
+        }).catch(() => {});
+      } else {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "RadicadoReintento" SET intentos = $3, "ultimoError" = $4,
+             "proximoAt" = now() + ($5 || ' minutes')::interval
+           WHERE "userId" = $1 AND radicado = $2`,
+          f.userId,
+          f.radicado,
+          intentos,
+          (err instanceof Error ? err.message : String(err)).slice(0, 300),
+          String(ESPERAS_MIN[intentos]),
+        );
+      }
+      fallidos++;
+    }
+  }
+  return { pendientes: filas.length, cargados, fallidos };
+}
+
 /** Mensajes para el usuario a partir del resultado (y los radicados mal escritos). */
 export function mensajeAgregar(
   r: ResultadoAgregar,
@@ -277,14 +391,10 @@ export function mensajeAgregar(
   if (r.noEncontrados.length) {
     err.push(`No existen en la Rama Judicial: ${r.noEncontrados.join(", ")}.`);
   }
-  if (r.fallidos.length) {
+  const reintentar = [...r.fallidos, ...r.sinIntentar];
+  if (reintentar.length) {
     err.push(
-      `La Rama no respondió para: ${r.fallidos.join(", ")}. Intenta de nuevo en un rato.`,
-    );
-  }
-  if (r.sinIntentar.length) {
-    err.push(
-      `La Rama pidió pausar las consultas; intenta en unos minutos con: ${r.sinIntentar.join(", ")}.`,
+      `La Rama Judicial no respondió para: ${reintentar.join(", ")}. Lo seguiremos intentando automáticamente y te avisamos cuando quede cargado; no tienes que volver a agregarlo.`,
     );
   }
   return {
