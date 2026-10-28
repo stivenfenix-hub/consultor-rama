@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/db";
 import { PromoForm } from "./promo-form";
-import { eventosPush } from "@/lib/push";
+import { eventosPush, listarEnviosPromo } from "@/lib/push";
+import { BorrarEnvio } from "./borrar-envio";
 
 export default async function NotificacionesAdmin() {
   const dispositivos = await prisma.pushSubscription.count();
-  const [subs, eventos] = await Promise.all([
+  const [subs, eventos, envios] = await Promise.all([
     prisma.pushSubscription.findMany({
       orderBy: { createdAt: "desc" },
       include: { user: { select: { email: true } } },
     }),
     eventosPush(),
+    listarEnviosPromo().catch(() => []),
   ]);
   const usuarios = await prisma.pushSubscription
     .findMany({ distinct: ["userId"], select: { userId: true } })
@@ -27,6 +29,46 @@ export default async function NotificacionesAdmin() {
       </p>
       <div className="card" style={{ maxWidth: 520 }}>
         <PromoForm />
+      </div>
+
+      <div className="card">
+        <h2>Notificaciones enviadas</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Lo que aparece en la campana de los usuarios. Borrar una la quita de todas las campanas
+          (la push que ya llegó al celular no se puede retirar).
+        </p>
+        {envios.length === 0 ? (
+          <p className="muted small">Aún no has enviado notificaciones.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Título</th>
+                  <th>Mensaje</th>
+                  <th>Usuarios</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {envios.map((e) => (
+                  <tr key={e.clave}>
+                    <td className="muted small" style={{ whiteSpace: "nowrap" }}>
+                      {new Date(e.fecha).toLocaleString("es-CO", { timeZone: "America/Bogota" })}
+                    </td>
+                    <td className="small">{e.title}</td>
+                    <td className="small muted" style={{ maxWidth: 320 }}>{e.body}</td>
+                    <td>{e.usuarios}</td>
+                    <td>
+                      <BorrarEnvio clave={e.clave} titulo={e.title} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">

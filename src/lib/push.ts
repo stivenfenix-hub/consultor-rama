@@ -275,3 +275,37 @@ export async function marcarTodosLeidos(userId: string) {
   await asegurarLecturas();
   await prisma.$executeRawUnsafe(`UPDATE "User" SET "avisosTodosLeidosAt" = now() WHERE id = $1`, userId);
 }
+
+// ---------- Notificaciones enviadas por el root (Panel admin) ----------
+export type EnvioPromo = { clave: string; title: string; body: string; fecha: Date; usuarios: number };
+
+/** Notificaciones que el root envió, agrupadas por envío (mismo texto y minuto). */
+export async function listarEnviosPromo(): Promise<EnvioPromo[]> {
+  await ensureMobileNoticeTable();
+  const filas = await prisma.$queryRawUnsafe<{ title: string; body: string; fecha: Date; usuarios: bigint }[]>(
+    `SELECT title, body, date_trunc('minute', "createdAt") AS fecha, count(*) AS usuarios
+     FROM "MobileNotice" WHERE tag = 'promo'
+     GROUP BY title, body, date_trunc('minute', "createdAt")
+     ORDER BY fecha DESC LIMIT 40`,
+  );
+  return filas.map((f) => ({
+    clave: JSON.stringify([f.title, f.body, new Date(f.fecha).toISOString()]),
+    title: f.title,
+    body: f.body,
+    fecha: f.fecha,
+    usuarios: Number(f.usuarios),
+  }));
+}
+
+/** Borra un envío del root de la campana de todos (y de la app Android). */
+export async function borrarEnvioPromo(clave: string) {
+  const [title, body, fecha] = JSON.parse(clave) as [string, string, string];
+  return prisma.$executeRawUnsafe(
+    `DELETE FROM "MobileNotice"
+     WHERE tag = 'promo' AND title = $1 AND body = $2
+       AND date_trunc('minute', "createdAt") = $3::timestamptz`,
+    title,
+    body,
+    fecha,
+  );
+}

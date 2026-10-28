@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth";
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
 import {
+  borrarEnvioPromo,
   contarAvisosNoLeidos,
   listarAvisos,
   marcarAvisoLeido,
@@ -708,4 +709,16 @@ export async function marcarAvisoLeidoAction(id: number) {
 export async function marcarTodosLeidosAction() {
   const user = await getCurrentUser();
   if (user) await marcarTodosLeidos(user.id).catch(() => {});
+}
+
+/** Root: borra una notificación enviada (deja de verse en las campanas). */
+export async function borrarEnvioPromoAction(clave: string): Promise<ActionState> {
+  await requireAdmin();
+  try {
+    const n = await borrarEnvioPromo(clave);
+    revalidatePath("/dashboard/admin/notificaciones");
+    return { ok: `Notificación borrada (${n} aviso(s)).` };
+  } catch {
+    return { error: "No se pudo borrar." };
+  }
 }
