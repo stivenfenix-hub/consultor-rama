@@ -692,13 +692,16 @@ export async function contarAvisosAction(ruta?: string): Promise<number> {
   const user = await getCurrentUser();
   if (!user) return 0;
   if (ruta) await marcarAvisosDeRuta(user.id, ruta).catch(() => {});
-  return contarAvisosNoLeidos(user.id).catch(() => 0);
+  return contarAvisosNoLeidos(user.id, limiteCampana(user.role)).catch(() => 0);
 }
+
+// El root recibe muchos avisos (cada registro nuevo): su campana muestra solo los últimos 10.
+const limiteCampana = (role: string) => (role === "admin" ? 10 : undefined);
 
 export async function listarAvisosAction(): Promise<AvisoApp[]> {
   const user = await getCurrentUser();
   if (!user) return [];
-  return listarAvisos(user.id).catch(() => []);
+  return listarAvisos(user.id, limiteCampana(user.role)).catch(() => []);
 }
 
 export async function marcarAvisoLeidoAction(id: number) {

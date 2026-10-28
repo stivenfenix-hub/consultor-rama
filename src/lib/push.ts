@@ -228,10 +228,15 @@ export async function listarAvisos(userId: string, limite = 30): Promise<AvisoAp
   );
 }
 
-export async function contarAvisosNoLeidos(userId: string): Promise<number> {
+/** Avisos sin leer. Con `limite`, solo entre los últimos `limite` (lo que muestra la campana). */
+export async function contarAvisosNoLeidos(userId: string, limite?: number): Promise<number> {
   await asegurarLecturas();
   const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-    `SELECT count(*) AS n ${AVISOS_DEL_USUARIO} AND NOT ${LEIDO_SQL}`,
+    limite
+      ? `SELECT count(*) FILTER (WHERE NOT leido) AS n FROM (
+           SELECT ${LEIDO_SQL} AS leido ${AVISOS_DEL_USUARIO} ORDER BY n.id DESC LIMIT ${Math.floor(limite)}
+         ) x`
+      : `SELECT count(*) AS n ${AVISOS_DEL_USUARIO} AND NOT ${LEIDO_SQL}`,
     userId,
   );
   return Number(r?.n ?? 0);
