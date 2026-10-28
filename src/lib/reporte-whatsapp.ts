@@ -56,6 +56,15 @@ function primerNombre(firstName: string | null, name: string | null) {
   return n ? n.charAt(0).toUpperCase() + n.slice(1) : "Doctor(a)";
 }
 
+/** Primer apellido con mayúscula inicial ("VIDAL HARDING" -> "Vidal"), para "Dr(a). Vidal". */
+function primerApellido(lastName: string | null, name: string | null) {
+  const a =
+    (lastName ?? "").trim().split(/\s+/)[0] ||
+    (name ?? "").trim().split(/\s+/).slice(1)[0] ||
+    "";
+  return a ? a.charAt(0).toUpperCase() + a.slice(1).toLowerCase() : "";
+}
+
 function fechaCorta(d: Date | string | null | undefined) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("es-CO", { timeZone: "America/Bogota" });
@@ -89,11 +98,18 @@ export function textoActuaciones(casos: CasoAviso[]) {
 /** Textos cortos de los correos automáticos (recordatorio y suscripción). */
 export function textoAutomatico(
   tipo: Exclude<TipoAviso, "actuaciones">,
-  v: { fecha?: string; dias?: string; precio?: string } = {},
+  v: { fecha?: string; dias?: string; precio?: string; apellido?: string } = {},
 ) {
   switch (tipo) {
     case "sinProcesos":
-      return `Tu cuenta en Estradox está lista, pero aún no has cargado tu primer proceso. Pega tu radicado de 23 dígitos (te toma menos de 1 minuto) y te avisamos de cada actuación nueva: ${APP_URL}/dashboard/procesos`;
+      return `¡Hola Dr(a).${v.apellido ? ` ${v.apellido}` : ""}! Qué gusto saludarle, soy Manuela de Estradox ⚖️.
+
+¡Bienvenido a nuestra plataforma! Notamos que su cuenta ya está activa pero aún no tiene radicados en vigilancia.
+
+Para que no pierda su prueba gratuita y el sistema empiece a trabajar por usted esta misma madrugada, le dejo el enlace directo para agregar su primer proceso:
+👉 ${APP_URL}/dashboard/procesos
+
+Solo pegue los 23 dígitos y nosotros nos encargamos del resto. Si tiene alguna duda o prefiere que yo lo suba por usted, ¡escríbame por aquí! 🤝`;
     case "porVencer":
       return `Tu acceso a Estradox vence el ${v.fecha} (en ${v.dias} día(s)). Renueva tu plan por ${v.precio} COP para seguir recibiendo las actuaciones de tus procesos: ${APP_URL}/dashboard/suscripcion`;
     case "vencido":
@@ -159,16 +175,17 @@ export function agruparPorAbogado(
  */
 async function agregarSinProcesos() {
   await ensureColumn("User", "waSinProcesosAt", "TIMESTAMPTZ");
-  const ids = await prisma.$queryRawUnsafe<{ id: string }[]>(
+  const usuarios = await prisma.$queryRawUnsafe<{ id: string; lastName: string | null; name: string | null }[]>(
     `UPDATE "User" u SET "waSinProcesosAt" = now()
      WHERE u.role <> 'admin'
        AND u."createdAt" <= now() - interval '24 hours'
        AND u."waSinProcesosAt" IS NULL
        AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
-     RETURNING u.id`,
+     RETURNING u.id, u."lastName", u.name`,
   );
-  for (const { id } of ids) {
-    await registrarAvisoWhatsapp(id, "sinProcesos", textoAutomatico("sinProcesos"));
+  for (const u of usuarios) {
+    const apellido = primerApellido(u.lastName, u.name);
+    await registrarAvisoWhatsapp(u.id, "sinProcesos", textoAutomatico("sinProcesos", { apellido }));
   }
 }
 
@@ -240,9 +257,9 @@ export function fechaBogotaHace(dias: number, d = new Date()) {
  */
 export async function filasSinProcesosDelDia(fecha: string) {
   const usuarios = await prisma.$queryRawUnsafe<
-    { firstName: string | null; name: string | null; whatsapp: string | null }[]
+    { firstName: string | null; lastName: string | null; name: string | null; whatsapp: string | null }[]
   >(
-    `SELECT u."firstName", u.name, u."whatsapp" FROM "User" u
+    `SELECT u."firstName", u."lastName", u.name, u."whatsapp" FROM "User" u
      WHERE u.role <> 'admin'
        AND (u."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date = $1::date
        AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
@@ -254,7 +271,9 @@ export async function filasSinProcesosDelDia(fecha: string) {
     const telefono = (u.whatsapp ?? "").replace(/\D/g, "");
     if (!telefono) continue;
     filas.push({
-      mensaje: `${primerNombre(u.firstName, u.name)} - ${textoAutomatico("sinProcesos")}`,
+      mensaje: `${primerNombre(u.firstName, u.name)} - ${textoAutomatico("sinProcesos", {
+        apellido: primerApellido(u.lastName, u.name),
+      })}`,
       telefono,
     });
   }
