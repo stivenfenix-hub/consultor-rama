@@ -160,45 +160,96 @@ export type AvisoApp = {
   leido: boolean;
 };
 
-async function vistosHasta(userId: string): Promise<Date> {
-  await ensureColumn("User", "avisosVistosAt", "TIMESTAMPTZ");
-  const [r] = await prisma.$queryRawUnsafe<{ v: Date | null; c: Date }[]>(
-    `SELECT "avisosVistosAt" AS v, "createdAt" AS c FROM "User" WHERE id = $1`,
-    userId,
+let lecturasListas = false;
+async function asegurarLecturas() {
+  if (lecturasListas) return;
+  await ensureMobileNoticeTable();
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "MobileNoticeRead" (
+      "noticeId" INTEGER NOT NULL REFERENCES "MobileNotice"(id) ON DELETE CASCADE,
+      "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      "readAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY ("noticeId", "userId")
+    )`,
   );
-  // Nunca abrió la campana: lo anterior a su registro no cuenta como nuevo.
-  return r?.v ?? r?.c ?? new Date();
+  // "Marcar todas como leídas": lo anterior a esta fecha cuenta como leído.
+  await ensureColumn("User", "avisosTodosLeidosAt", "TIMESTAMPTZ");
+  lecturasListas = true;
 }
+
+/**
+ * Un aviso cuenta como leído si:
+ *  - el usuario lo tocó (o entró a su página por otro lado: MobileNoticeRead),
+ *  - es de actuaciones y ya vio todas las actuaciones que había hasta ese aviso,
+ *  - usó "Marcar todas como leídas" después de que llegó, o
+ *  - llegó antes de que creara su cuenta (avisos generales viejos).
+ * $1 = userId.
+ */
+const LEIDO_SQL = `(
+  n."createdAt" < u."createdAt"
+  OR (u."avisosTodosLeidosAt" IS NOT NULL AND n."createdAt" <= u."avisosTodosLeidosAt")
+  OR EXISTS (SELECT 1 FROM "MobileNoticeRead" r WHERE r."noticeId" = n.id AND r."userId" = $1)
+  OR (n.tag = 'actuaciones' AND NOT EXISTS (
+    SELECT 1 FROM "Actuacion" a JOIN "Case" c ON c.id = a."caseId"
+    WHERE c."userId" = $1 AND a."seenAt" IS NULL AND a."createdAt" <= n."createdAt"))
+)`;
+const AVISOS_DEL_USUARIO = `FROM "MobileNotice" n JOIN "User" u ON u.id = $1
+  WHERE (n."userId" = $1 OR n."userId" IS NULL)
+    AND n."createdAt" > now() - interval '30 days'`;
 
 /** Últimos avisos del usuario (los suyos y los generales), 30 días. */
 export async function listarAvisos(userId: string, limite = 30): Promise<AvisoApp[]> {
-  await ensureMobileNoticeTable();
-  const desde = await vistosHasta(userId);
-  const filas = await prisma.$queryRawUnsafe<Omit<AvisoApp, "leido">[]>(
-    `SELECT id, title, body, url, "createdAt" FROM "MobileNotice"
-     WHERE ("userId" = $1 OR "userId" IS NULL)
-       AND "createdAt" > now() - interval '30 days'
-     ORDER BY id DESC LIMIT $2`,
+  await asegurarLecturas();
+  return prisma.$queryRawUnsafe<AvisoApp[]>(
+    `SELECT n.id, n.title, n.body, n.url, n."createdAt", ${LEIDO_SQL} AS leido
+     ${AVISOS_DEL_USUARIO}
+     ORDER BY n.id DESC LIMIT $2`,
     userId,
     limite,
   );
-  return filas.map((f) => ({ ...f, leido: new Date(f.createdAt) <= desde }));
 }
 
 export async function contarAvisosNoLeidos(userId: string): Promise<number> {
-  await ensureMobileNoticeTable();
-  const desde = await vistosHasta(userId);
+  await asegurarLecturas();
   const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-    `SELECT count(*) AS n FROM "MobileNotice"
-     WHERE ("userId" = $1 OR "userId" IS NULL) AND "createdAt" > $2::timestamptz
-       AND "createdAt" > now() - interval '30 days'`,
+    `SELECT count(*) AS n ${AVISOS_DEL_USUARIO} AND NOT ${LEIDO_SQL}`,
     userId,
-    desde,
   );
   return Number(r?.n ?? 0);
 }
 
-export async function marcarAvisosLeidos(userId: string) {
-  await ensureColumn("User", "avisosVistosAt", "TIMESTAMPTZ");
-  await prisma.$executeRawUnsafe(`UPDATE "User" SET "avisosVistosAt" = now() WHERE id = $1`, userId);
+/** Marca un aviso como leído (el usuario lo tocó). */
+export async function marcarAvisoLeido(userId: string, noticeId: number) {
+  await asegurarLecturas();
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "MobileNoticeRead" ("noticeId", "userId")
+     SELECT id, $2 FROM "MobileNotice" WHERE id = $1 AND ("userId" = $2 OR "userId" IS NULL)
+     ON CONFLICT DO NOTHING`,
+    noticeId,
+    userId,
+  );
+}
+
+/**
+ * Entró a una página por otro lado (menú, push, correo): los avisos que llevan
+ * a esa página quedan leídos. Los de actuaciones no: esos se leen al ver las
+ * actuaciones.
+ */
+export async function marcarAvisosDeRuta(userId: string, ruta: string) {
+  await asegurarLecturas();
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "MobileNoticeRead" ("noticeId", "userId")
+     SELECT id, $1 FROM "MobileNotice"
+     WHERE ("userId" = $1 OR "userId" IS NULL) AND url = $2
+       AND tag IS DISTINCT FROM 'actuaciones'
+       AND "createdAt" > now() - interval '30 days'
+     ON CONFLICT DO NOTHING`,
+    userId,
+    ruta,
+  );
+}
+
+export async function marcarTodosLeidos(userId: string) {
+  await asegurarLecturas();
+  await prisma.$executeRawUnsafe(`UPDATE "User" SET "avisosTodosLeidosAt" = now() WHERE id = $1`, userId);
 }

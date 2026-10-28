@@ -17,7 +17,9 @@ import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
 import {
   contarAvisosNoLeidos,
   listarAvisos,
-  marcarAvisosLeidos,
+  marcarAvisoLeido,
+  marcarAvisosDeRuta,
+  marcarTodosLeidos,
   sendPushToUsers,
   type AvisoApp,
 } from "@/lib/push";
@@ -681,17 +683,29 @@ export async function eliminarUsuarioAction(userId: string): Promise<ActionState
 }
 
 // ---------- Campana de notificaciones ----------
-export async function contarAvisosAction(): Promise<number> {
+/**
+ * Cuántos avisos sin leer tiene. Con `ruta` (la página que acaba de abrir),
+ * primero marca como leídos los avisos que llevan a esa página.
+ */
+export async function contarAvisosAction(ruta?: string): Promise<number> {
   const user = await getCurrentUser();
   if (!user) return 0;
+  if (ruta) await marcarAvisosDeRuta(user.id, ruta).catch(() => {});
   return contarAvisosNoLeidos(user.id).catch(() => 0);
 }
 
-/** Lista los avisos y los marca como leídos (se abrió la campana). */
-export async function abrirAvisosAction(): Promise<AvisoApp[]> {
+export async function listarAvisosAction(): Promise<AvisoApp[]> {
   const user = await getCurrentUser();
   if (!user) return [];
-  const avisos = await listarAvisos(user.id).catch(() => []);
-  await marcarAvisosLeidos(user.id).catch(() => {});
-  return avisos;
+  return listarAvisos(user.id).catch(() => []);
+}
+
+export async function marcarAvisoLeidoAction(id: number) {
+  const user = await getCurrentUser();
+  if (user) await marcarAvisoLeido(user.id, id).catch(() => {});
+}
+
+export async function marcarTodosLeidosAction() {
+  const user = await getCurrentUser();
+  if (user) await marcarTodosLeidos(user.id).catch(() => {});
 }

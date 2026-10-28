@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { abrirAvisosAction, contarAvisosAction } from "@/app/actions";
+import {
+  contarAvisosAction,
+  listarAvisosAction,
+  marcarAvisoLeidoAction,
+  marcarTodosLeidosAction,
+} from "@/app/actions";
 import type { AvisoApp } from "@/lib/push";
 import { Icon } from "./icon";
 
@@ -20,7 +25,8 @@ function hace(fecha: Date | string) {
 
 /**
  * Campana de notificaciones (arriba a la derecha): contador de no leídas y
- * panel con los últimos avisos. Abrirla los marca como leídos.
+ * panel con los últimos avisos. Cada aviso queda leído al tocarlo, al entrar a
+ * su página por otro lado o (actuaciones) al ver esas actuaciones.
  */
 export function NotificationBell() {
   const [n, setN] = useState(0);
@@ -33,10 +39,11 @@ export function NotificationBell() {
     contarAvisosAction().then(setN).catch(() => {});
   }, []);
 
-  // Al cambiar de página, cada minuto y al volver a la pestaña.
+  // Al abrir una página: sus avisos quedan leídos y se recuenta.
   useEffect(() => {
-    contar();
-  }, [pathname, contar]);
+    contarAvisosAction(pathname).then(setN).catch(() => {});
+  }, [pathname]);
+  // Cada minuto y al volver a la pestaña.
   useEffect(() => {
     const t = setInterval(contar, 60_000);
     const vis = () => document.visibilityState === "visible" && contar();
@@ -66,9 +73,21 @@ export function NotificationBell() {
     if (open) return setOpen(false);
     setOpen(true);
     setAvisos(null);
-    const lista = await abrirAvisosAction().catch(() => []);
-    setAvisos(lista);
+    setAvisos(await listarAvisosAction().catch(() => []));
+  };
+
+  const leer = (a: AvisoApp) => {
+    setOpen(false);
+    if (a.leido) return;
+    setAvisos((l) => l?.map((x) => (x.id === a.id ? { ...x, leido: true } : x)) ?? l);
+    setN((v) => Math.max(0, v - 1));
+    void marcarAvisoLeidoAction(a.id).then(contar);
+  };
+
+  const leerTodas = () => {
+    setAvisos((l) => l?.map((x) => ({ ...x, leido: true })) ?? l);
     setN(0);
+    void marcarTodosLeidosAction().then(contar);
   };
 
   return (
@@ -85,7 +104,14 @@ export function NotificationBell() {
 
       {open && (
         <div className="bell-panel" role="dialog" aria-label="Notificaciones">
-          <div className="bell-head">Notificaciones</div>
+          <div className="bell-head">
+            <span>Notificaciones</span>
+            {avisos?.some((a) => !a.leido) && (
+              <button className="bell-all" onClick={leerTodas}>
+                Marcar todas como leídas
+              </button>
+            )}
+          </div>
           <div className="bell-list">
             {avisos === null && <div className="bell-empty muted small">Cargando…</div>}
             {avisos?.length === 0 && (
@@ -110,14 +136,18 @@ export function NotificationBell() {
                   key={a.id}
                   href={a.url}
                   className={`bell-item ${a.leido ? "" : "unread"}`}
-                  onClick={() => setOpen(false)}
+                  onClick={() => leer(a)}
                 >
                   {contenido}
                 </Link>
               ) : (
-                <div key={a.id} className={`bell-item ${a.leido ? "" : "unread"}`}>
+                <button
+                  key={a.id}
+                  className={`bell-item ${a.leido ? "" : "unread"}`}
+                  onClick={() => leer(a)}
+                >
                   {contenido}
-                </div>
+                </button>
               );
             })}
           </div>
