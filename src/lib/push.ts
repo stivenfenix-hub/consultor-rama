@@ -195,9 +195,9 @@ const LEIDO_SQL = `(
 )`;
 const AVISOS_DEL_USUARIO = `FROM "MobileNotice" n JOIN "User" u ON u.id = $1
   WHERE (n."userId" = $1 OR n."userId" IS NULL)
-    AND n."createdAt" > now() - interval '30 days'`;
+    AND n."createdAt" > now() - interval '7 days'`;
 
-/** Últimos avisos del usuario (los suyos y los generales), 30 días. */
+/** Últimos avisos del usuario (los suyos y los generales), última semana. */
 export async function listarAvisos(userId: string, limite = 30): Promise<AvisoApp[]> {
   await asegurarLecturas();
   return prisma.$queryRawUnsafe<AvisoApp[]>(
@@ -242,7 +242,7 @@ export async function marcarAvisosDeRuta(userId: string, ruta: string) {
      SELECT id, $1 FROM "MobileNotice"
      WHERE ("userId" = $1 OR "userId" IS NULL) AND url = $2
        AND tag IS DISTINCT FROM 'actuaciones'
-       AND "createdAt" > now() - interval '30 days'
+       AND "createdAt" > now() - interval '7 days'
      ON CONFLICT DO NOTHING`,
     userId,
     ruta,
