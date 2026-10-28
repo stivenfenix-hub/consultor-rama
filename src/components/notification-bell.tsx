@@ -39,9 +39,20 @@ export function NotificationBell() {
     contarAvisosAction().then(setN).catch(() => {});
   }, []);
 
-  // Al abrir una página: sus avisos quedan leídos y se recuenta.
+  // Al abrir una página: sus avisos quedan leídos y se recuenta. Si llegó
+  // tocando una notificación push (?aviso=id), ese aviso queda leído.
   useEffect(() => {
-    contarAvisosAction(pathname).then(setN).catch(() => {});
+    const params = new URLSearchParams(window.location.search);
+    const avisoId = Number(params.get("aviso"));
+    if (avisoId) {
+      params.delete("aviso");
+      const q = params.toString();
+      window.history.replaceState(window.history.state, "", `${pathname}${q ? `?${q}` : ""}`);
+    }
+    (avisoId ? marcarAvisoLeidoAction(avisoId) : Promise.resolve())
+      .then(() => contarAvisosAction(pathname))
+      .then(setN)
+      .catch(() => {});
   }, [pathname]);
   // Cada minuto y al volver a la pestaña.
   useEffect(() => {

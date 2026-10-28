@@ -120,34 +120,53 @@ export async function ensureMobileNoticeTable() {
   avisosListos = true;
 }
 
-/** Guarda el aviso en la app (campana y app Android) sin enviar push. */
+/** Guarda el aviso en la app (campana y app Android) sin enviar push. Devuelve su id. */
 export async function guardarAviso(userId: string | null, payload: PushPayload) {
   try {
     await ensureMobileNoticeTable();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "MobileNotice" ("userId", title, body, url, tag) VALUES ($1, $2, $3, $4, $5)`,
+    const [r] = await prisma.$queryRawUnsafe<{ id: number }[]>(
+      `INSERT INTO "MobileNotice" ("userId", title, body, url, tag) VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
       userId,
       payload.title,
       payload.body,
       payload.url ?? null,
       payload.tag ?? null,
     );
+    return r?.id ?? null;
   } catch (e) {
     console.error("[push] aviso app", e);
+    return null;
   }
 }
 
+/**
+ * La push lleva el id de su aviso en la URL (?aviso=): al tocarla, la campana
+ * lo marca como leído.
+ */
+function conAviso(payload: PushPayload, avisoId: number | null): PushPayload {
+  if (!avisoId) return payload;
+  const url = payload.url || "/dashboard";
+  return { ...payload, url: `${url}${url.includes("?") ? "&" : "?"}aviso=${avisoId}` };
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload) {
-  await guardarAviso(userId, payload);
+  const avisoId = await guardarAviso(userId, payload);
   const subs = await prisma.pushSubscription.findMany({ where: { userId } });
-  return sendToSubs(subs, payload);
+  return sendToSubs(subs, conAviso(payload, avisoId));
 }
 
 /** Push a un grupo de usuarios (p. ej. los que aceptaron ofertas). */
 export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
-  for (const id of userIds) await guardarAviso(id, payload);
-  const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
-  return sendToSubs(subs, payload);
+  let sent = 0;
+  let failed = 0;
+  // Uno por uno: cada usuario tiene su propio aviso (y su id en la push).
+  for (const id of userIds) {
+    const r = await sendPushToUser(id, payload);
+    sent += r.sent;
+    failed += r.failed;
+  }
+  return { sent, failed };
 }
 
 // ---------- Campana de notificaciones (web) ----------
