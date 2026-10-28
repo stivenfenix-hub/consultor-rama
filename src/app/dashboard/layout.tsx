@@ -13,8 +13,6 @@ import { getWhatsapp } from "@/lib/accounts";
 import { getWaActuaciones } from "@/lib/whatsapp";
 import { motivosSospecha } from "@/lib/sospechoso";
 import { cargaParaAviso } from "@/lib/sync";
-import { ramaCaida } from "@/lib/monitor-rama";
-import { MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { prisma } from "@/lib/db";
 
 // Con el acceso vencido solo se puede abrir la página de pago.
@@ -36,7 +34,6 @@ export default async function AppLayout({
     getWaActuaciones(user.id),
     cargaParaAviso(user.id).catch(() => null),
   ]);
-  const caidaRama = await ramaCaida().catch(() => false);
   // Último acceso = última actividad (máx. una escritura por hora). Antes solo
   // se anotaba al escribir la contraseña, y quien se registra entra directo.
   if (!user.lastLoginAt || Date.now() - new Date(user.lastLoginAt).getTime() > 60 * 60_000) {
@@ -108,12 +105,6 @@ export default async function AppLayout({
           diasUsados={oferta.diasUsados}
           diasRestantes={oferta.diasRestantes}
         />
-      )}
-      {caidaRama && (
-        <div className="aviso-rama" role="status" style={{ marginBottom: 12 }}>
-          <span aria-hidden>ℹ️</span>
-          <span>{MSG_RAMA_CAIDA}</span>
-        </div>
       )}
       {aviso && <div className="sub-banner">{aviso}</div>}
       {children}

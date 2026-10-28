@@ -7,7 +7,8 @@ import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
-import { MSG_RAMA_REVISION } from "@/lib/aviso-rama";
+import { MSG_RAMA_CAIDA, MSG_RAMA_REVISION } from "@/lib/aviso-rama";
+import { ramaCaida } from "@/lib/monitor-rama";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -53,13 +54,14 @@ export default async function ProcesosPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todos, cargas, reintentos] = await Promise.all([
+  const [todos, cargas, reintentos, caidaRama] = await Promise.all([
     prisma.case.findMany({
       where: { userId: user.id },
       orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
     }),
     cargasPendientesDeVer(user.id).catch(() => []),
     reintentosDelUsuario(user.id).catch(() => []),
+    ramaCaida().catch(() => false),
   ]);
 
   // Un radicado puede estar en varios sistemas de la Rama (p. ej. Justicia XXI
@@ -92,6 +94,14 @@ export default async function ProcesosPage({
       <div className="page-head">
         <h1>Procesos</h1>
       </div>
+
+      {/* Solo aquí: es donde el abogado sube procesos y le afecta la caída. */}
+      {caidaRama && (
+        <div className="aviso-rama" role="status" style={{ marginBottom: 12 }}>
+          <span aria-hidden>ℹ️</span>
+          <span>{MSG_RAMA_CAIDA}</span>
+        </div>
+      )}
 
       <div className="card">
         <h2>Agregar proceso por radicado</h2>
@@ -162,7 +172,7 @@ export default async function ProcesosPage({
           {c.lastError &&
             (c.lastError.startsWith("Proceso privado") ? (
               <div className="muted small" style={{ marginTop: 4 }}>🔒 {c.lastError}</div>
-            ) : (
+            ) : caidaRama ? null : (
               <div className="aviso-rama small" style={{ marginTop: 6 }}>ℹ️ {MSG_RAMA_REVISION}</div>
             ))}
         </Link>
