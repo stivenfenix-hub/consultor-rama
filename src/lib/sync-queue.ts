@@ -14,7 +14,12 @@ import {
 import { usuariosConAcceso } from "./subscription";
 import { enviarResumen } from "./sync";
 import { sendPushToUser } from "./push";
-import { enviarReporteWhatsapp, registrarAvisoWhatsapp, textoActuaciones } from "./reporte-whatsapp";
+import {
+  avisarReporteSinProcesos,
+  enviarReporteWhatsapp,
+  registrarAvisoWhatsapp,
+  textoActuaciones,
+} from "./reporte-whatsapp";
 
 /**
  * Sincronización nocturna por cola.
@@ -50,6 +55,7 @@ const SEGUNDA_PASADA = 3 * 60; // 3:00 a.m.
 const RESUMEN_DESDE = 7 * 60; // 7:00 a.m.
 const RESUMEN_HASTA = 20 * 60; // no se avisa de noche
 const REPORTE_WA = 7 * 60 + 30; // 7:30 a.m.: Excel de avisos para WhatsApp
+const REPORTE_SIN_PROCESOS = 7 * 60 + 20; // 7:20 a.m.: registrados ayer sin procesos (root)
 
 const MIN = 60_000;
 const HORA = 60 * MIN;
@@ -554,6 +560,12 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     const m = minutosBogota();
     if (m >= RESUMEN_DESDE && m < RESUMEN_HASTA) {
       info.resumenesEnviados = await enviarResumenesPendientes();
+    }
+    // Registrados ayer que no han cargado procesos: aviso al root para descargar el Excel.
+    if (m >= REPORTE_SIN_PROCESOS && m < RESUMEN_HASTA) {
+      info.reporteSinProcesos = await avisarReporteSinProcesos().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
     }
     // Reporte de WhatsApp para el root: 7:30 a.m., cuando ya salieron los
     // resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).

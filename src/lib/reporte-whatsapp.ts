@@ -226,3 +226,68 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
   await marcar();
   return { enviados: filas.length };
 }
+
+// ---------- Registrados el día anterior sin procesos (7:20 a.m., root) ----------
+
+/** Fecha (AAAA-MM-DD, Bogotá) de `dias` días atrás. */
+export function fechaBogotaHace(dias: number, d = new Date()) {
+  return hoyBogota(new Date(d.getTime() - dias * 24 * 60 * 60 * 1000));
+}
+
+/**
+ * Quienes se registraron ese día (hora de Bogotá) y aún no han cargado ningún
+ * proceso, con el mismo formato del reporte: A = "Nombre - aviso", B = teléfono.
+ */
+export async function filasSinProcesosDelDia(fecha: string) {
+  const usuarios = await prisma.$queryRawUnsafe<
+    { firstName: string | null; name: string | null; whatsapp: string | null }[]
+  >(
+    `SELECT u."firstName", u.name, u."whatsapp" FROM "User" u
+     WHERE u.role <> 'admin'
+       AND (u."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date = $1::date
+       AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
+     ORDER BY u."createdAt"`,
+    fecha,
+  );
+  const filas: { mensaje: string; telefono: string }[] = [];
+  for (const u of usuarios) {
+    const telefono = (u.whatsapp ?? "").replace(/\D/g, "");
+    if (!telefono) continue;
+    filas.push({
+      mensaje: `${primerNombre(u.firstName, u.name)} - ${textoAutomatico("sinProcesos")}`,
+      telefono,
+    });
+  }
+  return filas;
+}
+
+/** 7:20 a.m.: avisa al root (push + campana) con el enlace para descargar el Excel. */
+export async function avisarReporteSinProcesos() {
+  await ensureColumn("SiteSetting", "reporteSinProcesosFecha", "TEXT");
+  const hoy = hoyBogota();
+  const [s] = await prisma.$queryRawUnsafe<{ f: string | null }[]>(
+    `SELECT "reporteSinProcesosFecha" AS f FROM "SiteSetting" WHERE id = 'site'`,
+  );
+  if (s?.f === hoy) return { omitido: "ya enviado hoy" };
+  await prisma.$executeRawUnsafe(
+    `UPDATE "SiteSetting" SET "reporteSinProcesosFecha" = $1 WHERE id = 'site'`,
+    hoy,
+  );
+  const ayer = fechaBogotaHace(1);
+  const filas = await filasSinProcesosDelDia(ayer);
+  const admins = await prisma.user.findMany({ where: { role: "admin" }, select: { id: true } });
+  const { sendPushToUsers } = await import("./push");
+  await sendPushToUsers(
+    admins.map((a) => a.id),
+    {
+      title: "📋 Registrados ayer sin procesos",
+      body:
+        filas.length > 0
+          ? `${filas.length} usuario(s) se registraron ayer y no han cargado procesos. Toca para descargar el Excel.`
+          : "Todos los que se registraron ayer ya cargaron procesos (o no hubo registros).",
+      url: `/dashboard/admin/reportes?fecha=${ayer}`,
+      tag: "reporte-sin-procesos",
+    },
+  );
+  return { fecha: ayer, usuarios: filas.length };
+}

@@ -17,6 +17,7 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
 const ADMIN_NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard/admin", label: "Panel admin", icon: "shield" },
   { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "users" },
+  { href: "/dashboard/admin/reportes", label: "Reportes", icon: "download" },
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "megaphone" },
   { href: "/dashboard/admin/suscripciones", label: "Suscripciones", icon: "card" },
   { href: "/dashboard/admin/correos", label: "Correos automáticos", icon: "mail" },
