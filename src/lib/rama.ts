@@ -252,8 +252,13 @@ export async function buscarPorRadicado(
   if (numero.length !== 23) {
     throw new RamaError("El radicado debe tener 23 digitos.", 400);
   }
+  // La búsqueda es la consulta más lenta de la Rama (15-20 s cuando está
+  // cargada): más margen que el resto. Ya no hace esperar al abogado (va en
+  // segundo plano), y si igual falla, se reintenta solo.
   const data = await ramaGet<{ procesos?: ProcesoResumen[] }>(
     `/Procesos/Consulta/NumeroRadicacion?numero=${numero}&SoloActivos=${soloActivos}&pagina=1`,
+    40_000,
+    2,
   );
   return data.procesos ?? [];
 }
