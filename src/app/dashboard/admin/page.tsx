@@ -3,6 +3,7 @@ import { getAdminStats } from "@/lib/admin";
 import { StatTile } from "@/components/charts";
 import { Icon } from "@/components/icon";
 import { estadoSincronizacion } from "@/lib/sync-queue";
+import { estadoRama } from "@/lib/monitor-rama";
 import { RunSyncButton } from "./run-sync-button";
 
 const TZ = "America/Bogota";
@@ -12,7 +13,15 @@ const hora = (d: Date | string | null) =>
     : "—";
 
 export default async function AdminDashboard() {
-  const [s, sync] = await Promise.all([getAdminStats(), estadoSincronizacion().catch(() => null)]);
+  const [s, sync, rama] = await Promise.all([
+    getAdminStats(),
+    estadoSincronizacion().catch(() => null),
+    estadoRama().catch(() => null),
+  ]);
+  const ramaCaida = !!rama && rama.fallas > 0;
+  // El cron corre cada 5 minutos: si lleva más de 20 sin correr, nada se está revisando.
+  const cronParado =
+    !!sync?.ultimaCorridaAt && Date.now() - new Date(sync.ultimaCorridaAt).getTime() > 20 * 60_000;
   const cola = sync?.ultimaCorrida?.cola as
     | string
     | { revisados: number; actuacionesNuevas: number; consultas: number }
@@ -45,6 +54,34 @@ export default async function AdminDashboard() {
           accent={s.totalUsuarios - s.verificados > 0 ? "var(--amber)" : undefined}
         />
       </section>
+
+      {rama?.revisadaAt && (
+        <section className="card">
+          <h2>Rama Judicial</h2>
+          {ramaCaida ? (
+            <div className="error small" style={{ marginTop: 0 }}>
+              <b>⚠️ No está respondiendo</b> desde {hora(rama.caidaDesde)} ({rama.fallas} revisión(es)
+              seguidas con falla). {rama.error}
+              {rama.fallas < 3 && " Si sigue así 15 minutos, te llega la alerta."}
+            </div>
+          ) : (
+            <p className="ok small" style={{ marginTop: 0 }}>
+              ✅ Funcionando. Respondió en {((rama.ms ?? 0) / 1000).toFixed(1)} s.
+            </p>
+          )}
+          <p className="muted small" style={{ marginBottom: 0 }}>
+            Se revisa cada 5 minutos, día y noche. Última revisión: {hora(rama.revisadaAt)}
+            {rama.okAt && ` · última vez bien: ${hora(rama.okAt)}`}. Si falla 15 minutos seguidos te
+            aviso por la campana, notificación y correo, y otra vez cuando vuelva.
+          </p>
+          {cronParado && (
+            <div className="error small">
+              ⚠️ La revisión automática (cron) no corre desde {hora(sync!.ultimaCorridaAt)}. Revisa el
+              cron en Hostinger.
+            </div>
+          )}
+        </section>
+      )}
 
       {sync && (
         <section className="card">
