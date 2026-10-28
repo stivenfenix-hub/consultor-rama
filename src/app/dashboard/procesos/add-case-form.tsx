@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { agregarProcesoAction } from "@/app/actions";
 
-export function AddCaseForm() {
+export function AddCaseForm({ max }: { max: number }) {
   const [state, formAction, pending] = useActionState(agregarProcesoAction, {});
   const ref = useRef<HTMLFormElement>(null);
 
@@ -37,6 +37,9 @@ export function AddCaseForm() {
         <div id="radicado-ayuda" className="muted small" style={{ marginTop: -4 }}>
           Radicado de 23 dígitos. Puedes pegar varios, separados por coma, espacio o
           una línea cada uno.
+          <div style={{ marginTop: 4 }}>
+            📋 <b>Máximo {max} procesos por vez.</b> Si tienes más, agrégalos en varias tandas.
+          </div>
         </div>
         <button
           className="btn"
@@ -44,15 +47,9 @@ export function AddCaseForm() {
           disabled={pending}
           style={{ alignSelf: "flex-start" }}
         >
-          {pending ? "Consultando Rama..." : "Agregar"}
+          {pending ? "Enviando…" : "Agregar"}
         </button>
       </div>
-      {pending && (
-        <div className="muted small" style={{ marginTop: 8 }}>
-          La Rama Judicial suele tardar varios segundos por proceso; con varios
-          radicados puede tomar más, espera un momento…
-        </div>
-      )}
       {state.error && <div className="error">{state.error}</div>}
       {state.ok && <div className="ok">{state.ok}</div>}
     </form>

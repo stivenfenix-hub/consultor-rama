@@ -1733,3 +1733,102 @@ dd {
     animation: none;
   }
 }
+
+/* ---------- Carga de procesos en segundo plano ---------- */
+.carga-aviso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  animation: cert-in 0.3s ease;
+}
+.carga-aviso.cargando {
+  border-color: rgba(139, 61, 255, 0.5);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+.carga-aviso.listo {
+  border-color: rgba(47, 194, 107, 0.5);
+  background: color-mix(in srgb, var(--green) 10%, var(--panel));
+  color: var(--text);
+}
+.carga-aviso.listo > .icon {
+  color: var(--green);
+  flex-shrink: 0;
+}
+.carga-aviso.falla > .icon {
+  color: var(--amber);
+  flex-shrink: 0;
+}
+.carga-spin {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(139, 61, 255, 0.25);
+  border-top-color: var(--accent);
+  animation: carga-giro 0.9s linear infinite;
+}
+@keyframes carga-giro {
+  to { transform: rotate(360deg); }
+}
+.carga-barra {
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 5px;
+  background: var(--border);
+  overflow: hidden;
+}
+.carga-barra > div {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--brand-grad);
+  transition: width 0.5s ease;
+}
+
+/* Fuente de la información (detalle del proceso) */
+.fuente {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.fuente-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.fuente-head .icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.fuente-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+.fuente-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.fuente-tab:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.fuente-tab.sel {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel-2));
+}

@@ -252,8 +252,13 @@ export async function buscarPorRadicado(
   if (numero.length !== 23) {
     throw new RamaError("El radicado debe tener 23 digitos.", 400);
   }
+  // La búsqueda es la consulta más lenta de la Rama (15-20 s cuando está
+  // cargada): más margen que el resto. Ya no hace esperar al abogado (va en
+  // segundo plano), y si igual falla, se reintenta solo.
   const data = await ramaGet<{ procesos?: ProcesoResumen[] }>(
     `/Procesos/Consulta/NumeroRadicacion?numero=${numero}&SoloActivos=${soloActivos}&pagina=1`,
+    40_000,
+    2,
   );
   return data.procesos ?? [];
 }
@@ -368,6 +373,17 @@ export async function obtenerActuaciones(
 }
 
 /**
+ * La actuación con la fecha más reciente. No sirve tomar la primera: algunos
+ * sistemas (p. ej. SIUGJ) no entregan las actuaciones ordenadas por fecha.
+ */
+export function laMasReciente(lista: Actuacion[], actual: Actuacion | null = null): Actuacion | null {
+  const t = (a: Actuacion | null) => (a?.fechaActuacion ? new Date(a.fechaActuacion).getTime() || 0 : 0);
+  let mejor = actual;
+  for (const a of lista) if (!mejor || t(a) > t(mejor)) mejor = a;
+  return mejor;
+}
+
+/**
  * Revisión liviana para la cola nocturna: pide la página 1 de actuaciones y
  * solo sigue con las siguientes si encuentra actuaciones desconocidas o si el
  * total de la Rama no cuadra con lo que ya se conoce. Sin novedades = 1 consulta.
@@ -394,7 +410,7 @@ export async function obtenerActuacionesNuevas(
       total = data.paginacion.cantidadRegistros;
     }
     if (lote.length === 0) break;
-    masReciente ??= lote[0];
+    masReciente = laMasReciente(lote, masReciente);
     vistas += lote.length;
     const desconocidas = lote.filter((a) => !conocidas.has(String(a.idRegActuacion)));
     nuevas.push(...desconocidas);

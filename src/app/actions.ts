@@ -79,11 +79,7 @@ import {
   passwordSchema,
   registerSchema,
 } from "@/lib/validation";
-import {
-  agregarRadicados,
-  marcarVistas,
-  mensajeAgregar,
-} from "@/lib/sync";
+import { iniciarCargaProcesos, marcarCargaVista, marcarVistas } from "@/lib/sync";
 import {
   ejecutarActualizarTodos,
   marcarActualizacionProceso,
@@ -437,14 +433,23 @@ export async function agregarProcesoAction(
   }
   if (validos.length > MAX_RADICADOS_POR_ENVIO) {
     return {
-      error: `Agrega máximo ${MAX_RADICADOS_POR_ENVIO} radicados a la vez (pegaste ${validos.length}).`,
+      error: `Puedes agregar máximo ${MAX_RADICADOS_POR_ENVIO} procesos por vez y pegaste ${validos.length}. Agrégalos en tandas de ${MAX_RADICADOS_POR_ENVIO}.`,
     };
   }
 
-  const r = await agregarRadicados(user.id, validos);
-  revalidatePath("/dashboard");
+  // Se carga en segundo plano: el abogado puede seguir usando Estradox y en
+  // Procesos ve el avance; al terminar le llega notificación y aviso.
+  await iniciarCargaProcesos(user.id, validos, invalidos);
   revalidatePath("/dashboard/procesos");
-  return mensajeAgregar(r, invalidos);
+  return {
+    ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. Puedes seguir usando Estradox: te avisamos cuando estén listos.`,
+  };
+}
+
+export async function cerrarCargaAction(id: number) {
+  const user = await requireUser();
+  await marcarCargaVista(user.id, id);
+  revalidatePath("/dashboard/procesos");
 }
 
 // Actualización manual de un proceso: una vez por día (el admin sin límite).
@@ -786,4 +791,21 @@ export async function pruebaPushAction(): Promise<ActionState> {
   return r.sent > 0
     ? { ok: `Enviada a ${r.sent} dispositivo(s)${r.failed ? ` (${r.failed} con falla)` : ""}. Revisa tu celular en unos segundos.` }
     : { error: "No se pudo entregar a ningún dispositivo. Vuelve a activar las notificaciones en tu celular (Configuración)." };
+}
+
+/**
+ * Borra de Supabase las copias viejas de los logos e íconos (base64). Ya son
+ * archivos publicados en Hostinger (public/marca) y el código no las lee.
+ */
+export async function limpiarLogosBdAction(): Promise<ActionState> {
+  await requireAdmin();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "SiteSetting" SET "logoDataUrl" = NULL, "emailLogoDataUrl" = NULL, "byLogoDataUrl" = NULL,
+       "notifIconDataUrl" = NULL, "notifBadgeDataUrl" = NULL WHERE id = 'site'`,
+  );
+  await prisma
+    .$executeRawUnsafe(`UPDATE "SiteSetting" SET "faviconDataUrl" = NULL WHERE id = 'site'`)
+    .catch(() => {}); // la columna puede no existir
+  revalidatePath("/dashboard/admin/base-datos");
+  return { ok: "Listo: Supabase ya no guarda ningún logo ni ícono." };
 }

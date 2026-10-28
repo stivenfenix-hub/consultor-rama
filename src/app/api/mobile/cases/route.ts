@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { agregarRadicados, mensajeAgregar } from "@/lib/sync";
+import { iniciarCargaProcesos } from "@/lib/sync";
 import { analizarRadicados, MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { body, jsonError, str, withMobileUser } from "@/lib/mobile";
 
@@ -46,20 +46,17 @@ export async function POST(req: NextRequest) {
     }
     if (validos.length > MAX_RADICADOS_POR_ENVIO) {
       return jsonError(
-        `Agrega máximo ${MAX_RADICADOS_POR_ENVIO} radicados a la vez (pegaste ${validos.length}).`,
+        `Puedes agregar máximo ${MAX_RADICADOS_POR_ENVIO} procesos por vez y pegaste ${validos.length}. Agrégalos en tandas de ${MAX_RADICADOS_POR_ENVIO}.`,
         400,
       );
     }
-    const r = await agregarRadicados(user.id, validos);
-    const m = mensajeAgregar(r, invalidos);
-    const agregados = r.agregados + r.pendientes + r.privados + r.yaEstaban;
-    const fallidos = validos.length - agregados;
-    if (!m.ok) return jsonError(m.error ?? "No se pudo agregar ningún proceso.", 502);
+    // Se carga en segundo plano (la Rama puede tardar o estar caída): al
+    // terminar llega la notificación, y lo que falle se reintenta solo.
+    await iniciarCargaProcesos(user.id, validos, invalidos);
     return NextResponse.json({
-      // La app muestra solo "ok": se le suma el aviso de los que fallaron.
-      ok: m.error ? `${m.ok} ${m.error}` : m.ok,
-      agregados,
-      fallidos,
+      ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. Te avisamos cuando estén listos.`,
+      agregados: validos.length,
+      fallidos: 0,
     });
   });
 }
