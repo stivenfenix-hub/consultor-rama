@@ -1,5 +1,4 @@
-import { describirConexion, prisma } from "@/lib/db";
-import { LimpiarLogos } from "./limpiar-logos";
+import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -55,8 +54,21 @@ export default async function BaseDatosPage() {
     ),
   ]);
 
-  const conexion = describirConexion();
-  const totalTablas = (tablas ?? []).reduce((s, t) => s + Number(t.total), 0);
+  // Cómo se conecta Estradox (sin usuario ni contraseña).
+  let conexion = "—";
+  try {
+    const u = new URL(process.env.DATABASE_URL ?? "");
+    const p = u.searchParams;
+    conexion = [
+      u.hostname.includes("pooler") ? "pooler de Supabase" : u.hostname.includes("supabase") ? "conexión directa" : u.hostname,
+      `puerto ${u.port || "5432"} (${u.port === "6543" ? "modo transacción" : "modo sesión"})`,
+      `pgbouncer=${p.get("pgbouncer") ?? "no"}`,
+      `connection_limit=${p.get("connection_limit") ?? "por defecto de Prisma"}`,
+      `pool_timeout=${p.get("pool_timeout") ?? "10 s"}`,
+    ].join(" · ");
+  } catch {}
+
+  const totalTablas =(tablas ?? []).reduce((s, t) => s + Number(t.total), 0);
 
   return (
     <div className="page">
@@ -70,7 +82,6 @@ export default async function BaseDatosPage() {
           Base completa: <b>{tam ? mb(tam[0].b) : "—"}</b> de 500 MB del plan gratis · tablas de Estradox:{" "}
           <b>{mb(totalTablas)}</b>
         </p>
-        <LimpiarLogos />
       </section>
 
       <section className="card">

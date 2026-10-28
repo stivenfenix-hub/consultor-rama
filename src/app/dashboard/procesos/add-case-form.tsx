@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { agregarProcesoAction } from "@/app/actions";
 
-export function AddCaseForm({ max }: { max: number }) {
+export function AddCaseForm() {
   const [state, formAction, pending] = useActionState(agregarProcesoAction, {});
   const ref = useRef<HTMLFormElement>(null);
 
@@ -37,9 +37,6 @@ export function AddCaseForm({ max }: { max: number }) {
         <div id="radicado-ayuda" className="muted small" style={{ marginTop: -4 }}>
           Radicado de 23 dígitos. Puedes pegar varios, separados por coma, espacio o
           una línea cada uno.
-          <div style={{ marginTop: 4 }}>
-            📋 <b>Máximo {max} procesos por vez.</b> Si tienes más, agrégalos en varias tandas.
-          </div>
         </div>
         <button
           className="btn"

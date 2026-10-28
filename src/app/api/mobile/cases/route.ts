@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
     if (validos.length > MAX_RADICADOS_POR_ENVIO) {
       return jsonError(
-        `Puedes agregar máximo ${MAX_RADICADOS_POR_ENVIO} procesos por vez y pegaste ${validos.length}. Agrégalos en tandas de ${MAX_RADICADOS_POR_ENVIO}.`,
+        `Agrega máximo ${MAX_RADICADOS_POR_ENVIO} radicados a la vez (pegaste ${validos.length}).`,
         400,
       );
     }

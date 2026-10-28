@@ -4,7 +4,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Icon } from "@/components/icon";
 import { AddCaseForm } from "./add-case-form";
-import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -91,7 +90,7 @@ export default async function ProcesosPage({
 
       <div className="card">
         <h2>Agregar proceso por radicado</h2>
-        <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
+        <AddCaseForm />
       </div>
 
       {todos.length > 0 && (
