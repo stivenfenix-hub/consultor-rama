@@ -7,12 +7,18 @@ import { OffersToggle } from "./offers-toggle";
 import { ChangePasswordForm } from "./change-password-form";
 import { NotificationsToggle } from "./notifications-toggle";
 import { WhatsappForm } from "./whatsapp-form";
+import { WaActuacionesToggle } from "./wa-actuaciones-toggle";
+import { getWaActuaciones } from "@/lib/whatsapp";
 import { DeleteAccountForm } from "./delete-account-form";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const [whatsapp, ofertas] = await Promise.all([getWhatsapp(user.id), getOfertas(user.id)]);
+  const [whatsapp, ofertas, waActuaciones] = await Promise.all([
+    getWhatsapp(user.id),
+    getOfertas(user.id),
+    getWaActuaciones(user.id),
+  ]);
 
   return (
     <div className="page">
@@ -43,6 +49,7 @@ export default async function ConfiguracionPage() {
           </p>
         )}
         <WhatsappForm current={whatsapp} />
+        <WaActuacionesToggle initial={waActuaciones === true} whatsapp={whatsapp} />
       </div>
 
       <div className="card">

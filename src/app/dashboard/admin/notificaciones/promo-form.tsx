@@ -48,6 +48,12 @@ export function PromoForm() {
       </label>
       <input id="url" name="url" type="url" placeholder="https://… (por defecto abre el panel)" />
 
+      <div style={{ height: 10 }} />
+      <label className="check small">
+        <input type="checkbox" name="whatsapp" />
+        <span>También por el WhatsApp comercial (sale despacio, de 8 a.m. a 8 p.m.)</span>
+      </label>
+
       <div style={{ height: 14 }} />
       <button className="btn" type="submit" disabled={pending}>
         {pending ? "Enviando…" : <><Icon name="megaphone" /> Enviar a todos</>}

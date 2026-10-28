@@ -1,0 +1,19 @@
+{
+  "name": "estradox-whatsapp-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Servicio que mantiene vinculado el WhatsApp de Estradox (QR) y envía la cola de avisos.",
+  "type": "module",
+  "main": "worker.mjs",
+  "scripts": {
+    "start": "node worker.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.24",
+    "pg": "8.23.1",
+    "pino": "9.14.0"
+  }
+}

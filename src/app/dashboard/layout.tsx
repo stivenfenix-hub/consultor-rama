@@ -8,6 +8,8 @@ import { boldConfigurado, getSuscripcion, ofertaRelampago, tieneAcceso } from "@
 import { FlashOffer } from "@/components/flash-offer";
 import { logoutAction } from "@/app/actions";
 import { AppShell } from "./sidebar";
+import { getWhatsapp } from "@/lib/accounts";
+import { getWaActuaciones } from "@/lib/whatsapp";
 
 // Con el acceso vencido solo se puede abrir la página de pago.
 const PAGINA_PAGO = "/dashboard/suscripcion";
@@ -19,11 +21,13 @@ export default async function AppLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const [settings, sub, h, sinWhatsapp] = await Promise.all([
+  const [settings, sub, h, sinWhatsapp, whatsapp, waActuaciones] = await Promise.all([
     getSiteSettings(),
     getSuscripcion(user.id),
     headers(),
     faltaWhatsappGoogle(user.id),
+    getWhatsapp(user.id),
+    getWaActuaciones(user.id),
   ]);
   // Cuenta creada con Google: el WhatsApp es obligatorio antes de entrar.
   if (sinWhatsapp) redirect("/completar-registro");
@@ -67,6 +71,7 @@ export default async function AppLayout({
       byUrl={settings.byUrl}
       isAdmin={user.role === "admin"}
       soloPago={vencida}
+      pedirWhatsapp={user.role !== "admin" && waActuaciones === null ? whatsapp : null}
       logoutAction={logoutAction}
     >
       {oferta && (

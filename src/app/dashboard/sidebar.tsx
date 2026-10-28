@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationsPrompt } from "@/components/notifications-prompt";
 import { NotificationBell } from "@/components/notification-bell";
+import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
@@ -19,6 +20,7 @@ const ADMIN_NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "users" },
   { href: "/dashboard/admin/reportes", label: "Reportes", icon: "download" },
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "megaphone" },
+  { href: "/dashboard/admin/whatsapp", label: "WhatsApp", icon: "phone" },
   { href: "/dashboard/admin/suscripciones", label: "Suscripciones", icon: "card" },
   { href: "/dashboard/admin/correos", label: "Correos automáticos", icon: "mail" },
   { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "palette" },
@@ -38,6 +40,7 @@ export function AppShell({
   byUrl,
   isAdmin,
   soloPago = false,
+  pedirWhatsapp = null,
   logoutAction,
   children,
 }: {
@@ -48,6 +51,8 @@ export function AppShell({
   isAdmin: boolean;
   /** Acceso vencido: el menú solo muestra Suscripción (para pagar). */
   soloPago?: boolean;
+  /** Número del abogado si aún no decide recibir actuaciones por WhatsApp (burbuja). */
+  pedirWhatsapp?: string | null;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -174,6 +179,7 @@ export function AppShell({
       </nav>
 
       <NotificationsPrompt />
+      {pedirWhatsapp && !soloPago && <WhatsappPrompt whatsapp={pedirWhatsapp} />}
     </div>
   );
 }

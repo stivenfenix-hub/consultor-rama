@@ -26,6 +26,21 @@ import {
 } from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
 import {
+  CUENTAS_WA,
+  encolarPruebaWa,
+  encolarWhatsapp,
+  estadoWhatsapp,
+  gestionarColaWa,
+  setComandoWa,
+  setMaxDiaWa,
+  setPausaWa,
+  setWaActuaciones,
+  ultimosMensajesWa,
+  type CuentaWa,
+  type EstadoWa,
+  type MensajeWa,
+} from "@/lib/whatsapp";
+import {
   EMAIL_KINDS,
   renderEmail,
   saveEmailTemplate,
@@ -48,6 +63,7 @@ import {
   resetPassword,
   changePassword,
   AccountError,
+  getWhatsappPorUsuario,
   normalizarWhatsapp,
   setWhatsapp,
 } from "@/lib/accounts";
@@ -445,8 +461,27 @@ export async function enviarPromoAction(
     url: parsed.data.url || "/dashboard",
     tag: "promo",
   });
+  // También por el WhatsApp comercial (a quienes tienen WhatsApp registrado).
+  let porWhatsapp = "";
+  if (formData.get("whatsapp") === "on") {
+    const telefonos = await getWhatsappPorUsuario();
+    const enlace = parsed.data.url || `${process.env.APP_URL ?? "https://app.estradox.com"}/dashboard`;
+    const n = await encolarWhatsapp(
+      destinatarios
+        .filter((id) => telefonos.has(id))
+        .map((id) => ({
+          tipo: "promo",
+          userId: id,
+          telefono: telefonos.get(id)!,
+          mensaje: `*${parsed.data.title}*\n\n${parsed.data.body}\n\n👉 ${enlace}`,
+        })),
+    );
+    porWhatsapp = n
+      ? ` WhatsApp: ${n} mensaje(s) en cola.`
+      : " WhatsApp: no se encoló nada (¿el WhatsApp comercial está vinculado?).";
+  }
   return {
-    ok: `Enviado a ${destinatarios.length} usuario(s): ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.`,
+    ok: `Enviado a ${destinatarios.length} usuario(s): ${res.sent} dispositivo(s)${res.failed ? ` (${res.failed} fallidos)` : ""}.${porWhatsapp}`,
   };
 }
 
@@ -724,4 +759,57 @@ export async function borrarEnvioPromoAction(clave: string): Promise<ActionState
   } catch {
     return { error: "No se pudo borrar." };
   }
+}
+
+// ---------- WhatsApp propio (root) ----------
+export async function estadoWhatsappAction(): Promise<{ cuentas: EstadoWa[]; mensajes: MensajeWa[] }> {
+  await requireAdmin();
+  const [cuentas, mensajes] = await Promise.all([estadoWhatsapp(), ultimosMensajesWa()]);
+  return { cuentas, mensajes };
+}
+
+export async function controlWhatsappAction(
+  cuenta: CuentaWa,
+  accion: "pausar" | "reanudar" | "desvincular" | "reintentar" | "vaciar",
+): Promise<ActionState> {
+  await requireAdmin();
+  if (!CUENTAS_WA.includes(cuenta)) return { error: "Cuenta inválida." };
+  if (accion === "pausar" || accion === "reanudar") await setPausaWa(cuenta, accion === "pausar");
+  else if (accion === "desvincular") await setComandoWa(cuenta, "desvincular");
+  else await gestionarColaWa(cuenta, accion);
+  return { ok: "Listo." };
+}
+
+export async function maxDiaWhatsappAction(cuenta: CuentaWa, maxDia: number): Promise<ActionState> {
+  await requireAdmin();
+  if (!CUENTAS_WA.includes(cuenta)) return { error: "Cuenta inválida." };
+  const n = Math.round(Number(maxDia));
+  if (!Number.isFinite(n) || n < 1 || n > 1000) return { error: "Escribe un número entre 1 y 1000." };
+  await setMaxDiaWa(cuenta, n);
+  return { ok: `Máximo por día: ${n}.` };
+}
+
+export async function pruebaWhatsappAction(cuenta: CuentaWa, telefono: string): Promise<ActionState> {
+  await requireAdmin();
+  if (!CUENTAS_WA.includes(cuenta)) return { error: "Cuenta inválida." };
+  const n = normalizarWhatsapp(telefono);
+  if (!n) return { error: "Escribe un número válido (ej. 300 123 4567)." };
+  await encolarPruebaWa(
+    cuenta,
+    n,
+    `Mensaje de prueba de Estradox (${cuenta === "avisos" ? "WhatsApp de avisos" : "WhatsApp comercial"}). Si te llegó, ya está funcionando ✅`,
+  );
+  return { ok: "Prueba en cola: sale en menos de un minuto si el WhatsApp está conectado (8 a.m. a 8 p.m.)." };
+}
+
+/** El abogado activa o desactiva recibir las actuaciones nuevas por WhatsApp. */
+export async function waActuacionesAction(valor: boolean): Promise<ActionState> {
+  const user = await requireUser();
+  await setWaActuaciones(user.id, valor);
+  revalidatePath("/dashboard/configuracion");
+  return {
+    ok: valor
+      ? "¡Listo! Te enviaremos las actuaciones nuevas por WhatsApp."
+      : "Listo, ya no te enviaremos actuaciones por WhatsApp.",
+  };
 }

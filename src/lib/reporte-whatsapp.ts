@@ -156,7 +156,7 @@ export function agruparPorAbogado(
 ) {
   const porUsuario = new Map<string, typeof avisos>();
   for (const a of avisos) porUsuario.set(a.userId, [...(porUsuario.get(a.userId) ?? []), a]);
-  const filas: { mensaje: string; telefono: string }[] = [];
+  const filas: { mensaje: string; telefono: string; tipo: string; userId: string; nombre: string; texto: string }[] = [];
   for (const lista of porUsuario.values()) {
     const telefono = (lista[0].whatsapp ?? "").replace(/\D/g, "");
     if (!telefono) continue; // sin WhatsApp no se le puede enviar
@@ -168,7 +168,14 @@ export function agruparPorAbogado(
       if (vistos.has(a.mensaje)) continue;
       vistos.add(a.mensaje);
       // El de "sin procesos" ya saluda por el apellido: va sin "Nombre - ".
-      filas.push({ mensaje: a.tipo === "sinProcesos" ? a.mensaje : `${nombre} - ${a.mensaje}`, telefono });
+      filas.push({
+        mensaje: a.tipo === "sinProcesos" ? a.mensaje : `${nombre} - ${a.mensaje}`,
+        telefono,
+        tipo: a.tipo,
+        userId: a.userId,
+        nombre,
+        texto: a.mensaje,
+      });
     }
   }
   return filas;
@@ -228,6 +235,13 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
     return { enviados: 0 };
   }
 
+  // Los mismos avisos van a la cola del WhatsApp propio (si está vinculado).
+  // Actuaciones: solo a quien activó recibirlas por WhatsApp.
+  const encolados = await encolarAvisos(filas).catch((e) => {
+    console.error("[reporte-wa] encolar WhatsApp", e);
+    return 0;
+  });
+
   const admins = await prisma.user.findMany({ where: { role: "admin" }, select: { email: true } });
   const excel = await excelReporte(filas);
   for (const a of admins) {
@@ -246,7 +260,23 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
     });
   }
   await marcar();
-  return { enviados: filas.length };
+  return { enviados: filas.length, encoladosWhatsapp: encolados };
+}
+
+/** Pasa los avisos del reporte a la cola de WhatsApp, saludando por el nombre. */
+async function encolarAvisos(filas: ReturnType<typeof agruparPorAbogado>) {
+  const { conWaActuaciones, encolarWhatsapp } = await import("./whatsapp");
+  const activaron = await conWaActuaciones([...new Set(filas.map((f) => f.userId))]);
+  return encolarWhatsapp(
+    filas
+      .filter((f) => f.tipo !== "actuaciones" || activaron.has(f.userId))
+      .map((f) => ({
+        tipo: f.tipo,
+        userId: f.userId,
+        telefono: f.telefono,
+        mensaje: f.tipo === "sinProcesos" ? f.texto : `Hola ${f.nombre} 👋\n\n${f.texto}`,
+      })),
+  );
 }
 
 // ---------- Registrados el día anterior sin procesos (7:20 a.m., root) ----------

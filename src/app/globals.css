@@ -981,6 +981,47 @@ button.bell-item.unread {
   }
 }
 
+/* ===== WhatsApp (root) ===== */
+.wa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+.wa-qr {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin: 8px 0 12px;
+}
+.wa-qr img {
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+}
+.wa-qr ol {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+.wa-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.wa-stats > div {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.wa-stats b {
+  font-size: 20px;
+}
 /* ===== Responsive ===== */
 @media (max-width: 860px) {
   .stat-grid,
