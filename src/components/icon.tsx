@@ -135,7 +135,33 @@ const PATHS = {
       <path d="m17 17.5 1 1 2-2" />
     </>
   ),
-  arrowLeft:<path d="M19 12H5m7 7-7-7 7-7" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  firma: (
+    <>
+      <path d="M17 3a2.8 2.8 0 0 1 4 4L8 20l-5 1 1-5z" />
+      <path d="M15 5l4 4" />
+    </>
+  ),
+  chat: <path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5z" />,
+  sello: (
+    <>
+      <circle cx="12" cy="9" r="6" />
+      <path d="m9 14.5-1.5 7L12 19l4.5 2.5-1.5-7" />
+      <path d="m9.8 9 1.5 1.5 3-3" />
+    </>
+  ),
+  send: (
+    <>
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4z" />
+    </>
+  ),
+  arrowLeft: <path d="M19 12H5m7 7-7-7 7-7" />,
   arrowRight: <path d="M5 12h14m-7-7 7 7-7 7" />,
 };
 
