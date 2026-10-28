@@ -437,7 +437,7 @@ export async function agregarProcesoAction(
   }
   if (validos.length > MAX_RADICADOS_POR_ENVIO) {
     return {
-      error: `Agrega máximo ${MAX_RADICADOS_POR_ENVIO} radicados a la vez (pegaste ${validos.length}).`,
+      error: `Puedes agregar máximo ${MAX_RADICADOS_POR_ENVIO} procesos por vez y pegaste ${validos.length}. Agrégalos en tandas de ${MAX_RADICADOS_POR_ENVIO}.`,
     };
   }
 

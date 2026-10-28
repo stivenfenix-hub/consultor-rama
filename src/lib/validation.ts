@@ -30,7 +30,7 @@ export const registerSchema = z.object({
 });
 
 /** Cada radicado tarda varios segundos en la Rama: más que esto se vuelve una espera eterna. */
-export const MAX_RADICADOS_POR_ENVIO = 25;
+export const MAX_RADICADOS_POR_ENVIO = 10;
 
 /** Radicados de 23 dígitos (sin repetir) separados por coma, espacio, punto y coma o salto. */
 export function parseRadicados(input: string): string[] {
