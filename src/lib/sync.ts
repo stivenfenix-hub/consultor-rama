@@ -73,6 +73,8 @@ export type ResultadoAgregar = {
   sinIntentar: string[];
   /** Se siguen cargando en segundo plano (la Rama estaba lenta). */
   enFondo: number;
+  /** Error técnico de cada fallido (diagnóstico para el root). */
+  errores?: string[];
 };
 
 /** Agrega varios radicados y cuenta qué pasó con cada uno. */
@@ -115,7 +117,11 @@ export async function agregarRadicados(
         break;
       }
       if (err instanceof RamaError && err.status === 404) r.noEncontrados.push(rad);
-      else r.fallidos.push(rad);
+      else {
+        r.fallidos.push(rad);
+        r.errores = [...(r.errores ?? []), `${rad}: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300)];
+        console.error("[agregar]", rad, err);
+      }
     }
     await alAvanzar?.(i + 1);
   }
@@ -156,6 +162,7 @@ export type CargaProcesos = {
   ok: string | null;
   error: string | null;
   createdAt: Date;
+  detalle: string | null;
 };
 
 let cargasListas = false;
@@ -171,8 +178,10 @@ async function asegurarCargas() {
       ok TEXT,
       error TEXT,
       visto BOOLEAN NOT NULL DEFAULT false,
+      detalle TEXT,
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "CargaProcesos" ADD COLUMN IF NOT EXISTS detalle TEXT`);
   cargasListas = true;
 }
 
@@ -194,14 +203,19 @@ export async function iniciarCargaProcesos(userId: string, radicados: string[], 
       });
     } catch (e) {
       console.error("[carga] fallo", e);
-      r = { agregados: 0, yaEstaban: 0, pendientes: 0, privados: 0, noEncontrados: [], fallidos: radicados, sinIntentar: [], enFondo: 0 };
+      r = {
+        agregados: 0, yaEstaban: 0, pendientes: 0, privados: 0, noEncontrados: [], fallidos: radicados,
+        sinIntentar: [], enFondo: 0, errores: [e instanceof Error ? e.message : String(e)],
+      };
     }
     const m = mensajeAgregar(r, invalidos);
     await prisma.$executeRawUnsafe(
-      `UPDATE "CargaProcesos" SET estado = 'listo', listos = total, ok = $2, error = $3 WHERE id = $1`,
+      `UPDATE "CargaProcesos" SET estado = 'listo', listos = total, ok = $2, error = $3, detalle = $4 WHERE id = $1`,
       c.id,
       m.ok ?? null,
       m.error ?? null,
+      r.errores?.join("
+") ?? null,
     );
     await avisarCargaLista(userId, r);
   });
@@ -218,7 +232,7 @@ export async function cargasPendientesDeVer(userId: string): Promise<CargaProces
     userId,
   );
   return prisma.$queryRawUnsafe<CargaProcesos[]>(
-    `SELECT id, total, listos, estado, ok, error, "createdAt" FROM "CargaProcesos"
+    `SELECT id, total, listos, estado, ok, error, detalle, "createdAt" FROM "CargaProcesos"
      WHERE "userId" = $1 AND NOT visto AND "createdAt" > now() - interval '2 days'
      ORDER BY id DESC LIMIT 3`,
     userId,

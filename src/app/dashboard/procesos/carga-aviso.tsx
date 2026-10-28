@@ -12,13 +12,14 @@ type Carga = {
   estado: "cargando" | "listo";
   ok: string | null;
   error: string | null;
+  detalle?: string | null;
 };
 
 /**
  * Avance de las cargas en segundo plano. Mientras alguna está cargando, la
  * página se refresca sola cada 4 s; al terminar muestra el resultado.
  */
-export function CargaAviso({ cargas }: { cargas: Carga[] }) {
+export function CargaAviso({ cargas, esAdmin = false }: { cargas: Carga[]; esAdmin?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const cargando = cargas.some((c) => c.estado === "cargando");
@@ -52,6 +53,9 @@ export function CargaAviso({ cargas }: { cargas: Carga[] }) {
               <b>{c.ok ? "¡Tus procesos ya están cargados! Ya puedes revisarlos." : "No pudimos cargar tus procesos"}</b>
               {c.ok && <div className="small">{c.ok}</div>}
               {c.error && <div className="small error" style={{ margin: "4px 0 0" }}>{c.error}</div>}
+              {esAdmin && c.detalle && (
+                <pre className="small muted" style={{ whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{c.detalle}</pre>
+              )}
             </div>
             <button
               className="btn secondary small"

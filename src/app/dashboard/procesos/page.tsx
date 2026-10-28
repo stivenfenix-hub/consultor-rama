@@ -96,7 +96,7 @@ export default async function ProcesosPage({
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
       </div>
 
-      {cargas.length > 0 && <CargaAviso cargas={cargas} />}
+      {cargas.length > 0 && <CargaAviso cargas={cargas} esAdmin={user.role === "admin"} />}
 
       {todos.length > 0 && (
         <nav className="tabbar tabbar-3">
