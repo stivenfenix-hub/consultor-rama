@@ -321,6 +321,15 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
         f.radicado,
       );
       cargados++;
+      // El aviso de "no pudimos cargar" de ese radicado ya no aplica.
+      await prisma
+        .$executeRawUnsafe(
+          `UPDATE "CargaProcesos" SET visto = true
+           WHERE "userId" = $1 AND estado = 'listo' AND ok IS NULL AND error LIKE '%' || $2 || '%'`,
+          f.userId,
+          f.radicado,
+        )
+        .catch(() => {});
       await sendPushToUser(f.userId, {
         title: "✅ Ya cargamos tu proceso",
         body: `La Rama Judicial respondió y el radicado ${f.radicado} ya está en tu lista. Ya puedes revisarlo.`,
