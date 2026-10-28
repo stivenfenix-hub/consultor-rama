@@ -79,7 +79,7 @@ import {
   passwordSchema,
   registerSchema,
 } from "@/lib/validation";
-import { iniciarCargaProcesos, marcarCargaVista, marcarVistas } from "@/lib/sync";
+import { estadoCarga, iniciarCargaProcesos, marcarCargaVista, marcarVistas } from "@/lib/sync";
 import {
   ejecutarActualizarTodos,
   marcarActualizacionProceso,
@@ -808,4 +808,10 @@ export async function limpiarLogosBdAction(): Promise<ActionState> {
     .catch(() => {}); // la columna puede no existir
   revalidatePath("/dashboard/admin/base-datos");
   return { ok: "Listo: Supabase ya no guarda ningún logo ni ícono." };
+}
+
+/** Estado de una carga de procesos (aviso flotante de escritorio). */
+export async function estadoCargaAction(id: number) {
+  const user = await requireUser();
+  return estadoCarga(user.id, id);
 }

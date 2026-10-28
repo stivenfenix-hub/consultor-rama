@@ -878,3 +878,33 @@ export async function resumenCargasPorUsuario() {
     filas.map((f) => [f.userId, { cargas: Number(f.cargas), conError: Number(f.conError), reintentos: Number(f.reintentos) }]),
   );
 }
+
+/**
+ * Carga reciente del abogado para el aviso flotante de escritorio: la que está
+ * cargando o terminó en la última hora y aún no cerró. Una sola consulta.
+ */
+export async function cargaParaAviso(userId: string) {
+  await asegurarCargas();
+  const [c] = await prisma.$queryRawUnsafe<
+    { id: number; estado: "cargando" | "listo"; ok: string | null; error: string | null }[]
+  >(
+    `SELECT id, estado, ok, error FROM "CargaProcesos"
+     WHERE "userId" = $1 AND NOT visto AND "createdAt" > now() - interval '1 hour'
+     ORDER BY id DESC LIMIT 1`,
+    userId,
+  );
+  return c ?? null;
+}
+
+/** Estado de una carga del abogado (lo consulta el aviso mientras carga). */
+export async function estadoCarga(userId: string, id: number) {
+  await asegurarCargas();
+  const [c] = await prisma.$queryRawUnsafe<
+    { id: number; estado: "cargando" | "listo"; ok: string | null; error: string | null }[]
+  >(
+    `SELECT id, estado, ok, error FROM "CargaProcesos" WHERE id = $1 AND "userId" = $2`,
+    id,
+    userId,
+  );
+  return c ?? null;
+}

@@ -12,6 +12,7 @@ import { AppShell } from "./sidebar";
 import { getWhatsapp } from "@/lib/accounts";
 import { getWaActuaciones } from "@/lib/whatsapp";
 import { motivosSospecha } from "@/lib/sospechoso";
+import { cargaParaAviso } from "@/lib/sync";
 import { prisma } from "@/lib/db";
 
 // Con el acceso vencido solo se puede abrir la página de pago.
@@ -24,13 +25,14 @@ export default async function AppLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const [settings, sub, h, sinWhatsapp, whatsapp, waActuaciones] = await Promise.all([
+  const [settings, sub, h, sinWhatsapp, whatsapp, waActuaciones, carga] = await Promise.all([
     getSiteSettings(),
     getSuscripcion(user.id),
     headers(),
     faltaWhatsappGoogle(user.id),
     getWhatsapp(user.id),
     getWaActuaciones(user.id),
+    cargaParaAviso(user.id).catch(() => null),
   ]);
   // Último acceso = última actividad (máx. una escritura por hora). Antes solo
   // se anotaba al escribir la contraseña, y quien se registra entra directo.
@@ -93,6 +95,7 @@ export default async function AppLayout({
       soloPago={vencida}
       pedirWhatsapp={user.role !== "admin" && waActuaciones === null ? whatsapp : null}
       sospechoso={sospechoso}
+      carga={carga}
       logoutAction={logoutAction}
     >
       {oferta && (

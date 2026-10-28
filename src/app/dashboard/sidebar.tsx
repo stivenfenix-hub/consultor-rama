@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationsPrompt } from "@/components/notifications-prompt";
 import { SospechosoAviso } from "@/components/sospechoso-aviso";
+import { CargaToast } from "@/components/carga-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
@@ -51,6 +52,7 @@ export function AppShell({
   soloPago = false,
   pedirWhatsapp = null,
   sospechoso = null,
+  carga = null,
   logoutAction,
   children,
 }: {
@@ -65,6 +67,8 @@ export function AppShell({
   pedirWhatsapp?: string | null;
   /** Registro con datos que parecen falsos: aviso de que la cuenta puede ser eliminada. */
   sospechoso?: { nombreMal: boolean; correoMal: boolean } | null;
+  /** Carga de procesos reciente (aviso flotante de escritorio al terminar). */
+  carga?: { id: number; estado: "cargando" | "listo"; ok: string | null; error: string | null } | null;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -192,6 +196,7 @@ export function AppShell({
       </nav>
 
       <NotificationsPrompt />
+      {!soloPago && <CargaToast inicial={carga} />}
       {sospechoso ? (
         <SospechosoAviso nombreMal={sospechoso.nombreMal} correoMal={sospechoso.correoMal} />
       ) : (
