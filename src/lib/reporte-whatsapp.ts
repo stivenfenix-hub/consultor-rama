@@ -222,7 +222,12 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
      WHERE a."reportadoAt" IS NULL
      ORDER BY a."createdAt"`,
   );
-  const filas = agruparPorAbogado(avisos);
+  // Actuaciones por WhatsApp: solo a quien lo activó (burbuja o Configuración).
+  const { conWaActuaciones } = await import("./whatsapp");
+  const activaron = await conWaActuaciones([...new Set(avisos.map((a) => a.userId))]);
+  const filas = agruparPorAbogado(avisos).filter(
+    (f) => f.tipo !== "actuaciones" || activaron.has(f.userId),
+  );
   const marcar = async () => {
     await prisma.$executeRawUnsafe(
       `UPDATE "AvisoWhatsapp" SET "reportadoAt" = now() WHERE id = ANY($1::int[])`,
@@ -236,7 +241,6 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
   }
 
   // Los mismos avisos van a la cola del WhatsApp propio (si está vinculado).
-  // Actuaciones: solo a quien activó recibirlas por WhatsApp.
   const encolados = await encolarAvisos(filas).catch((e) => {
     console.error("[reporte-wa] encolar WhatsApp", e);
     return 0;
@@ -265,11 +269,10 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
 
 /** Pasa los avisos del reporte a la cola de WhatsApp, saludando por el nombre. */
 async function encolarAvisos(filas: ReturnType<typeof agruparPorAbogado>) {
-  const { conWaActuaciones, encolarWhatsapp } = await import("./whatsapp");
-  const activaron = await conWaActuaciones([...new Set(filas.map((f) => f.userId))]);
+  // `filas` ya viene filtrada: actuaciones solo de quien activó WhatsApp.
+  const { encolarWhatsapp } = await import("./whatsapp");
   return encolarWhatsapp(
     filas
-      .filter((f) => f.tipo !== "actuaciones" || activaron.has(f.userId))
       .map((f) => ({
         tipo: f.tipo,
         userId: f.userId,
