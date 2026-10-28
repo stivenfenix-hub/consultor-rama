@@ -134,11 +134,14 @@ export function NotificationBell() {
             {avisos?.map((a) => {
               const contenido = (
                 <>
-                  {!a.leido && <span className="bell-dot" aria-label="nueva" />}
+                  <span className={`bell-dot ${a.leido ? "leido" : ""}`} aria-label={a.leido ? "abierta" : "sin abrir"} />
                   <div style={{ minWidth: 0 }}>
                     <div className="bell-title">{a.title}</div>
                     <div className="bell-body">{a.body}</div>
-                    <div className="bell-time">{hace(a.createdAt)}</div>
+                    <div className="bell-time">
+                      {hace(a.createdAt)}
+                      {a.leido ? " · Abierta" : " · Nueva"}
+                    </div>
                   </div>
                 </>
               );

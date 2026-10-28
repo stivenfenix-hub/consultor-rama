@@ -926,6 +926,39 @@ button.bell-item:hover {
   font-size: 12px;
   margin-top: 4px;
 }
+/* Sin abrir: resaltada (barra morada, fondo, título en negrilla). Abierta: apagada. */
+.bell-item {
+  border-left: 3px solid transparent;
+}
+.bell-item.unread,
+button.bell-item.unread {
+  background: rgba(139, 61, 255, 0.16);
+  border-left-color: var(--accent);
+}
+.bell-item.unread .bell-title {
+  font-weight: 700;
+  color: var(--text);
+}
+.bell-item.unread .bell-body {
+  color: var(--text);
+  opacity: 0.85;
+}
+.bell-item.unread .bell-time {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.bell-item:not(.unread) .bell-title {
+  font-weight: 500;
+  color: var(--muted);
+}
+.bell-item:not(.unread) .bell-body,
+.bell-item:not(.unread) .bell-time {
+  opacity: 0.7;
+}
+.bell-dot.leido {
+  background: transparent;
+  border: 1.5px solid var(--border);
+}
 .bell-empty {
   padding: 18px 16px;
 }
