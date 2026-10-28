@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { PromoForm } from "./promo-form";
 import { eventosPush, listarEnviosPromo } from "@/lib/push";
 import { BorrarEnvio } from "./borrar-envio";
+import { PruebaPush } from "./prueba-push";
 
 export default async function NotificacionesAdmin() {
   const dispositivos = await prisma.pushSubscription.count();
@@ -70,6 +71,8 @@ export default async function NotificacionesAdmin() {
           </div>
         )}
       </div>
+
+      <PruebaPush />
 
       <div className="card">
         <h2>Dispositivos suscritos</h2>

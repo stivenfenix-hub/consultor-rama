@@ -21,6 +21,7 @@ import {
   marcarAvisoLeido,
   marcarAvisosDeRuta,
   marcarTodosLeidos,
+  sendPushToUser,
   sendPushToUsers,
   type AvisoApp,
 } from "@/lib/push";
@@ -836,4 +837,24 @@ export async function corregirNombreAction(
   return motivos.length > 0
     ? { ok: "Nombre actualizado.", sigue: true }
     : { ok: "¡Gracias! Tus datos quedaron actualizados." };
+}
+
+/** Push de prueba al propio root, para confirmar que le llegan al celular. */
+export async function pruebaPushAction(): Promise<ActionState> {
+  const user = await requireAdmin();
+  const n = await prisma.pushSubscription.count({ where: { userId: user.id } });
+  if (n === 0) {
+    return { error: "No tienes ningún dispositivo con notificaciones activas. Ábrelo en tu celular y actívalas en Configuración." };
+  }
+  const hora = new Date().toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" });
+  const r = await sendPushToUser(user.id, {
+    title: "🔔 Prueba de notificación",
+    body: `Si ves esto, las notificaciones te están llegando bien (enviada a las ${hora}).`,
+    url: "/dashboard/admin/notificaciones",
+    tag: `prueba-${Date.now()}`,
+  });
+  revalidatePath("/dashboard/admin/notificaciones");
+  return r.sent > 0
+    ? { ok: `Enviada a ${r.sent} dispositivo(s)${r.failed ? ` (${r.failed} con falla)` : ""}. Revisa tu celular en unos segundos.` }
+    : { error: "No se pudo entregar a ningún dispositivo. Vuelve a activar las notificaciones en tu celular (Configuración)." };
 }
