@@ -829,3 +829,21 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+/** Intentos de carga por abogado (Panel admin → Usuarios). */
+export async function resumenCargasPorUsuario() {
+  await asegurarCargas();
+  await asegurarReintentos();
+  const filas = await prisma.$queryRawUnsafe<
+    { userId: string; cargas: bigint; conError: bigint; reintentos: bigint }[]
+  >(
+    `SELECT u.id AS "userId",
+            (SELECT count(*) FROM "CargaProcesos" c WHERE c."userId" = u.id) AS cargas,
+            (SELECT count(*) FROM "CargaProcesos" c WHERE c."userId" = u.id AND c.error IS NOT NULL) AS "conError",
+            (SELECT count(*) FROM "RadicadoReintento" r WHERE r."userId" = u.id) AS reintentos
+     FROM "User" u`,
+  );
+  return new Map(
+    filas.map((f) => [f.userId, { cargas: Number(f.cargas), conError: Number(f.conError), reintentos: Number(f.reintentos) }]),
+  );
+}
