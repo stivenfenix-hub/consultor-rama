@@ -13,7 +13,7 @@ import {
   requireUser,
   requireAdmin,
 } from "@/lib/auth";
-import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
+import { updateSiteSettings } from "@/lib/settings";
 import {
   borrarEnvioPromo,
   contarAvisosNoLeidos,
@@ -292,45 +292,15 @@ export async function updateAppearanceAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  // Los logos ya no se suben aquí: son archivos publicados (lib/marca.ts).
   const data: {
     brandName: string;
     colorAccent: string;
     colorAccent2: string;
     colorBg: string;
     colorPanel: string;
-    logoDataUrl?: string;
-    emailLogoDataUrl?: string;
-    byLogoDataUrl?: string;
     byUrl?: string;
-    notifIconDataUrl?: string;
-    notifBadgeDataUrl?: string;
   } = { ...parsed.data };
-
-  // Convierte un archivo de imagen a data URL (máx 500 KB). Devuelve mensaje de error o null.
-  async function fileToDataUrl(
-    field: string,
-  ): Promise<{ dataUrl?: string; error?: string }> {
-    const f = formData.get(field);
-    if (!(f instanceof File) || f.size === 0) return {};
-    if (!f.type.startsWith("image/"))
-      return { error: "El logo debe ser una imagen (PNG recomendado)." };
-    if (f.size > 500 * 1024)
-      return { error: "El logo es muy pesado (máx 500 KB)." };
-    const buf = Buffer.from(await f.arrayBuffer());
-    return { dataUrl: `data:${f.type};base64,${buf.toString("base64")}` };
-  }
-
-  const plat = await fileToDataUrl("logo");
-  if (plat.error) return { error: plat.error };
-  if (plat.dataUrl) data.logoDataUrl = plat.dataUrl;
-
-  const mail = await fileToDataUrl("emailLogo");
-  if (mail.error) return { error: mail.error };
-  if (mail.dataUrl) data.emailLogoDataUrl = mail.dataUrl;
-
-  const by = await fileToDataUrl("byLogo");
-  if (by.error) return { error: by.error };
-  if (by.dataUrl) data.byLogoDataUrl = by.dataUrl;
 
   const byUrl = String(formData.get("byUrl") ?? "").trim();
   if (byUrl) {
@@ -340,50 +310,9 @@ export async function updateAppearanceAction(
     data.byUrl = byUrl;
   }
 
-  const nIcon = await fileToDataUrl("notifIcon");
-  if (nIcon.error) return { error: nIcon.error };
-  if (nIcon.dataUrl) data.notifIconDataUrl = nIcon.dataUrl;
-
-  const nBadge = await fileToDataUrl("notifBadge");
-  if (nBadge.error) return { error: nBadge.error };
-  if (nBadge.dataUrl) data.notifBadgeDataUrl = nBadge.dataUrl;
-
-  const fav = await fileToDataUrl("favicon");
-  if (fav.error) return { error: fav.error };
-  if (fav.dataUrl) await setFaviconDataUrl(fav.dataUrl);
-
   await updateSiteSettings(data);
   revalidatePath("/", "layout");
   return { ok: "Apariencia actualizada. Los cambios ya están aplicados." };
-}
-
-export async function resetLogoAction(
-  which:
-    | "platform"
-    | "email"
-    | "by"
-    | "notif-icon"
-    | "notif-badge"
-    | "favicon" = "platform",
-) {
-  await requireAdmin();
-  if (which === "favicon") {
-    await setFaviconDataUrl(null);
-    revalidatePath("/", "layout");
-    return;
-  }
-  const data =
-    which === "email"
-      ? { emailLogoDataUrl: null }
-      : which === "by"
-        ? { byLogoDataUrl: null }
-        : which === "notif-icon"
-          ? { notifIconDataUrl: null }
-          : which === "notif-badge"
-            ? { notifBadgeDataUrl: null }
-            : { logoDataUrl: null };
-  await updateSiteSettings(data);
-  revalidatePath("/", "layout");
 }
 
 // ---------- Admin: correos automáticos (bienvenida y recordatorio) ----------

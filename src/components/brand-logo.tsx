@@ -1,18 +1,13 @@
-import { getSiteSettings, versionImagen } from "@/lib/settings";
+import { LOGOS } from "@/lib/marca";
 
-/**
- * Logo del sitio (PNG). Usa el logo subido por el admin si existe; si no, el
- * logo por defecto de Estradox. Va por URL (con caché), no en base64 en la página.
- */
-export async function BrandLogo({ size = "md" }: { size?: "md" | "lg" }) {
-  const s = await getSiteSettings();
-  const src = s.logoDataUrl ? `/api/logo/logo?v=${versionImagen(s.logoDataUrl)}` : "/logo-estradox.png";
+/** Logo del sitio (archivo publicado en public/marca). */
+export function BrandLogo({ size = "md" }: { size?: "md" | "lg" }) {
   return (
     <span className="logo-chip">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={src}
-        alt={s.brandName}
+        src={LOGOS.plataforma}
+        alt="Estradox"
         className={`brand-logo ${size === "lg" ? "lg" : ""}`}
       />
     </span>

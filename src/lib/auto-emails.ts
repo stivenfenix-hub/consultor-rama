@@ -1,4 +1,5 @@
 import "server-only";
+import { LOGOS, urlAbsoluta } from "./marca";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
 import { sendMail } from "./mailer";
@@ -225,7 +226,7 @@ export function renderEmail(kind: EmailKind, t: EmailTemplate, vars: EmailVars) 
     text,
     html: `
       <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:580px;margin:0 auto;color:#1d1b2e;font-size:15px">
-        <img src="${APP_URL}/api/logo/email" alt="Estradox" height="28" style="margin-bottom:18px" />
+        <img src="${urlAbsoluta(LOGOS.correo)}" alt="Estradox" height="28" style="margin-bottom:18px" />
         ${html}
       </div>`,
   };

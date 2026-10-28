@@ -18,8 +18,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Estradox";
   const options = {
     body: data.body || "",
-    icon: "/api/logo/notif-icon",
-    badge: "/api/logo/notif-badge",
+    icon: "/marca/notif-icon.png?v=1",
+    badge: "/marca/notif-badge.png?v=1",
     data: { url: data.url || "/dashboard" },
     tag: data.tag,
     renotify: !!data.tag,

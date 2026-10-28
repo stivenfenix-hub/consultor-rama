@@ -1,17 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { updateAppearanceAction, resetLogoAction } from "@/app/actions";
+import { updateAppearanceAction } from "@/app/actions";
+import { LOGOS } from "@/lib/marca";
 
 type S = {
   brandName: string;
-  logoDataUrl: string | null;
-  emailLogoDataUrl: string | null;
-  byLogoDataUrl: string | null;
   byUrl: string;
-  notifIconDataUrl: string | null;
-  notifBadgeDataUrl: string | null;
-  faviconDataUrl: string | null;
   colorAccent: string;
   colorAccent2: string;
   colorBg: string;
@@ -58,84 +53,15 @@ function ColorField({
   );
 }
 
-function LogoUpload({
-  field,
-  title,
-  hint,
-  current,
-  previewBg,
-  which,
-}: {
-  field: string;
-  title: string;
-  hint: string;
-  current: string | null;
-  previewBg: string;
-  which: "platform" | "email" | "by" | "notif-icon" | "notif-badge" | "favicon";
-}) {
-  const [preview, setPreview] = useState<string | null>(current);
-  const fallback =
-    which === "by"
-      ? "/unor-logo.png"
-      : which === "notif-icon"
-        ? "/icon-512.png"
-        : which === "notif-badge"
-          ? "/badge.png"
-          : which === "favicon"
-            ? "/favicon.svg"
-            : "/logo-estradox.png";
-  return (
-    <div style={{ marginTop: 14 }}>
-      <label className="small muted">{title}</label>
-      <div className="row wrap" style={{ gap: 14, marginTop: 6 }}>
-        <div
-          style={{
-            background: previewBg,
-            borderRadius: 8,
-            padding: 10,
-            minWidth: 170,
-            minHeight: 54,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={preview ?? fallback}
-            alt="logo"
-            style={{ maxHeight: 36, maxWidth: 220 }}
-          />
-        </div>
-        <input
-          type="file"
-          name={field}
-          accept="image/png,image/jpeg,image/svg+xml"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) setPreview(URL.createObjectURL(f));
-          }}
-        />
-        {current && (
-          <button
-            type="button"
-            className="btn danger small"
-            onClick={() => {
-              resetLogoAction(which);
-              setPreview(null);
-            }}
-          >
-            Quitar
-          </button>
-        )}
-      </div>
-      <p className="muted small" style={{ marginTop: 6 }}>
-        {hint}
-      </p>
-    </div>
-  );
-}
+// Logos publicados con el sitio (public/marca): solo se muestran.
+const LOGOS_VISTA: { src: string; t: string; bg: string }[] = [
+  { src: LOGOS.plataforma, t: "Plataforma (menú y app)", bg: "var(--bg)" },
+  { src: LOGOS.correo, t: "Correos", bg: "#fff" },
+  { src: LOGOS.by, t: "By (UNOR)", bg: "var(--bg)" },
+  { src: LOGOS.notifIcono, t: "Ícono de notificaciones", bg: "var(--bg)" },
+  { src: LOGOS.notifBadge, t: "Badge de notificaciones", bg: "#3b3366" },
+  { src: LOGOS.favicon, t: "Favicon", bg: "var(--bg)" },
+];
 
 export function AppearanceForm({ settings }: { settings: S }) {
   const [state, formAction, pending] = useActionState(
@@ -147,6 +73,33 @@ export function AppearanceForm({ settings }: { settings: S }) {
     <form action={formAction}>
       <div className="card">
         <h2>Marca y logos</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Los logos se publican con el sitio en Hostinger (carpeta public/marca), no en la base de datos.
+          Para cambiar uno, pídelo y se publica la nueva versión.
+        </p>
+        <div className="row wrap" style={{ gap: 12, margin: "8px 0 14px" }}>
+          {LOGOS_VISTA.map((l) => (
+            <div key={l.t} style={{ display: "grid", gap: 4 }}>
+              <div
+                style={{
+                  background: l.bg,
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: 10,
+                  minWidth: 150,
+                  minHeight: 54,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={l.src} alt={l.t} style={{ maxHeight: 36, maxWidth: 200 }} />
+              </div>
+              <span className="small muted">{l.t}</span>
+            </div>
+          ))}
+        </div>
         <label className="small muted">Nombre de la marca</label>
         <input
           type="text"
@@ -155,32 +108,7 @@ export function AppearanceForm({ settings }: { settings: S }) {
           style={{ maxWidth: 320 }}
         />
 
-        <LogoUpload
-          field="logo"
-          which="platform"
-          title="Logo de la plataforma (se ve sobre el tema oscuro — usa letra clara)"
-          hint="Aparece en el menú y en las pantallas de la app."
-          current={settings.logoDataUrl}
-          previewBg="var(--bg)"
-        />
 
-        <LogoUpload
-          field="emailLogo"
-          which="email"
-          title="Logo para los correos (se ve sobre fondo blanco — usa tu logo oscuro)"
-          hint="Aparece en los correos de verificación, reset y notificaciones."
-          current={settings.emailLogoDataUrl}
-          previewBg="#fff"
-        />
-
-        <LogoUpload
-          field="byLogo"
-          which="by"
-          title={`Logo "By" (aliado) — se ve en el login y el menú`}
-          hint="Aparece en el pie del login y del menú, junto a la palabra 'By'."
-          current={settings.byLogoDataUrl}
-          previewBg="var(--bg)"
-        />
 
         <div style={{ marginTop: 10 }}>
           <label className="small muted">Enlace del logo &quot;By&quot;</label>
@@ -193,32 +121,7 @@ export function AppearanceForm({ settings }: { settings: S }) {
           />
         </div>
 
-        <LogoUpload
-          field="notifIcon"
-          which="notif-icon"
-          title="Ícono de las notificaciones (el grande, a color)"
-          hint="Aparece en la notificación al recibirla. PNG cuadrado recomendado."
-          current={settings.notifIconDataUrl}
-          previewBg="var(--bg)"
-        />
 
-        <LogoUpload
-          field="notifBadge"
-          which="notif-badge"
-          title="Badge de notificación (el pequeño de la barra de estado)"
-          hint="En Android se ve como silueta blanca: usa un PNG con fondo transparente y solo la figura."
-          current={settings.notifBadgeDataUrl}
-          previewBg="#3b3366"
-        />
-
-        <LogoUpload
-          field="favicon"
-          which="favicon"
-          title="Favicon (ícono de la pestaña del navegador)"
-          hint="PNG o SVG cuadrado, idealmente 64×64 o 512×512. Puede tardar en verse por la caché del navegador."
-          current={settings.faviconDataUrl}
-          previewBg="var(--bg)"
-        />
       </div>
 
       <div className="card">

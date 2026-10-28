@@ -1,8 +1,8 @@
-import { getFaviconDataUrl, getSiteSettings } from "@/lib/settings";
+import { getSiteSettings } from "@/lib/settings";
 import { AppearanceForm } from "./appearance-form";
 
 export default async function AparienciaPage() {
-  const [s, favicon] = await Promise.all([getSiteSettings(), getFaviconDataUrl()]);
+  const s = await getSiteSettings();
   return (
     <div className="page">
       <div className="page-head">
@@ -14,13 +14,7 @@ export default async function AparienciaPage() {
       <AppearanceForm
         settings={{
           brandName: s.brandName,
-          logoDataUrl: s.logoDataUrl,
-          emailLogoDataUrl: s.emailLogoDataUrl,
-          byLogoDataUrl: s.byLogoDataUrl,
           byUrl: s.byUrl,
-          notifIconDataUrl: s.notifIconDataUrl,
-          notifBadgeDataUrl: s.notifBadgeDataUrl,
-          faviconDataUrl: favicon,
           colorAccent: s.colorAccent,
           colorAccent2: s.colorAccent2,
           colorBg: s.colorBg,

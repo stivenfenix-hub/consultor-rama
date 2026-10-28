@@ -1,4 +1,5 @@
 import "server-only";
+import { LOGOS, urlAbsoluta } from "./marca";
 import { prisma } from "./db";
 import {
   buscarPorRadicado,
@@ -518,7 +519,7 @@ export async function enviarResumen(
 
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto">
-      <img src="${appUrl}/api/logo/email" alt="Estradox" height="26" style="margin-bottom:12px" />
+      <img src="${urlAbsoluta(LOGOS.correo)}" alt="Estradox" height="26" style="margin-bottom:12px" />
       <h2>Tienes ${totalNuevas} actuacion(es) nueva(s)</h2>
       <p>Hola ${escapeHtml(name ?? "")}, se detectaron novedades en ${casos.length} de tus procesos:</p>
       ${bloques}

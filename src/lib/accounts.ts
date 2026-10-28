@@ -1,4 +1,5 @@
 import "server-only";
+import { LOGOS, urlAbsoluta } from "./marca";
 import crypto from "node:crypto";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
@@ -137,7 +138,7 @@ export async function registerUser(input: {
   return user;
 }
 
-const LOGO = `${APP_URL}/api/logo/email`;
+const LOGO = urlAbsoluta(LOGOS.correo);
 const BTN =
   "display:inline-block;background:linear-gradient(135deg,#8b3dff,#4b23e6);color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600";
 

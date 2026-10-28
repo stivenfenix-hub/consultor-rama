@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, homePath } from "@/lib/auth";
-import { getSiteSettings, versionImagen } from "@/lib/settings";
+import { getSiteSettings } from "@/lib/settings";
+import { LOGOS } from "@/lib/marca";
 import { BrandLogo } from "@/components/brand-logo";
 import { LoginForm } from "./login-form";
 import { GoogleButton } from "@/components/google-button";
@@ -42,7 +43,7 @@ export default async function LoginPage({
             <span>By</span>
             <a href={s.byUrl} target="_blank" rel="noopener noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.byLogoDataUrl ? `/api/logo/by?v=${versionImagen(s.byLogoDataUrl)}` : "/unor-logo.png"} alt="By" />
+              <img src={LOGOS.by} alt="By" />
             </a>
           </div>
         </div>

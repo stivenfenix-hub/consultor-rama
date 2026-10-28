@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { createHash } from "node:crypto";
-import { getFaviconDataUrl, getSiteSettings } from "@/lib/settings";
+import { getSiteSettings } from "@/lib/settings";
+import { LOGOS } from "@/lib/marca";
 import { IosInstallBubble } from "@/components/ios-install-bubble";
 import { MetaPixel } from "@/components/meta-pixel";
 import "./globals.css";
@@ -15,21 +15,14 @@ const BASE_METADATA: Metadata = {
   },
 };
 
-// El favicon lo configura el admin; la versión (?v=) cambia con la imagen para
-// que el navegador no siga mostrando el anterior.
-export async function generateMetadata(): Promise<Metadata> {
-  const fav = await getFaviconDataUrl();
-  const v = fav
-    ? createHash("sha1").update(fav).digest("hex").slice(0, 10)
-    : "default";
-  return {
-    ...BASE_METADATA,
-    icons: {
-      icon: `/api/logo/favicon?v=${v}`,
-      apple: "/icon-512.png",
-    },
-  };
-}
+// Favicon publicado con el sitio (ver lib/marca.ts).
+export const metadata: Metadata = {
+  ...BASE_METADATA,
+  icons: {
+    icon: LOGOS.favicon,
+    apple: "/icon-512.png",
+  },
+};
 
 export const viewport: Viewport = {
   themeColor: "#0a0820",
