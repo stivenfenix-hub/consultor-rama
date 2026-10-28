@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationsPrompt } from "@/components/notifications-prompt";
+import { NotificationBell } from "@/components/notification-bell";
 import { Icon, type IconName } from "@/components/icon";
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
@@ -134,7 +135,15 @@ export function AppShell({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={logoUrl} alt="logo" className="brand-logo" />
           </span>
+          <div className="spacer" />
+          {!soloPago && <NotificationBell />}
         </header>
+        {/* Escritorio: la campana arriba a la derecha. */}
+        {!soloPago && (
+          <div className="desk-bar">
+            <NotificationBell />
+          </div>
+        )}
         <main className="app-main">{children}</main>
       </div>
 

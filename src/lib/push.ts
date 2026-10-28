@@ -1,6 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { prisma } from "./db";
+import { ensureColumn } from "./runtime-columns";
 
 const PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const PRIVATE = process.env.VAPID_PRIVATE_KEY;
@@ -119,7 +120,8 @@ export async function ensureMobileNoticeTable() {
   avisosListos = true;
 }
 
-async function guardarAviso(userId: string | null, payload: PushPayload) {
+/** Guarda el aviso en la app (campana y app Android) sin enviar push. */
+export async function guardarAviso(userId: string | null, payload: PushPayload) {
   try {
     await ensureMobileNoticeTable();
     await prisma.$executeRawUnsafe(
@@ -146,4 +148,57 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
   for (const id of userIds) await guardarAviso(id, payload);
   const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
   return sendToSubs(subs, payload);
+}
+
+// ---------- Campana de notificaciones (web) ----------
+export type AvisoApp = {
+  id: number;
+  title: string;
+  body: string;
+  url: string | null;
+  createdAt: Date;
+  leido: boolean;
+};
+
+async function vistosHasta(userId: string): Promise<Date> {
+  await ensureColumn("User", "avisosVistosAt", "TIMESTAMPTZ");
+  const [r] = await prisma.$queryRawUnsafe<{ v: Date | null; c: Date }[]>(
+    `SELECT "avisosVistosAt" AS v, "createdAt" AS c FROM "User" WHERE id = $1`,
+    userId,
+  );
+  // Nunca abrió la campana: lo anterior a su registro no cuenta como nuevo.
+  return r?.v ?? r?.c ?? new Date();
+}
+
+/** Últimos avisos del usuario (los suyos y los generales), 30 días. */
+export async function listarAvisos(userId: string, limite = 30): Promise<AvisoApp[]> {
+  await ensureMobileNoticeTable();
+  const desde = await vistosHasta(userId);
+  const filas = await prisma.$queryRawUnsafe<Omit<AvisoApp, "leido">[]>(
+    `SELECT id, title, body, url, "createdAt" FROM "MobileNotice"
+     WHERE ("userId" = $1 OR "userId" IS NULL)
+       AND "createdAt" > now() - interval '30 days'
+     ORDER BY id DESC LIMIT $2`,
+    userId,
+    limite,
+  );
+  return filas.map((f) => ({ ...f, leido: new Date(f.createdAt) <= desde }));
+}
+
+export async function contarAvisosNoLeidos(userId: string): Promise<number> {
+  await ensureMobileNoticeTable();
+  const desde = await vistosHasta(userId);
+  const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(*) AS n FROM "MobileNotice"
+     WHERE ("userId" = $1 OR "userId" IS NULL) AND "createdAt" > $2::timestamptz
+       AND "createdAt" > now() - interval '30 days'`,
+    userId,
+    desde,
+  );
+  return Number(r?.n ?? 0);
+}
+
+export async function marcarAvisosLeidos(userId: string) {
+  await ensureColumn("User", "avisosVistosAt", "TIMESTAMPTZ");
+  await prisma.$executeRawUnsafe(`UPDATE "User" SET "avisosVistosAt" = now() WHERE id = $1`, userId);
 }

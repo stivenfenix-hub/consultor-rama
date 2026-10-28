@@ -796,6 +796,131 @@ a.tab {
   border-bottom: 1px solid var(--border);
 }
 
+
+/* ===== Campana de notificaciones ===== */
+.desk-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px 0;
+}
+.bell-wrap {
+  position: relative;
+}
+.bell-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.bell-btn:hover {
+  background: var(--panel-2);
+}
+.bell-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  border: 2px solid var(--bg);
+}
+.bell-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.bell-head {
+  padding: 12px 16px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+.bell-list {
+  max-height: min(70vh, 460px);
+  overflow-y: auto;
+}
+.bell-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+}
+.bell-item:last-child {
+  border-bottom: none;
+}
+a.bell-item:hover {
+  background: var(--panel-2);
+}
+.bell-item.unread {
+  background: rgba(139, 61, 255, 0.08);
+}
+.bell-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.bell-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.bell-body {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.bell-time {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.bell-empty {
+  padding: 18px 16px;
+}
+@media (max-width: 720px) {
+  .desk-bar {
+    display: none;
+  }
+  .bell-btn {
+    width: 38px;
+    height: 38px;
+  }
+  /* En el celular el panel ocupa el ancho de la pantalla, bajo la barra. */
+  .bell-panel {
+    position: fixed;
+    top: 62px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+  }
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 860px) {
   .stat-grid,

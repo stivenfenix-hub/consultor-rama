@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
 import { sendMail } from "./mailer";
+import { guardarAviso } from "./push";
 import { registrarAvisoWhatsapp, textoAutomatico } from "./reporte-whatsapp";
 
 // Correos automáticos que el root edita en Panel admin → Correos automáticos:
@@ -242,7 +243,30 @@ export async function enviarPlantilla(
     to: user.email,
     ...renderEmail(kind, await getEmailTemplate(kind), { nombre, ...vars }),
   });
+  // También queda en la campana de la plataforma (y en la app Android).
+  const aviso = AVISO_APP[kind](vars);
+  await guardarAviso(userId, { ...aviso, url: BOTON_DESTINO[kind], tag: kind });
 }
+
+// Texto corto de cada correo automático para la campana de notificaciones.
+const AVISO_APP: Record<EmailKind, (v: Omit<EmailVars, "nombre">) => { title: string; body: string }> = {
+  welcome: () => ({
+    title: "¡Bienvenido a Estradox!",
+    body: "Tu mes gratis está activo. Agrega tu primer radicado y te avisamos de cada actuación nueva.",
+  }),
+  reminder: () => ({
+    title: "Agrega tu primer proceso",
+    body: "Aún no has cargado ningún radicado. Te toma menos de 1 minuto y empezamos a vigilarlo desde mañana.",
+  }),
+  subEnding: (v) => ({
+    title: `Tu acceso vence en ${v.dias} día(s)`,
+    body: `Vence el ${v.fecha}. Renueva por ${v.precio} COP para seguir recibiendo tus actuaciones.`,
+  }),
+  subExpired: (v) => ({
+    title: "Tu acceso venció",
+    body: `Venció el ${v.fecha}. Tus procesos siguen guardados: reactiva tu plan por ${v.precio} COP.`,
+  }),
+};
 
 /** Envía la bienvenida a un usuario (no lanza error: solo lo registra). */
 export async function enviarBienvenida(userId: string) {

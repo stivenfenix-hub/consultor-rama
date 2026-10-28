@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
   createSession,
+  getCurrentUser,
   homePath,
   loginWithPassword,
   logout,
@@ -13,7 +14,13 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { setFaviconDataUrl, updateSiteSettings } from "@/lib/settings";
-import { sendPushToUsers } from "@/lib/push";
+import {
+  contarAvisosNoLeidos,
+  listarAvisos,
+  marcarAvisosLeidos,
+  sendPushToUsers,
+  type AvisoApp,
+} from "@/lib/push";
 import { sendMail } from "@/lib/mailer";
 import {
   EMAIL_KINDS,
@@ -671,4 +678,20 @@ export async function eliminarUsuarioAction(userId: string): Promise<ActionState
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/usuarios");
   return { ok: `Usuario ${user.email} eliminado.` };
+}
+
+// ---------- Campana de notificaciones ----------
+export async function contarAvisosAction(): Promise<number> {
+  const user = await getCurrentUser();
+  if (!user) return 0;
+  return contarAvisosNoLeidos(user.id).catch(() => 0);
+}
+
+/** Lista los avisos y los marca como leídos (se abrió la campana). */
+export async function abrirAvisosAction(): Promise<AvisoApp[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const avisos = await listarAvisos(user.id).catch(() => []);
+  await marcarAvisosLeidos(user.id).catch(() => {});
+  return avisos;
 }
