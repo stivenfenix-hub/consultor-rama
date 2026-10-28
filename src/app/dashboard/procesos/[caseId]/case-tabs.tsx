@@ -29,6 +29,8 @@ export type Doc = {
   descripcion: string | null;
   tipo: string | null;
   fecha: string;
+  /** Sistema de la Rama del que viene (cuando el radicado tiene varios). */
+  fuente?: string;
 };
 export type Grabacion = { fecha: string; actuacion: string; url: string };
 export type Sync = {
@@ -168,6 +170,7 @@ export function CaseTabs({
                       {d.tipo ? ` · ${d.tipo.toUpperCase()}` : ""}
                       {d.descripcion ? ` · ${d.descripcion}` : ""}
                     </div>
+                    {d.fuente && <span className="badge" style={{ marginTop: 4 }}>De {d.fuente}</span>}
                   </div>
                   <DocButtons
                     doc={{ id: d.idRegDocumento, nombre: d.nombre, tipo: d.tipo }}

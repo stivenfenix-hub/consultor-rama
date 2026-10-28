@@ -103,13 +103,28 @@ export default async function CaseDetail({
         }))
       : parsePartes(caso.sujetos).map((p) => ({ ...p, identificacion: null }));
 
-  const documentos = caso.documentos.map((d) => ({
-    idRegDocumento: d.idRegDocumento,
-    nombre: d.nombre ?? "Documento",
-    descripcion: d.descripcion,
-    tipo: d.tipo,
-    fecha: fmtFecha(d.fechaCarga),
-  }));
+  // Documentos de TODAS las fuentes del radicado: p. ej. SIUGJ no publica
+  // documentos pero Justicia XXI sí; antes, al abrir el registro SIUGJ,
+  // parecía que el proceso no tenía documentos.
+  const sistemaDe = new Map(registros.map((r) => [r.id, sistema(r)]));
+  const docsTodos =
+    registros.length > 1
+      ? await prisma.documento.findMany({
+          where: { caseId: { in: registros.map((r) => r.id) } },
+          orderBy: { fechaCarga: "desc" },
+        })
+      : caso.documentos;
+  const docsVistos = new Set<string>();
+  const documentos = docsTodos
+    .filter((d) => !docsVistos.has(d.idRegDocumento) && !!docsVistos.add(d.idRegDocumento))
+    .map((d) => ({
+      idRegDocumento: d.idRegDocumento,
+      nombre: d.nombre ?? "Documento",
+      descripcion: d.descripcion,
+      tipo: d.tipo,
+      fecha: fmtFecha(d.fechaCarga),
+      fuente: registros.length > 1 ? sistemaDe.get(d.caseId) : undefined,
+    }));
 
   const grabaciones = extraerGrabaciones(caso.actuaciones).map((g) => ({
     ...g,
