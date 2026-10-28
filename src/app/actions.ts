@@ -511,7 +511,15 @@ export async function marcarVistasAction(caseId: string) {
 
 export async function eliminarProcesoAction(caseId: string) {
   const user = await requireUser();
-  await prisma.case.deleteMany({ where: { id: caseId, userId: user.id } });
+  // Se borran todos los registros del radicado (uno por sistema de la Rama):
+  // en la lista se ven como un solo proceso.
+  const caso = await prisma.case.findFirst({
+    where: { id: caseId, userId: user.id },
+    select: { radicado: true },
+  });
+  if (caso) {
+    await prisma.case.deleteMany({ where: { userId: user.id, radicado: caso.radicado } });
+  }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
   redirect("/dashboard/procesos");

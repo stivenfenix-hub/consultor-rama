@@ -31,9 +31,10 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const cases = await prisma.case.findMany({
+  const registros = await prisma.case.findMany({
     where: { userId },
     select: {
+      radicado: true,
       departamento: true,
       claseProceso: true,
       lastActuacionDate: true,
@@ -41,6 +42,26 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
       unseenCount: true,
     },
   });
+
+  // Un radicado puede estar en varios sistemas de la Rama (SIUGJ, Justicia
+  // XXI...): para el abogado es un solo proceso, así que se cuenta una vez.
+  type Reg = (typeof registros)[number];
+  const porRadicado = new Map<string, Reg>();
+  for (const r of registros) {
+    const p = porRadicado.get(r.radicado);
+    if (!p) {
+      porRadicado.set(r.radicado, { ...r });
+      continue;
+    }
+    p.departamento ??= r.departamento;
+    p.claseProceso ??= r.claseProceso;
+    if (r.lastActuacionDate && (!p.lastActuacionDate || r.lastActuacionDate > p.lastActuacionDate)) {
+      p.lastActuacionDate = r.lastActuacionDate;
+    }
+    if (r.createdAt < p.createdAt) p.createdAt = r.createdAt;
+    p.unseenCount += r.unseenCount;
+  }
+  const cases = [...porRadicado.values()];
 
   const totalProcesos = cases.length;
   const nuevosEsteMes = cases.filter((c) => c.createdAt >= startOfMonth).length;

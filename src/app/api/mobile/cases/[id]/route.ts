@@ -98,7 +98,12 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   return withMobileUser(
     req,
     async (user) => {
-      await prisma.case.deleteMany({ where: { id, userId: user.id } });
+      // Todos los registros del radicado (uno por sistema de la Rama).
+      const caso = await prisma.case.findFirst({
+        where: { id, userId: user.id },
+        select: { radicado: true },
+      });
+      if (caso) await prisma.case.deleteMany({ where: { userId: user.id, radicado: caso.radicado } });
       return NextResponse.json({ ok: "Proceso eliminado." });
     },
     { allowExpired: true },

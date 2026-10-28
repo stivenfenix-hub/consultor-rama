@@ -32,14 +32,18 @@ export default async function DashboardPage({
     estadoActualizarTodos(user.id, user.role === "admin"),
   ]);
 
-  const recientes = await prisma.case.findMany({
+  // Una fila por radicado: de sus registros (uno por sistema de la Rama) se
+  // muestra el de la actuación más reciente.
+  const registros = await prisma.case.findMany({
     where: { userId: user.id },
-    orderBy: { lastActuacionDate: "desc" },
-    take: 8,
+    orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+    take: 30,
     include: {
       actuaciones: { orderBy: { fechaActuacion: "desc" }, take: 1 },
     },
   });
+  const vistos = new Set<string>();
+  const recientes = registros.filter((c) => !vistos.has(c.radicado) && !!vistos.add(c.radicado)).slice(0, 8);
 
   return (
     <div className="page">
