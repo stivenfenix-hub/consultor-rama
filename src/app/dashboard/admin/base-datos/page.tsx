@@ -22,6 +22,17 @@ async function intentar<T>(f: () => Promise<T>): Promise<T | null> {
 
 export default async function BaseDatosPage() {
   await requireAdmin();
+  // Cuánto ocupan aún los logos viejos (base64) en la fila de ajustes.
+  const logosViejos = await intentar(() =>
+    prisma.$queryRawUnsafe<{ b: number }[]>(
+      `SELECT (coalesce(length("logoDataUrl"),0) + coalesce(length("emailLogoDataUrl"),0)
+              + coalesce(length("byLogoDataUrl"),0) + coalesce(length("notifIconDataUrl"),0)
+              + coalesce(length("notifBadgeDataUrl"),0))::int AS b
+       FROM "SiteSetting" WHERE id = 'site'`,
+    ),
+  );
+  const kbLogos = Math.round((logosViejos?.[0]?.b ?? 0) / 1024);
+
   const [tam, tablas, conexiones, maxConn, consultas] = await Promise.all([
     intentar(() =>
       prisma.$queryRawUnsafe<{ b: bigint }[]>(`SELECT pg_database_size(current_database()) AS b`),
@@ -70,7 +81,7 @@ export default async function BaseDatosPage() {
           Base completa: <b>{tam ? mb(tam[0].b) : "—"}</b> de 500 MB del plan gratis · tablas de Estradox:{" "}
           <b>{mb(totalTablas)}</b>
         </p>
-        <LimpiarLogos />
+        <LimpiarLogos kb={kbLogos} />
       </section>
 
       <section className="card">
