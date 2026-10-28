@@ -787,3 +787,20 @@ export async function pruebaPushAction(): Promise<ActionState> {
     ? { ok: `Enviada a ${r.sent} dispositivo(s)${r.failed ? ` (${r.failed} con falla)` : ""}. Revisa tu celular en unos segundos.` }
     : { error: "No se pudo entregar a ningún dispositivo. Vuelve a activar las notificaciones en tu celular (Configuración)." };
 }
+
+/**
+ * Borra de Supabase las copias viejas de los logos e íconos (base64). Ya son
+ * archivos publicados en Hostinger (public/marca) y el código no las lee.
+ */
+export async function limpiarLogosBdAction(): Promise<ActionState> {
+  await requireAdmin();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "SiteSetting" SET "logoDataUrl" = NULL, "emailLogoDataUrl" = NULL, "byLogoDataUrl" = NULL,
+       "notifIconDataUrl" = NULL, "notifBadgeDataUrl" = NULL WHERE id = 'site'`,
+  );
+  await prisma
+    .$executeRawUnsafe(`UPDATE "SiteSetting" SET "faviconDataUrl" = NULL WHERE id = 'site'`)
+    .catch(() => {}); // la columna puede no existir
+  revalidatePath("/dashboard/admin/base-datos");
+  return { ok: "Listo: Supabase ya no guarda ningún logo ni ícono." };
+}
