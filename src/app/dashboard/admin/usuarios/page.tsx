@@ -2,6 +2,7 @@ import { listUsers } from "@/lib/admin";
 import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
 import { EliminarUsuario } from "./eliminar-usuario";
+import { motivosSospecha } from "@/lib/sospechoso";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -15,6 +16,12 @@ function fmt(d: Date | null | undefined) {
 
 export default async function UsuariosAdmin() {
   const [users, whatsapp] = await Promise.all([listUsers(), getWhatsappPorUsuario()]);
+  const sospechas = new Map<string, string[]>();
+  for (const u of users) {
+    const m = u.role === "admin" ? [] : motivosSospecha(u);
+    if (m.length > 0) sospechas.set(u.id, m);
+  }
+  const sospechosos = users.filter((u) => sospechas.has(u.id));
   const now = Date.now();
   const activos = users.filter(
     (u) =>
@@ -37,6 +44,33 @@ export default async function UsuariosAdmin() {
         />
       </section>
 
+      {sospechosos.length > 0 && (
+        <div className="card">
+          <h2>⚠️ Registros sospechosos por revisar</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Sus datos parecen de relleno. Ya se les avisó que la cuenta puede ser eliminada (pueden
+            corregir su nombre). Nada se borra solo: revísalos y elimínalos si lo apruebas.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <tbody>
+                {sospechosos.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.name ?? "—"}</td>
+                    <td className="muted">{u.email}</td>
+                    <td className="muted small">{sospechas.get(u.id)!.join("; ")}</td>
+                    <td className="muted">{fmt(u.createdAt)}</td>
+                    <td>
+                      <EliminarUsuario id={u.id} email={u.email} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="table-wrap">
           <table className="table">
@@ -56,7 +90,14 @@ export default async function UsuariosAdmin() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.name ?? "—"}</td>
+                  <td>
+                    {u.name ?? "—"}
+                    {sospechas.has(u.id) && (
+                      <div className="badge warn" title={sospechas.get(u.id)!.join("; ")} style={{ marginTop: 4 }}>
+                        ⚠️ Sospechoso
+                      </div>
+                    )}
+                  </td>
                   <td className="muted">{u.email}</td>
                   <td>
                     {whatsapp.get(u.id) ? (

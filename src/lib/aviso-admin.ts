@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push";
+import { motivosSospecha } from "@/lib/sospechoso";
 
 /**
  * Avisa al root (usuarios con rol admin) de cada registro nuevo: notificación
@@ -18,11 +19,14 @@ export async function avisarNuevoUsuario(userId: string, via: "correo" | "Google
     if (!user || admins.length === 0) return;
     const nombre =
       [user.firstName, user.lastName].filter(Boolean).join(" ") || user.name || "Sin nombre";
+    const motivos = motivosSospecha(user);
     await sendPushToUsers(
       admins.map((a) => a.id),
       {
-        title: "🎉 Nuevo usuario",
-        body: `${nombre} (${user.email}) se registró con ${via}.`,
+        title: motivos.length > 0 ? "⚠️ Registro sospechoso" : "🎉 Nuevo usuario",
+        body:
+          `${nombre} (${user.email}) se registró con ${via}.` +
+          (motivos.length > 0 ? ` Parece falso: ${motivos.join("; ")}. Revísalo y elimínalo si lo apruebas.` : ""),
         url: "/dashboard/admin/usuarios",
         tag: `nuevo-usuario-${userId}`,
       },

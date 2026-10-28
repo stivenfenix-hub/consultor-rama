@@ -10,6 +10,7 @@ import { logoutAction } from "@/app/actions";
 import { AppShell } from "./sidebar";
 import { getWhatsapp } from "@/lib/accounts";
 import { getWaActuaciones } from "@/lib/whatsapp";
+import { motivosSospecha } from "@/lib/sospechoso";
 
 // Con el acceso vencido solo se puede abrir la página de pago.
 const PAGINA_PAGO = "/dashboard/suscripcion";
@@ -63,6 +64,15 @@ export default async function AppLayout({
     }
   }
 
+  // Registro con datos de relleno: se le avisa (el root decide si lo elimina).
+  let sospechoso: { nombreMal: boolean; correoMal: boolean } | null = null;
+  if (user.role !== "admin" && motivosSospecha(user).length > 0) {
+    sospechoso = {
+      nombreMal: motivosSospecha({ ...user, email: "valido@ejemplo.com" }).length > 0,
+      correoMal: motivosSospecha({ email: user.email }).length > 0,
+    };
+  }
+
   return (
     <AppShell
       userLabel={user.name ?? user.email}
@@ -72,6 +82,7 @@ export default async function AppLayout({
       isAdmin={user.role === "admin"}
       soloPago={vencida}
       pedirWhatsapp={user.role !== "admin" && waActuaciones === null ? whatsapp : null}
+      sospechoso={sospechoso}
       logoutAction={logoutAction}
     >
       {oferta && (

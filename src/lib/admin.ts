@@ -42,6 +42,8 @@ export async function listUsers() {
       id: true,
       email: true,
       name: true,
+      firstName: true,
+      lastName: true,
       role: true,
       emailVerified: true,
       lastLoginAt: true,

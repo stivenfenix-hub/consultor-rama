@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationsPrompt } from "@/components/notifications-prompt";
+import { SospechosoAviso } from "@/components/sospechoso-aviso";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
@@ -41,6 +42,7 @@ export function AppShell({
   isAdmin,
   soloPago = false,
   pedirWhatsapp = null,
+  sospechoso = null,
   logoutAction,
   children,
 }: {
@@ -53,6 +55,8 @@ export function AppShell({
   soloPago?: boolean;
   /** Número del abogado si aún no decide recibir actuaciones por WhatsApp (burbuja). */
   pedirWhatsapp?: string | null;
+  /** Registro con datos que parecen falsos: aviso de que la cuenta puede ser eliminada. */
+  sospechoso?: { nombreMal: boolean; correoMal: boolean } | null;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -179,7 +183,11 @@ export function AppShell({
       </nav>
 
       <NotificationsPrompt />
-      {pedirWhatsapp && !soloPago && <WhatsappPrompt whatsapp={pedirWhatsapp} />}
+      {sospechoso ? (
+        <SospechosoAviso nombreMal={sospechoso.nombreMal} correoMal={sospechoso.correoMal} />
+      ) : (
+        pedirWhatsapp && !soloPago && <WhatsappPrompt whatsapp={pedirWhatsapp} />
+      )}
     </div>
   );
 }

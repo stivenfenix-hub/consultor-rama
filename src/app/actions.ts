@@ -813,3 +813,27 @@ export async function waActuacionesAction(valor: boolean): Promise<ActionState> 
       : "Listo, ya no te enviaremos actuaciones por WhatsApp.",
   };
 }
+
+/** Registro marcado como sospechoso: el usuario corrige su nombre desde el aviso. */
+export async function corregirNombreAction(
+  firstName: string,
+  lastName: string,
+): Promise<ActionState & { sigue?: boolean }> {
+  const user = await requireUser();
+  const f = firstName.trim().slice(0, 80);
+  const l = lastName.trim().slice(0, 80);
+  if (!f || !l) return { error: "Escribe tu nombre y tu apellido." };
+  const { motivosSospecha } = await import("@/lib/sospechoso");
+  const motivos = motivosSospecha({ firstName: f, lastName: l, email: user.email });
+  const nombreMal = motivosSospecha({ firstName: f, lastName: l, email: "valido@ejemplo.com" }).length > 0;
+  if (nombreMal) return { error: "Ese nombre no parece real. Escribe tu nombre y apellido completos." };
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { firstName: f, lastName: l, name: `${f} ${l}` },
+  });
+  revalidatePath("/dashboard", "layout");
+  // Si el problema es el correo, cambiar el nombre no basta.
+  return motivos.length > 0
+    ? { ok: "Nombre actualizado.", sigue: true }
+    : { ok: "¡Gracias! Tus datos quedaron actualizados." };
+}
