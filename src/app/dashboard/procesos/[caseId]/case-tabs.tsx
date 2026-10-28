@@ -1,5 +1,6 @@
 "use client";
 
+import { MSG_RAMA_DOCUMENTO } from "@/lib/aviso-rama";
 import { useState } from "react";
 import {
   DocumentViewer,
@@ -330,7 +331,7 @@ function DocButtons({
           try {
             await descargarDocumento(doc);
           } catch {
-            alert("No se pudo descargar el documento.");
+            alert(MSG_RAMA_DOCUMENTO);
           } finally {
             setBajando(false);
           }

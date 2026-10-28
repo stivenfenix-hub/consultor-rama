@@ -71,9 +71,9 @@ export function CargaAviso({
           <div key={c.id} className={`carga-aviso ${c.ok ? "listo" : "falla"}`}>
             <Icon name={c.ok ? "check" : "alert"} size={22} />
             <div style={{ flex: 1 }}>
-              <b>{c.ok ? "¡Tus procesos ya están cargados! Ya puedes revisarlos." : "Aún no pudimos cargar tus procesos"}</b>
+              <b>{c.ok ? "¡Tus procesos ya están cargados! Ya puedes revisarlos." : "La Rama Judicial no respondió todavía"}</b>
               {c.ok && <div className="small">{c.ok}</div>}
-              {c.error && <div className="small error" style={{ margin: "4px 0 0" }}>{c.error}</div>}
+              {c.error && <div className="small aviso-rama" style={{ margin: "6px 0 0" }}>ℹ️ {c.error} Es una falla temporal de la plataforma de la Rama, no de Estradox.</div>}
               {esAdmin && c.detalle && (
                 <pre className="small muted" style={{ whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{c.detalle}</pre>
               )}

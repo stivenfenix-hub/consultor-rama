@@ -43,6 +43,20 @@ function asegurarColumnas() {
   return listo;
 }
 
+/**
+ * ¿La Rama está caída ahora? Para el aviso a los abogados en toda la
+ * plataforma. Se guarda 1 minuto en memoria para no consultar en cada página.
+ * Se considera caída tras 2 revisiones seguidas con falla (~10 min).
+ */
+let memoCaida: { v: boolean; at: number } | null = null;
+export async function ramaCaida(): Promise<boolean> {
+  if (memoCaida && Date.now() - memoCaida.at < 60_000) return memoCaida.v;
+  const s = await estadoRama().catch(() => null);
+  const v = (s?.fallas ?? 0) >= 2;
+  memoCaida = { v, at: Date.now() };
+  return v;
+}
+
 export async function estadoRama(): Promise<Estado | null> {
   await asegurarColumnas();
   const [s] = await prisma.$queryRawUnsafe<Estado[]>(

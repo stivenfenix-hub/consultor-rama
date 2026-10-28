@@ -7,6 +7,7 @@ import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
+import { MSG_RAMA_REVISION } from "@/lib/aviso-rama";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -162,7 +163,7 @@ export default async function ProcesosPage({
             (c.lastError.startsWith("Proceso privado") ? (
               <div className="muted small" style={{ marginTop: 4 }}>🔒 {c.lastError}</div>
             ) : (
-              <div className="error small">Error última sync: {c.lastError}</div>
+              <div className="aviso-rama small" style={{ marginTop: 6 }}>ℹ️ {MSG_RAMA_REVISION}</div>
             ))}
         </Link>
       ))}

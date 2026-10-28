@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Icon } from "@/components/icon";
+import { esMensajeRama } from "@/lib/aviso-rama";
 import { useRouter } from "next/navigation";
 import {
   refrescarProcesoAction,
@@ -77,7 +78,12 @@ export function CaseActions({
       >
         Eliminar
       </button>
-      {msg.error && <span className="error small">{msg.error}</span>}
+      {msg.error &&
+        (esMensajeRama(msg.error) ? (
+          <span className="aviso-rama small">ℹ️ {msg.error}</span>
+        ) : (
+          <span className="error small">{msg.error}</span>
+        ))}
       {actualizadoHoy && !msg.ok && !msg.error && (
         <span className="muted small">Disponible de nuevo mañana</span>
       )}

@@ -164,7 +164,7 @@ export default async function CaseDetail({
         {caso.lastError
           ? caso.lastError.startsWith("Proceso privado")
             ? ` · 🔒 ${caso.lastError}`
-            : " · con errores"
+            : " · la Rama Judicial no respondió en la última revisión (lo reintentamos solos)"
           : ""}
       </p>
 

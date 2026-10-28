@@ -1,5 +1,6 @@
 "use client";
 
+import { MSG_RAMA_DOCUMENTO } from "@/lib/aviso-rama";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icon";
 
@@ -143,7 +144,7 @@ export function DocumentViewer({
     try {
       await descargarDocumento(doc, dataRef.current ?? undefined);
     } catch {
-      alert("No se pudo descargar el documento.");
+      alert(MSG_RAMA_DOCUMENTO);
     } finally {
       setDescargando(false);
     }
@@ -175,9 +176,7 @@ export function DocumentViewer({
           </p>
         )}
         {estado === "error" && (
-          <p className="error viewer-msg">
-            No se pudo cargar el documento. Intenta descargarlo.
-          </p>
+          <p className="aviso-rama viewer-msg">ℹ️ {MSG_RAMA_DOCUMENTO}</p>
         )}
         {estado === "noPdf" && (
           <p className="muted small viewer-msg">

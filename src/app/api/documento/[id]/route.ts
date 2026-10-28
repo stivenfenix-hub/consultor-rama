@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSuscripcion, tieneAcceso } from "@/lib/subscription";
+import { MSG_RAMA_DOCUMENTO } from "@/lib/aviso-rama";
 
 // Descarga un documento de la Rama a través del backend (proxy), porque el
 // API de la Rama usa el puerto :448 y bloquea CORS. Solo entrega documentos
@@ -31,14 +32,23 @@ export async function GET(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  const upstream = await fetch(`${BASE}/Descarga/Documento/${id}`, {
-    cache: "no-store",
-  });
-  if (!upstream.ok || !upstream.body) {
-    return NextResponse.json(
-      { error: "No se pudo descargar el documento de la Rama." },
-      { status: 502 },
-    );
+  // Máximo 40 s esperando que la Rama empiece a responder: Hostinger corta y
+  // puede reiniciar la app con peticiones de más de 120 s.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 40_000);
+  let upstream: Response | null = null;
+  try {
+    upstream = await fetch(`${BASE}/Descarga/Documento/${id}`, {
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+  } catch {
+    upstream = null;
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!upstream || !upstream.ok || !upstream.body) {
+    return NextResponse.json({ error: MSG_RAMA_DOCUMENTO }, { status: 503 });
   }
 
   const contentType =

@@ -71,6 +71,7 @@ import {
 import { prisma } from "@/lib/db";
 import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual, tick } from "@/lib/sync-queue";
 import { marcarRegistroNuevo } from "@/lib/meta-registro";
+import { MSG_RAMA_ACTUALIZAR } from "@/lib/aviso-rama";
 import { avisarNuevoUsuario } from "@/lib/aviso-admin";
 import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
 import {
@@ -474,7 +475,7 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
     resultado = {
       error: esProcesoPrivado(err)
         ? MSG_PRIVADO
-        : "La Rama Judicial no respondió. Intenta de nuevo en un rato.",
+        : MSG_RAMA_ACTUALIZAR,
     };
   }
   revalidatePath("/dashboard");
