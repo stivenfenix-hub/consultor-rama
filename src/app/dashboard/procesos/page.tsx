@@ -5,8 +5,6 @@ import { prisma } from "@/lib/db";
 import { Icon } from "@/components/icon";
 import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
-import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
-import { CargaAviso } from "./carga-aviso";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -52,36 +50,35 @@ export default async function ProcesosPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todos, cargas, reintentos] = await Promise.all([
-    prisma.case.findMany({
-      where: { userId: user.id },
-      orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
-    }),
-    cargasPendientesDeVer(user.id).catch(() => []),
-    reintentosDelUsuario(user.id).catch(() => []),
-  ]);
-
-  // Un radicado puede estar en varios sistemas de la Rama (p. ej. Justicia XXI
-  // y SIUGJ): son registros del mismo proceso y se muestran en una sola tarjeta.
-  // Adentro se ve de qué sistema sale la información y se cambia entre ellos.
-  const porRadicado = new Map<string, typeof todos>();
-  for (const c of todos) porRadicado.set(c.radicado, [...(porRadicado.get(c.radicado) ?? []), c]);
-  // Ya vienen ordenados por última actuación: el primero es el más al día.
-  const grupos = [...porRadicado.values()].map((g) => ({
-    principal: g[0],
-    registros: g.length,
-    nuevas: g.reduce((n, c) => n + c.unseenCount, 0),
-    privado: g.every((c) => c.esPrivado),
-  }));
+  const todos = await prisma.case.findMany({
+    where: { userId: user.id },
+    orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
+  });
 
   // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
   const { filtro: f } = await searchParams;
   const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
-  const conNovedades = grupos.filter((g) => g.nuevas > 0);
-  const alDia = grupos.filter((g) => g.nuevas === 0);
-  const lista = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : grupos;
+  const conNovedades = todos.filter((c) => c.unseenCount > 0);
+  const alDia = todos.filter((c) => c.unseenCount === 0);
+  const cases = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : todos;
+
+  // Un radicado puede estar en dos sistemas de la Rama (p. ej. Justicia XXI y
+  // SIUGJ): son dos registros del mismo proceso y en la lista se veían iguales.
+  const porRadicado = new Map<string, typeof todos>();
+  for (const c of todos) porRadicado.set(c.radicado, [...(porRadicado.get(c.radicado) ?? []), c]);
+  const registro = (c: (typeof todos)[number]) => {
+    const grupo = porRadicado.get(c.radicado) ?? [];
+    if (grupo.length < 2) return null;
+    const sistema = c.ubicacion?.replace(/^Software:\s*/i, "").trim();
+    // El grupo viene ordenado por última actuación: el primero es el más al día.
+    return {
+      etiqueta: sistema || `Registro ${grupo.indexOf(c) + 1}`,
+      masReciente: grupo[0].id === c.id,
+      total: grupo.length,
+    };
+  };
   const pestanas: { key: Filtro; label: string; n: number }[] = [
-    { key: "todos", label: "Todos", n: grupos.length },
+    { key: "todos", label: "Todos", n: todos.length },
     { key: "novedades", label: "Con novedades", n: conNovedades.length },
     { key: "aldia", label: "Al día", n: alDia.length },
   ];
@@ -96,10 +93,6 @@ export default async function ProcesosPage({
         <h2>Agregar proceso por radicado</h2>
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
       </div>
-
-      {(cargas.length > 0 || reintentos.length > 0) && (
-        <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} />
-      )}
 
       {todos.length > 0 && (
         <nav className="tabbar tabbar-3">
@@ -136,7 +129,7 @@ export default async function ProcesosPage({
           </div>
         </div>
       )}
-      {todos.length > 0 && lista.length === 0 && (
+      {todos.length > 0 && cases.length === 0 && (
         <p className="muted">
           {filtro === "novedades"
             ? "No hay novedades sin revisar. Todos tus procesos están al día."
@@ -144,20 +137,36 @@ export default async function ProcesosPage({
         </p>
       )}
 
-      {lista.map(({ principal: c, registros, nuevas, privado }) => (
-        <Link key={c.id} href={`/dashboard/procesos/${c.id}`} className="case">
+      {cases.map((c) => {
+        const reg = registro(c);
+        return (
+        <Link
+          key={c.id}
+          href={`/dashboard/procesos/${c.id}`}
+          className="case"
+        >
           <div className="row wrap">
             <span className="radicado">{c.radicado}</span>
-            {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
-            {privado && <span className="badge">privado</span>}
-            {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
+            {c.unseenCount > 0 && (
+              <span className="badge new">{c.unseenCount} nuevas</span>
+            )}
+            {c.esPrivado && <span className="badge">privado</span>}
+            {reg && <span className="badge">{reg.etiqueta}</span>}
+            {reg?.masReciente && <span className="badge reciente">más reciente</span>}
             <div className="spacer" />
-            <span className="muted small">Últ. actuación: {fmt(c.lastActuacionDate)}</span>
+            <span className="muted small">
+              Últ. actuación: {fmt(c.lastActuacionDate)}
+            </span>
           </div>
           <div className="muted small" style={{ marginTop: 6 }}>
             {c.despacho ?? "Despacho no disponible"}
             {c.departamento ? ` · ${c.departamento}` : ""}
           </div>
+          {reg && (
+            <div className="muted small" style={{ marginTop: 4 }}>
+              Este radicado tiene {reg.total} registros en la Rama (uno por sistema).
+            </div>
+          )}
           {c.lastError &&
             (c.lastError.startsWith("Proceso privado") ? (
               <div className="muted small" style={{ marginTop: 4 }}>🔒 {c.lastError}</div>
@@ -165,7 +174,8 @@ export default async function ProcesosPage({
               <div className="error small">Error última sync: {c.lastError}</div>
             ))}
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

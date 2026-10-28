@@ -42,14 +42,6 @@ export default async function CaseDetail({
     },
   });
   if (!caso) notFound();
-  // Otros registros del mismo radicado (un sistema de la Rama cada uno).
-  const registros = await prisma.case.findMany({
-    where: { userId: user.id, radicado: caso.radicado },
-    orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
-    select: { id: true, ubicacion: true, lastActuacionDate: true, unseenCount: true },
-  });
-  const sistema = (r: { ubicacion: string | null }) =>
-    r.ubicacion?.replace(/^Software:\s*/i, "").trim() || "Consulta Nacional Unificada";
   const proximaActualizacion = await proximaActualizacionProceso(
     caso.id,
     user.role === "admin",
@@ -152,39 +144,6 @@ export default async function CaseDetail({
             : " · con errores"
           : ""}
       </p>
-
-      <section className="fuente">
-        <div className="fuente-head">
-          <Icon name="sello" size={18} />
-          <span>
-            Fuente de la información: <b>Rama Judicial</b> · <b>{sistema(caso)}</b>
-          </span>
-        </div>
-        {registros.length > 1 && (
-          <>
-            <p className="muted small" style={{ margin: "6px 0 8px" }}>
-              Este radicado aparece en {registros.length} sistemas de la Rama. Toca uno para ver su información.
-            </p>
-            <div className="fuente-tabs">
-              {registros.map((r, i) => (
-                <Link
-                  key={r.id}
-                  href={`/dashboard/procesos/${r.id}`}
-                  className={`fuente-tab ${r.id === caso.id ? "sel" : ""}`}
-                  scroll={false}
-                >
-                  <b>{sistema(r)}</b>
-                  <span className="small muted">Últ. actuación: {fmtFecha(r.lastActuacionDate)}</span>
-                  <span className="row" style={{ gap: 4 }}>
-                    {i === 0 && <span className="badge reciente">más reciente</span>}
-                    {r.unseenCount > 0 && <span className="badge new">{r.unseenCount} nuevas</span>}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
 
       <CaseTabs
         datos={datos}

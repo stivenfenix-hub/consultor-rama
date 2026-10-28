@@ -12,7 +12,6 @@ import { AppShell } from "./sidebar";
 import { getWhatsapp } from "@/lib/accounts";
 import { getWaActuaciones } from "@/lib/whatsapp";
 import { motivosSospecha } from "@/lib/sospechoso";
-import { prisma } from "@/lib/db";
 
 // Con el acceso vencido solo se puede abrir la página de pago.
 const PAGINA_PAGO = "/dashboard/suscripcion";
@@ -32,14 +31,6 @@ export default async function AppLayout({
     getWhatsapp(user.id),
     getWaActuaciones(user.id),
   ]);
-  // Último acceso = última actividad (máx. una escritura por hora). Antes solo
-  // se anotaba al escribir la contraseña, y quien se registra entra directo.
-  if (!user.lastLoginAt || Date.now() - new Date(user.lastLoginAt).getTime() > 60 * 60_000) {
-    await prisma.user
-      .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-      .catch(() => {});
-  }
-
   // Cuenta creada con Google: el WhatsApp es obligatorio antes de entrar.
   if (sinWhatsapp) redirect("/completar-registro");
   const pathname = h.get("x-pathname") ?? "";

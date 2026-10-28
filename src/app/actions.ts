@@ -79,7 +79,11 @@ import {
   passwordSchema,
   registerSchema,
 } from "@/lib/validation";
-import { iniciarCargaProcesos, marcarCargaVista, marcarVistas } from "@/lib/sync";
+import {
+  agregarRadicados,
+  marcarVistas,
+  mensajeAgregar,
+} from "@/lib/sync";
 import {
   ejecutarActualizarTodos,
   marcarActualizacionProceso,
@@ -437,19 +441,10 @@ export async function agregarProcesoAction(
     };
   }
 
-  // Se carga en segundo plano: el abogado puede seguir usando Estradox y en
-  // Procesos ve el avance; al terminar le llega notificación y aviso.
-  await iniciarCargaProcesos(user.id, validos, invalidos);
+  const r = await agregarRadicados(user.id, validos);
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
-  return {
-    ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. Puedes seguir usando Estradox: te avisamos cuando estén listos.`,
-  };
-}
-
-export async function cerrarCargaAction(id: number) {
-  const user = await requireUser();
-  await marcarCargaVista(user.id, id);
-  revalidatePath("/dashboard/procesos");
+  return mensajeAgregar(r, invalidos);
 }
 
 // Actualización manual de un proceso: una vez por día (el admin sin límite).

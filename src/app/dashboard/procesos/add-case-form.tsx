@@ -47,9 +47,15 @@ export function AddCaseForm({ max }: { max: number }) {
           disabled={pending}
           style={{ alignSelf: "flex-start" }}
         >
-          {pending ? "Enviando…" : "Agregar"}
+          {pending ? "Consultando Rama..." : "Agregar"}
         </button>
       </div>
+      {pending && (
+        <div className="muted small" style={{ marginTop: 8 }}>
+          La Rama Judicial suele tardar varios segundos por proceso; con varios
+          radicados puede tomar más, espera un momento…
+        </div>
+      )}
       {state.error && <div className="error">{state.error}</div>}
       {state.ok && <div className="ok">{state.ok}</div>}
     </form>

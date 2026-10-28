@@ -3,7 +3,6 @@ import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
 import { EliminarUsuario } from "./eliminar-usuario";
 import { motivosSospecha } from "@/lib/sospechoso";
-import { resumenCargasPorUsuario } from "@/lib/sync";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -16,11 +15,7 @@ function fmt(d: Date | null | undefined) {
 }
 
 export default async function UsuariosAdmin() {
-  const [users, whatsapp, cargas] = await Promise.all([
-    listUsers(),
-    getWhatsappPorUsuario(),
-    resumenCargasPorUsuario().catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
-  ]);
+  const [users, whatsapp] = await Promise.all([listUsers(), getWhatsappPorUsuario()]);
   const sospechas = new Map<string, string[]>();
   for (const u of users) {
     const m = u.role === "admin" ? [] : motivosSospecha(u);
@@ -87,7 +82,6 @@ export default async function UsuariosAdmin() {
                 <th>Rol</th>
                 <th>Verificado</th>
                 <th>Procesos</th>
-                <th title="Veces que intentó agregar procesos (desde el 28 de oct)">Intentos de carga</th>
                 <th>Último acceso</th>
                 <th>Registro</th>
                 <th></th>
@@ -127,19 +121,6 @@ export default async function UsuariosAdmin() {
                   </td>
                   <td>{u.emailVerified ? "✓" : "—"}</td>
                   <td>{u._count.cases}</td>
-                  <td className="small">
-                    {(() => {
-                      const c = cargas.get(u.id);
-                      if (!c || (c.cargas === 0 && c.reintentos === 0)) return <span className="muted">—</span>;
-                      return (
-                        <>
-                          {c.cargas}
-                          {c.conError > 0 && <span className="badge warn" style={{ marginLeft: 4 }}>{c.conError} con falla</span>}
-                          {c.reintentos > 0 && <span className="badge reciente" style={{ marginLeft: 4 }}>{c.reintentos} reintentando</span>}
-                        </>
-                      );
-                    })()}
-                  </td>
                   <td className="muted">{fmt(u.lastLoginAt)}</td>
                   <td className="muted">{fmt(u.createdAt)}</td>
                   <td>
