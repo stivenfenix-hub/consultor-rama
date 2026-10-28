@@ -240,12 +240,34 @@ export async function cargasPendientesDeVer(userId: string): Promise<CargaProces
      WHERE "userId" = $1 AND estado = 'cargando' AND "createdAt" < now() - interval '15 minutes'`,
     userId,
   );
-  return prisma.$queryRawUnsafe<CargaProcesos[]>(
+  const cargas = await prisma.$queryRawUnsafe<CargaProcesos[]>(
     `SELECT id, total, listos, estado, ok, error, detalle, "createdAt" FROM "CargaProcesos"
      WHERE "userId" = $1 AND NOT visto AND "createdAt" > now() - interval '2 days'
      ORDER BY id DESC LIMIT 3`,
     userId,
   );
+
+  // Aviso de falla cuyos radicados ya están en la lista (los cargó un reintento
+  // o el abogado los agregó de nuevo): ya no aplica, se cierra solo.
+  const conFalla = cargas.filter((c) => c.estado === "listo" && c.error);
+  if (conFalla.length === 0) return cargas;
+  const enLista = new Set(
+    (
+      await prisma.case.findMany({ where: { userId }, select: { radicado: true }, distinct: ["radicado"] })
+    ).map((c) => c.radicado),
+  );
+  const resueltas = conFalla
+    .filter((c) => {
+      const rads = c.error!.match(/\d{23}/g) ?? [];
+      return rads.length > 0 && rads.every((r) => enLista.has(r));
+    })
+    .map((c) => c.id);
+  if (resueltas.length === 0) return cargas;
+  await prisma.$executeRawUnsafe(
+    `UPDATE "CargaProcesos" SET visto = true WHERE id = ANY($1::int[])`,
+    resueltas,
+  );
+  return cargas.filter((c) => !resueltas.includes(c.id));
 }
 
 export async function marcarCargaVista(userId: string, id: number) {
