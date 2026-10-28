@@ -163,8 +163,13 @@ export function agruparPorAbogado(
     const orden = (t: string) => ORDEN.indexOf(t as TipoAviso);
     const nombre = primerNombre(lista[0].firstName, lista[0].name);
     // El mismo texto repetido no se manda dos veces.
-    const textos = new Set([...lista].sort((a, b) => orden(a.tipo) - orden(b.tipo)).map((a) => a.mensaje));
-    for (const t of textos) filas.push({ mensaje: `${nombre} - ${t}`, telefono });
+    const vistos = new Set<string>();
+    for (const a of [...lista].sort((x, y) => orden(x.tipo) - orden(y.tipo))) {
+      if (vistos.has(a.mensaje)) continue;
+      vistos.add(a.mensaje);
+      // El de "sin procesos" ya saluda por el apellido: va sin "Nombre - ".
+      filas.push({ mensaje: a.tipo === "sinProcesos" ? a.mensaje : `${nombre} - ${a.mensaje}`, telefono });
+    }
   }
   return filas;
 }
@@ -253,7 +258,7 @@ export function fechaBogotaHace(dias: number, d = new Date()) {
 
 /**
  * Quienes se registraron ese día (hora de Bogotá) y aún no han cargado ningún
- * proceso, con el mismo formato del reporte: A = "Nombre - aviso", B = teléfono.
+ * proceso: A = mensaje (saluda por el apellido), B = teléfono.
  */
 export async function filasSinProcesosDelDia(fecha: string) {
   const usuarios = await prisma.$queryRawUnsafe<
@@ -271,9 +276,8 @@ export async function filasSinProcesosDelDia(fecha: string) {
     const telefono = (u.whatsapp ?? "").replace(/\D/g, "");
     if (!telefono) continue;
     filas.push({
-      mensaje: `${primerNombre(u.firstName, u.name)} - ${textoAutomatico("sinProcesos", {
-        apellido: primerApellido(u.lastName, u.name),
-      })}`,
+      // Sin "Nombre - ": el mensaje ya saluda por el apellido.
+      mensaje: textoAutomatico("sinProcesos", { apellido: primerApellido(u.lastName, u.name) }),
       telefono,
     });
   }
