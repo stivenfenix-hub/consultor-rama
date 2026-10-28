@@ -9,9 +9,17 @@ import { NotificationBell } from "@/components/notification-bell";
 import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
 
-const NAV: { href: string; label: string; icon: IconName }[] = [
+type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean };
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/dashboard/procesos", label: "Procesos", icon: "scale" },
+  {
+    href: "/dashboard/notificaciones-certificadas",
+    label: "Notificaciones certificadas",
+    icon: "certificado",
+    pronto: true,
+  },
   { href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" },
   { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
 ];
@@ -68,9 +76,7 @@ export function AppShell({
       ? pathname === "/dashboard"
       : pathname === href || pathname.startsWith(href + "/");
 
-  const renderNav = (
-    items: { href: string; label: string; icon: IconName }[],
-  ) =>
+  const renderNav = (items: NavItem[]) =>
     items.map((item) => (
       <Link
         key={item.href}
@@ -79,7 +85,10 @@ export function AppShell({
         onClick={() => setOpen(false)}
       >
         <Icon name={item.icon} size={19} className="nav-icon" />
-        {item.label}
+        <span className="nav-label">
+          {item.label}
+          {item.pronto && <span className="nav-pronto">Próximamente</span>}
+        </span>
       </Link>
     ));
 

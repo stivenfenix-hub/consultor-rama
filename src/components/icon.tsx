@@ -126,7 +126,16 @@ const PATHS = {
       <path d="M12 18h.01" />
     </>
   ),
-  arrowLeft: <path d="M19 12H5m7 7-7-7 7-7" />,
+  // Sobre con sello de verificación (notificaciones certificadas).
+  certificado: (
+    <>
+      <path d="M13 19H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v6" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+      <circle cx="18.5" cy="17.5" r="3.5" />
+      <path d="m17 17.5 1 1 2-2" />
+    </>
+  ),
+  arrowLeft:<path d="M19 12H5m7 7-7-7 7-7" />,
   arrowRight: <path d="M5 12h14m-7-7 7 7-7 7" />,
 };
 

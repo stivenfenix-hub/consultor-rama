@@ -421,6 +421,25 @@ input:-webkit-autofill:focus {
 }
 .nav-icon {
   color: #fff;
+  flex-shrink: 0;
+}
+.nav-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.nav-pronto {
+  align-self: flex-start;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--accent-2);
+  background: rgba(139, 61, 255, 0.15);
+  border: 1px solid rgba(139, 61, 255, 0.4);
 }
 .nav-section {
   font-size: 11px;
