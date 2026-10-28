@@ -8,6 +8,7 @@ import {
   obtenerDocumentos,
   obtenerDocumentosActuacion,
   obtenerSujetos,
+  laMasReciente,
   RamaError,
   type ProcesoResumen,
   type Actuacion as RamaActuacion,
@@ -502,7 +503,7 @@ export async function sincronizarProceso(
       });
     }
 
-    const masReciente = actuaciones[0]; // la Rama ordena desc
+    const masReciente = laMasReciente(actuaciones); // no siempre vienen ordenadas
     const nuevasNoVistas = opts.marcarComoVistas ? 0 : nuevas.length;
 
     await prisma.case.update({

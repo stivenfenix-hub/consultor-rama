@@ -243,7 +243,7 @@ async function procesarGrupo(casos: CasoCola[], r: ResultadoLote, notificar = tr
     await prisma.$executeRawUnsafe(
       `UPDATE "Case" SET "lastCheckedAt" = now(), "lastSyncedAt" = now(), "nextCheckAt" = $2::timestamptz,
          "syncStatus" = 'ok', "retryCount" = 0, "lastError" = NULL,
-         "lastActuacionDate" = COALESCE($3::timestamp, "lastActuacionDate"),
+         "lastActuacionDate" = GREATEST($3::timestamp, "lastActuacionDate"),
          "lastActuacionId" = COALESCE($4::text, "lastActuacionId")
        WHERE id = $1`,
       c.id,
@@ -585,6 +585,15 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     info.rama = await revisarRama().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     // Radicados que la Rama no respondió al agregarlos: se reintentan solos.
     info.reintentos = await procesarReintentos().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    // "Última actuación" = la de fecha más reciente que tenemos guardada (antes se
+    // tomaba la primera que mandaba la Rama, y SIUGJ no las ordena).
+    info.fechasCorregidas = await prisma
+      .$executeRawUnsafe(
+        `UPDATE "Case" c SET "lastActuacionDate" = m.f
+         FROM (SELECT "caseId", max("fechaActuacion") AS f FROM "Actuacion" GROUP BY "caseId") m
+         WHERE m."caseId" = c.id AND m.f > COALESCE(c."lastActuacionDate", '-infinity'::timestamp)`,
+      )
+      .catch(() => 0);
 
     if (!opts.forzar && !enVentanaNocturna()) {
       info.cola = "fuera de horario";
