@@ -749,6 +749,8 @@ async function asegurarColumnasDocs() {
  */
 async function cargarDocumentosActuacionEnFondo(
   caseId: string,
+  limite = 30,
+  pausaMs = 400,
 ): Promise<{ docs: number; fallas: number; pedidas: number }> {
   const t = Date.now();
   let fallas = 0;
@@ -759,8 +761,9 @@ async function cargarDocumentosActuacionEnFondo(
     const acts = await prisma.$queryRawUnsafe<{ id: string; idRegActuacion: string }[]>(
       `SELECT a.id, a."idRegActuacion" FROM "Actuacion" a
        WHERE a."caseId" = $1 AND ${SQL_ACT_PENDIENTE}
-       ORDER BY a."fechaActuacion" DESC NULLS LAST LIMIT 30`,
+       ORDER BY a."fechaActuacion" DESC NULLS LAST LIMIT $2`,
       caseId,
+      limite,
     );
     let seguidas = 0;
     for (const a of acts) {
@@ -793,7 +796,7 @@ async function cargarDocumentosActuacionEnFondo(
         // Tres fallas seguidas = la Rama está caída: se reintenta más tarde.
         if (++seguidas >= 3) break;
       }
-      await new Promise((res) => setTimeout(res, 400));
+      await new Promise((res) => setTimeout(res, pausaMs));
     }
     if (pedidas > 0) {
       await prisma.syncLog
@@ -839,7 +842,8 @@ export async function completarRegistrosIncompletos(maximo = 2) {
     try {
       // Primera carga: el historial no es novedad, entra como visto.
       await sincronizarProceso(c.id, { marcarComoVistas: true, docsActuacion: false });
-      await cargarDocumentosActuacionEnFondo(c.id);
+      // Pocos documentos ahora; el resto los completa el reintento de documentos.
+      await cargarDocumentosActuacionEnFondo(c.id, 5, 1000);
       r.cargados++;
     } catch {
       r.fallidos++; // sincronizarProceso ya anotó el error; se reintenta en 15 min
@@ -853,12 +857,17 @@ export async function completarRegistrosIncompletos(maximo = 2) {
  * revisión nocturna, o quedaron más allá de las 30 actuaciones de la primera
  * carga). Un proceso por corrida del cron, sin repetir el mismo antes de 20 min.
  */
-export async function completarDocumentosPendientes(presupuestoMs = 90_000) {
+/**
+ * Máximo de consultas de documentos por corrida del cron (cada 5 min), con
+ * 1 s entre cada una. El 29/10/2026, sin este tope, el reintento pidió de golpe
+ * los documentos de todos los usuarios y la Rama bloqueó al servidor.
+ */
+const CONSULTAS_DOCS_POR_CORRIDA = 10;
+
+export async function completarDocumentosPendientes() {
   await asegurarColumnasDocs();
-  const t = Date.now();
-  const r = { procesos: 0, docs: 0, fallas: 0 };
-  // Varios procesos por corrida (corre en segundo plano, sin límite de 60 s).
-  while (Date.now() - t < presupuestoMs) {
+  const r = { procesos: 0, docs: 0, fallas: 0, consultas: 0 };
+  while (r.consultas < CONSULTAS_DOCS_POR_CORRIDA) {
     const [c] = await prisma.$queryRawUnsafe<{ id: string }[]>(
       `SELECT c.id FROM "Case" c
        WHERE (c."docsIntentoAt" IS NULL OR c."docsIntentoAt" < now() - interval '10 minutes')
@@ -867,8 +876,9 @@ export async function completarDocumentosPendientes(presupuestoMs = 90_000) {
     );
     if (!c) break;
     await prisma.$executeRawUnsafe(`UPDATE "Case" SET "docsIntentoAt" = now() WHERE id = $1`, c.id);
-    const x = await cargarDocumentosActuacionEnFondo(c.id);
+    const x = await cargarDocumentosActuacionEnFondo(c.id, CONSULTAS_DOCS_POR_CORRIDA - r.consultas, 1000);
     r.procesos++;
+    r.consultas += Math.max(x.pedidas, 1);
     r.docs += x.docs;
     r.fallas += x.fallas;
     if (x.fallas >= 3 && x.docs === 0) break; // la Rama está fallando: otra corrida
