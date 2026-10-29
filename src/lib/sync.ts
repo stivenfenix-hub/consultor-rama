@@ -660,7 +660,11 @@ async function sincronizarDocumentos(
 
     // Documentos por actuación (lo lento; opcional). Cap para no saturar.
     if (perActuacion) {
-      const conDocs = actuaciones.filter((a) => a.conDocumentos).slice(0, 30);
+      const fecha = (a: RamaActuacion) => fechaRama(a.fechaActuacion)?.getTime() ?? 0;
+      const conDocs = actuaciones
+        .filter((a) => a.conDocumentos)
+        .sort((a, b) => fecha(b) - fecha(a)) // SIUGJ no las entrega ordenadas
+        .slice(0, ULTIMAS_CON_DOCS);
       for (const a of conDocs) {
         const d = await obtenerDocumentosActuacion(a.idRegActuacion);
         todos.push(...d);
@@ -727,7 +731,13 @@ async function sincronizarDocumentos(
  * pedido con éxito ni agotado los intentos.
  */
 const MAX_INTENTOS_DOCS = 6;
+/** Solo las 30 actuaciones con documentos más recientes de cada proceso traen
+ * sus documentos; las anteriores quedan solo con la información de la actuación
+ * (decisión del 29/10/2026 para no sobrecargar la Rama). */
+const ULTIMAS_CON_DOCS = 30;
 const SQL_ACT_PENDIENTE = `a."conDocumentos" AND a."docsIntentos" < ${MAX_INTENTOS_DOCS}
+  AND a.id IN (SELECT b.id FROM "Actuacion" b WHERE b."caseId" = a."caseId" AND b."conDocumentos"
+               ORDER BY b."fechaActuacion" DESC NULLS LAST LIMIT ${ULTIMAS_CON_DOCS})
   AND NOT EXISTS (SELECT 1 FROM "Documento" d
                   WHERE d."caseId" = a."caseId" AND d."consActuacion" = a."consActuacion")`;
 let columnasDocsListas = false;
