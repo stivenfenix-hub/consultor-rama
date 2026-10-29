@@ -853,17 +853,27 @@ export async function completarRegistrosIncompletos(maximo = 2) {
  * revisión nocturna, o quedaron más allá de las 30 actuaciones de la primera
  * carga). Un proceso por corrida del cron, sin repetir el mismo antes de 20 min.
  */
-export async function completarDocumentosPendientes() {
+export async function completarDocumentosPendientes(presupuestoMs = 90_000) {
   await asegurarColumnasDocs();
-  const [c] = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT c.id FROM "Case" c
-     WHERE (c."docsIntentoAt" IS NULL OR c."docsIntentoAt" < now() - interval '20 minutes')
-       AND EXISTS (SELECT 1 FROM "Actuacion" a WHERE a."caseId" = c.id AND ${SQL_ACT_PENDIENTE})
-     ORDER BY c."createdAt" DESC LIMIT 1`,
-  );
-  if (!c) return { pendientes: 0 };
-  await prisma.$executeRawUnsafe(`UPDATE "Case" SET "docsIntentoAt" = now() WHERE id = $1`, c.id);
-  return { caso: c.id, ...(await cargarDocumentosActuacionEnFondo(c.id)) };
+  const t = Date.now();
+  const r = { procesos: 0, docs: 0, fallas: 0 };
+  // Varios procesos por corrida (corre en segundo plano, sin límite de 60 s).
+  while (Date.now() - t < presupuestoMs) {
+    const [c] = await prisma.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT c.id FROM "Case" c
+       WHERE (c."docsIntentoAt" IS NULL OR c."docsIntentoAt" < now() - interval '10 minutes')
+         AND EXISTS (SELECT 1 FROM "Actuacion" a WHERE a."caseId" = c.id AND ${SQL_ACT_PENDIENTE})
+       ORDER BY c."createdAt" DESC LIMIT 1`,
+    );
+    if (!c) break;
+    await prisma.$executeRawUnsafe(`UPDATE "Case" SET "docsIntentoAt" = now() WHERE id = $1`, c.id);
+    const x = await cargarDocumentosActuacionEnFondo(c.id);
+    r.procesos++;
+    r.docs += x.docs;
+    r.fallas += x.fallas;
+    if (x.fallas >= 3 && x.docs === 0) break; // la Rama está fallando: otra corrida
+  }
+  return r;
 }
 
 /** Marca todas las actuaciones de un proceso como vistas. */
