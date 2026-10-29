@@ -13,7 +13,7 @@ import {
   type Documento as RamaDocumento,
 } from "./rama";
 import { usuariosConAcceso } from "./subscription";
-import { completarDocumentosPendientes, enviarResumen, procesarReintentos } from "./sync";
+import { completarDocumentosPendientes, completarRegistrosIncompletos, enviarResumen, procesarReintentos } from "./sync";
 import { sendPushToUser } from "./push";
 import { revisarRama } from "./monitor-rama";
 import {
@@ -590,6 +590,10 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     info.reintentos = await procesarReintentos().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     // Documentos que no llegaron al agregar el proceso (la Rama falló).
     if ((info.rama as { ok?: boolean } | undefined)?.ok) {
+      // Registros que quedaron sin actuaciones (también de día).
+      info.registros = await completarRegistrosIncompletos().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
       info.documentos = await completarDocumentosPendientes().catch((e) => ({
         error: e instanceof Error ? e.message : String(e),
       }));

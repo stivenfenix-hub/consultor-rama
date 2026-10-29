@@ -818,6 +818,37 @@ async function cargarDocumentosActuacionEnFondo(
 }
 
 /**
+ * Registros que quedaron sin actuaciones porque la Rama falló al agregarlos
+ * (p. ej. una de las dos fuentes de un radicado). La cola solo corre de noche,
+ * así que sin esto el abogado veía el proceso incompleto todo el día. Se
+ * reintentan cada 15 min, de día y de noche, durante sus 3 primeros días.
+ */
+export async function completarRegistrosIncompletos(maximo = 2) {
+  const casos = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT c.id FROM "Case" c
+     WHERE NOT c."esPrivado"
+       AND c."createdAt" > now() - interval '3 days'
+       AND (c."lastSyncedAt" IS NULL OR c."lastSyncedAt" < now() - interval '15 minutes')
+       AND COALESCE(c."lastError", '') NOT LIKE 'Proceso privado%'
+       AND NOT EXISTS (SELECT 1 FROM "Actuacion" a WHERE a."caseId" = c.id)
+     ORDER BY c."createdAt" DESC LIMIT $1`,
+    maximo,
+  );
+  const r = { pendientes: casos.length, cargados: 0, fallidos: 0 };
+  for (const c of casos) {
+    try {
+      // Primera carga: el historial no es novedad, entra como visto.
+      await sincronizarProceso(c.id, { marcarComoVistas: true, docsActuacion: false });
+      await cargarDocumentosActuacionEnFondo(c.id);
+      r.cargados++;
+    } catch {
+      r.fallidos++; // sincronizarProceso ya anotó el error; se reintenta en 15 min
+    }
+  }
+  return r;
+}
+
+/**
  * Documentos que no llegaron (la Rama falló al agregar el proceso o en la
  * revisión nocturna, o quedaron más allá de las 30 actuaciones de la primera
  * carga). Un proceso por corrida del cron, sin repetir el mismo antes de 20 min.
