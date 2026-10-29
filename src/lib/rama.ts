@@ -373,11 +373,23 @@ export async function obtenerActuaciones(
 }
 
 /**
+ * Fecha de la Rama ("2026-10-28T00:00:00", sin zona horaria) en hora de
+ * Colombia. Antes se leía con la zona del servidor (UTC) y, mostrada en hora
+ * de Bogotá, caía un día antes: el 28 de octubre salía como 27.
+ */
+export function fechaRama(f?: string | null): Date | null {
+  if (!f) return null;
+  const conZona = /(Z|[+-]\d\d:?\d\d)$/.test(f) ? f : `${f}-05:00`;
+  const d = new Date(conZona);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
  * La actuación con la fecha más reciente. No sirve tomar la primera: algunos
  * sistemas (p. ej. SIUGJ) no entregan las actuaciones ordenadas por fecha.
  */
 export function laMasReciente(lista: Actuacion[], actual: Actuacion | null = null): Actuacion | null {
-  const t = (a: Actuacion | null) => (a?.fechaActuacion ? new Date(a.fechaActuacion).getTime() || 0 : 0);
+  const t = (a: Actuacion | null) => (fechaRama(a?.fechaActuacion)?.getTime() ?? 0);
   let mejor = actual;
   for (const a of lista) if (!mejor || t(a) > t(mejor)) mejor = a;
   return mejor;

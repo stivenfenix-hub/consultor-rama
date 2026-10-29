@@ -9,6 +9,7 @@ import {
   obtenerDocumentosActuacion,
   obtenerSujetos,
   laMasReciente,
+  fechaRama,
   RamaError,
   type ProcesoResumen,
   type Actuacion as RamaActuacion,
@@ -17,11 +18,7 @@ import {
 import { sendMail } from "./mailer";
 import { after } from "next/server";
 
-function parseFecha(f?: string | null): Date | null {
-  if (!f) return null;
-  const d = new Date(f);
-  return isNaN(d.getTime()) ? null : d;
-}
+const parseFecha = fechaRama;
 
 /**
  * Registra un proceso para un abogado a partir del radicado.
@@ -848,11 +845,10 @@ export async function enviarResumen(
       const items = c.nuevas
         .slice(0, 10)
         .map((a) => {
-          const fecha = a.fechaActuacion
-            ? new Date(a.fechaActuacion).toLocaleDateString("es-CO", {
-                timeZone: "America/Bogota",
-              })
-            : "";
+          const fecha =
+            fechaRama(a.fechaActuacion)?.toLocaleDateString("es-CO", {
+              timeZone: "America/Bogota",
+            }) ?? "";
           return `<li><strong>${escapeHtml(a.actuacion ?? "Actuacion")}</strong> — ${fecha}${
             a.anotacion ? `<br/><span style="color:#555">${escapeHtml(a.anotacion)}</span>` : ""
           }</li>`;

@@ -3,6 +3,7 @@ import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
 import {
   obtenerActuacionesNuevas,
+  fechaRama,
   obtenerDetalle,
   obtenerDocumentos,
   obtenerDocumentosActuacion,
@@ -549,6 +550,8 @@ export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
 
 // ---------- Corrida del cron (cada 5 minutos) ----------
 /** `forzar`: el admin la lanza a mano (revisa la cola aunque sea de día). */
+let fechasBogotaListas = false;
+
 export async function tick(opts: { forzar?: boolean } = {}) {
   await asegurarColumnasCola();
   if (!(await tomarLock())) return { omitido: "otra corrida en curso" };
@@ -590,6 +593,25 @@ export async function tick(opts: { forzar?: boolean } = {}) {
       info.documentos = await completarDocumentosPendientes().catch((e) => ({
         error: e instanceof Error ? e.message : String(e),
       }));
+    }
+    // Fechas guardadas antes del arreglo de zona horaria (medianoche UTC = día
+    // anterior en Colombia): se pasan a medianoche de Bogotá. Solo toca las que
+    // están exactamente a las 00:00, así que repetirlo no cambia nada.
+    if (!fechasBogotaListas) {
+      let n = 0;
+      for (const [tabla, col] of [
+        ["Actuacion", "fechaActuacion"],
+        ["Actuacion", "fechaRegistro"],
+        ["Documento", "fechaCarga"],
+        ["Case", "fechaProceso"],
+        ["Case", "lastActuacionDate"],
+      ]) {
+        n += await prisma.$executeRawUnsafe(
+          `UPDATE "${tabla}" SET "${col}" = "${col}" + interval '5 hours' WHERE "${col}"::time = '00:00:00'`,
+        );
+      }
+      fechasBogotaListas = true;
+      info.fechasZonaHoraria = n;
     }
     // "Última actuación" = la de fecha más reciente que tenemos guardada (antes se
     // tomaba la primera que mandaba la Rama, y SIUGJ no las ordena).
@@ -690,8 +712,4 @@ export async function estadoSincronizacion() {
   };
 }
 
-function parseFecha(s?: string | null): Date | null {
-  if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+const parseFecha = fechaRama;
