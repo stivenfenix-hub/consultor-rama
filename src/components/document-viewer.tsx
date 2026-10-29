@@ -36,6 +36,12 @@ function loadPdfJs(): Promise<PdfJs> {
 
 export type ViewerDoc = { id: string; nombre: string; tipo: string | null };
 
+/** Mensaje del servidor (Rama caída o documento restringido por el juzgado). */
+async function errorDeRespuesta(r: Response): Promise<Error> {
+  const j = await r.json().catch(() => null);
+  return new Error(typeof j?.error === "string" ? j.error : MSG_RAMA_DOCUMENTO);
+}
+
 /**
  * Descarga el archivo vía blob + <a download>. Funciona también en la app
  * instalada (PWA), donde abrir el enlace en otra pestaña se queda colgado.
@@ -43,8 +49,8 @@ export type ViewerDoc = { id: string; nombre: string; tipo: string | null };
 export async function descargarDocumento(doc: ViewerDoc, data?: ArrayBuffer) {
   const buf: ArrayBuffer =
     data ??
-    (await fetch(`/api/documento/${doc.id}`).then((r): Promise<ArrayBuffer> => {
-      if (!r.ok) throw new Error("No se pudo descargar el documento.");
+    (await fetch(`/api/documento/${doc.id}`).then(async (r): Promise<ArrayBuffer> => {
+      if (!r.ok) throw await errorDeRespuesta(r);
       return r.arrayBuffer();
     }));
   const ext = (doc.tipo || "pdf").toLowerCase();
@@ -74,6 +80,7 @@ export function DocumentViewer({
   );
   const [paginas, setPaginas] = useState(0);
   const [descargando, setDescargando] = useState(false);
+  const [mensaje, setMensaje] = useState(MSG_RAMA_DOCUMENTO);
 
   // Bloquea el scroll del fondo y cierra con Escape.
   useEffect(() => {
@@ -92,7 +99,7 @@ export function DocumentViewer({
     (async () => {
       try {
         const res = await fetch(`/api/documento/${doc.id}?inline=1`);
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw await errorDeRespuesta(res);
         const buf = await res.arrayBuffer();
         if (cancelado) return;
         dataRef.current = buf;
@@ -130,8 +137,11 @@ export function DocumentViewer({
           const ctx = canvas.getContext("2d");
           if (ctx) await page.render({ canvasContext: ctx, viewport: vp }).promise;
         }
-      } catch {
-        if (!cancelado) setEstado("error");
+      } catch (e) {
+        if (cancelado) return;
+        // Si falló pdf.js (no la Rama), se deja el mensaje general.
+        if (e instanceof Error && e.message.startsWith("La Rama Judicial")) setMensaje(e.message);
+        setEstado("error");
       }
     })();
     return () => {
@@ -143,8 +153,8 @@ export function DocumentViewer({
     setDescargando(true);
     try {
       await descargarDocumento(doc, dataRef.current ?? undefined);
-    } catch {
-      alert(MSG_RAMA_DOCUMENTO);
+    } catch (e) {
+      alert(e instanceof Error && e.message ? e.message : MSG_RAMA_DOCUMENTO);
     } finally {
       setDescargando(false);
     }
@@ -176,7 +186,7 @@ export function DocumentViewer({
           </p>
         )}
         {estado === "error" && (
-          <p className="aviso-rama viewer-msg">ℹ️ {MSG_RAMA_DOCUMENTO}</p>
+          <p className="aviso-rama viewer-msg">ℹ️ {mensaje}</p>
         )}
         {estado === "noPdf" && (
           <p className="muted small viewer-msg">

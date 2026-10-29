@@ -330,8 +330,8 @@ function DocButtons({
           setBajando(true);
           try {
             await descargarDocumento(doc);
-          } catch {
-            alert(MSG_RAMA_DOCUMENTO);
+          } catch (e) {
+            alert(e instanceof Error && e.message ? e.message : MSG_RAMA_DOCUMENTO);
           } finally {
             setBajando(false);
           }

@@ -16,3 +16,4 @@ export const MSG_RAMA_REVISION =
 
 /** ¿El mensaje es de una falla de la Rama (para mostrarlo con estilo tranquilo)? */
 export const esMensajeRama = (m?: string | null) => !!m && m.startsWith("La Rama Judicial");
+export const MSG_RAMA_DOC_RESTRINGIDO = "La Rama Judicial no permite descargar este documento: el juzgado lo dejó restringido en su plataforma. No es una falla de Estradox; si lo necesitas, solicítalo directamente al despacho.";

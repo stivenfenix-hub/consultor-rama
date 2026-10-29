@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSuscripcion, tieneAcceso } from "@/lib/subscription";
-import { MSG_RAMA_DOCUMENTO } from "@/lib/aviso-rama";
+import { MSG_RAMA_DOC_RESTRINGIDO, MSG_RAMA_DOCUMENTO } from "@/lib/aviso-rama";
 
 // Descarga un documento de la Rama a través del backend (proxy), porque el
 // API de la Rama usa el puerto :448 y bloquea CORS. Solo entrega documentos
@@ -46,6 +46,10 @@ export async function GET(
     upstream = null;
   } finally {
     clearTimeout(timer);
+  }
+  // 403 = el juzgado no autorizó la descarga (no es una caída: no sirve reintentar).
+  if (upstream?.status === 403) {
+    return NextResponse.json({ error: MSG_RAMA_DOC_RESTRINGIDO }, { status: 403 });
   }
   if (!upstream || !upstream.ok || !upstream.body) {
     return NextResponse.json({ error: MSG_RAMA_DOCUMENTO }, { status: 503 });
