@@ -12,7 +12,7 @@ import {
   type Documento as RamaDocumento,
 } from "./rama";
 import { usuariosConAcceso } from "./subscription";
-import { enviarResumen, procesarReintentos } from "./sync";
+import { completarDocumentosPendientes, enviarResumen, procesarReintentos } from "./sync";
 import { sendPushToUser } from "./push";
 import { revisarRama } from "./monitor-rama";
 import {
@@ -585,6 +585,12 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     info.rama = await revisarRama().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     // Radicados que la Rama no respondió al agregarlos: se reintentan solos.
     info.reintentos = await procesarReintentos().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    // Documentos que no llegaron al agregar el proceso (la Rama falló).
+    if ((info.rama as { ok?: boolean } | undefined)?.ok) {
+      info.documentos = await completarDocumentosPendientes().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
+    }
     // "Última actuación" = la de fecha más reciente que tenemos guardada (antes se
     // tomaba la primera que mandaba la Rama, y SIUGJ no las ordena).
     info.fechasCorregidas = await prisma

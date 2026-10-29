@@ -723,9 +723,10 @@ async function sincronizarDocumentos(
  * Trae los documentos por actuación (los descargables) en segundo plano, leyendo
  * las actuaciones ya guardadas. Permite que agregar un proceso sea rápido.
  */
-async function cargarDocumentosActuacionEnFondo(caseId: string) {
+async function cargarDocumentosActuacionEnFondo(caseId: string): Promise<{ docs: number; fallas: number }> {
   const t = Date.now();
   console.log("[docs-fondo] inicio", caseId);
+  let fallas = 0;
   try {
     const acts = await prisma.actuacion.findMany({
       where: { caseId, conDocumentos: true },
@@ -734,16 +735,23 @@ async function cargarDocumentosActuacionEnFondo(caseId: string) {
       take: 30,
     });
     const todos: RamaDocumento[] = [];
+    let seguidas = 0;
     for (const a of acts) {
       try {
         const d = await obtenerDocumentosActuacion(a.idRegActuacion);
         todos.push(...d);
+        seguidas = 0;
       } catch {
-        // seguir con las demás
+        fallas++;
+        // Tres fallas seguidas = la Rama está caída: se reintenta más tarde.
+        if (++seguidas >= 3) break;
       }
       await new Promise((res) => setTimeout(res, 400));
     }
-    if (todos.length === 0) return;
+    if (todos.length === 0) {
+      if (fallas > 0) console.log("[docs-fondo] la Rama falló", caseId, fallas);
+      return { docs: 0, fallas };
+    }
 
     const vistos = new Set<string>();
     const docs = todos.filter((d) => {
@@ -778,9 +786,43 @@ async function cargarDocumentosActuacionEnFondo(caseId: string) {
       })
       .catch(() => {});
     console.log("[docs-fondo] fin", caseId, Date.now() - t, "ms");
+    return { docs: docs.length, fallas };
   } catch (err) {
     console.error("[docs-fondo] error", caseId, err);
+    return { docs: 0, fallas: fallas + 1 };
   }
+}
+
+/**
+ * Documentos que no llegaron: procesos cuyas actuaciones dicen "con documentos"
+ * pero no tienen ninguno guardado (la Rama falló al agregarlos). La revisión
+ * nocturna solo trae los de actuaciones nuevas, así que sin esto se quedaban
+ * sin documentos para siempre. Uno por corrida del cron, hasta 8 intentos.
+ */
+export async function completarDocumentosPendientes() {
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Case" ADD COLUMN IF NOT EXISTS "docsIntentos" INT NOT NULL DEFAULT 0,
+       ADD COLUMN IF NOT EXISTS "docsIntentoAt" TIMESTAMP`,
+  );
+  const [c] = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT c.id FROM "Case" c
+     WHERE c."docsIntentos" < 8
+       AND (c."docsIntentoAt" IS NULL OR c."docsIntentoAt" < now() - interval '20 minutes')
+       AND EXISTS (SELECT 1 FROM "Actuacion" a WHERE a."caseId" = c.id AND a."conDocumentos")
+       AND NOT EXISTS (SELECT 1 FROM "Documento" d WHERE d."caseId" = c.id)
+     ORDER BY c."createdAt" DESC LIMIT 1`,
+  );
+  if (!c) return { pendientes: 0 };
+  await prisma.$executeRawUnsafe(
+    `UPDATE "Case" SET "docsIntentos" = "docsIntentos" + 1, "docsIntentoAt" = now() WHERE id = $1`,
+    c.id,
+  );
+  const r = await cargarDocumentosActuacionEnFondo(c.id);
+  // La Rama respondió y de verdad no hay documentos: no se vuelve a intentar.
+  if (r.docs === 0 && r.fallas === 0) {
+    await prisma.$executeRawUnsafe(`UPDATE "Case" SET "docsIntentos" = 99 WHERE id = $1`, c.id);
+  }
+  return { caso: c.id, ...r };
 }
 
 /** Marca todas las actuaciones de un proceso como vistas. */
