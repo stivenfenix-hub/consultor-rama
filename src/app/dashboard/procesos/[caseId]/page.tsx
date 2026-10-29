@@ -45,7 +45,7 @@ export default async function CaseDetail({
   // Otros registros del mismo radicado (un sistema de la Rama cada uno).
   const registros = await prisma.case.findMany({
     where: { userId: user.id, radicado: caso.radicado },
-    orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     select: { id: true, ubicacion: true, lastActuacionDate: true, unseenCount: true },
   });
   const sistema = (r: { ubicacion: string | null }) =>

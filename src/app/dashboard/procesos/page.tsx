@@ -57,7 +57,7 @@ export default async function ProcesosPage({
   const [todos, cargas, reintentos, caidaRama] = await Promise.all([
     prisma.case.findMany({
       where: { userId: user.id },
-      orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     }),
     cargasPendientesDeVer(user.id).catch(() => []),
     reintentosDelUsuario(user.id).catch(() => []),

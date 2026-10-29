@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   return withMobileUser(req, async (user) => {
     const cases = await prisma.case.findMany({
       where: { userId: user.id },
-      orderBy: [{ lastActuacionDate: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     });
     return NextResponse.json({
       cases: cases.map((c) => ({
