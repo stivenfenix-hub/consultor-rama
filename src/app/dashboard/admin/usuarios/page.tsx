@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listUsers } from "@/lib/admin";
 import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
@@ -132,11 +133,11 @@ export default async function UsuariosAdmin() {
                       const c = cargas.get(u.id);
                       if (!c || (c.cargas === 0 && c.reintentos === 0)) return <span className="muted">—</span>;
                       return (
-                        <>
+                        <Link href={`/dashboard/admin/usuarios/${u.id}`} title="Ver qué pasó con cada carga">
                           {c.cargas}
                           {c.conError > 0 && <span className="badge warn" style={{ marginLeft: 4 }}>{c.conError} con falla</span>}
                           {c.reintentos > 0 && <span className="badge reciente" style={{ marginLeft: 4 }}>{c.reintentos} reintentando</span>}
-                        </>
+                        </Link>
                       );
                     })()}
                   </td>

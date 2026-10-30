@@ -189,6 +189,7 @@ async function asegurarCargas() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "CargaProcesos" ADD COLUMN IF NOT EXISTS detalle TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "CargaProcesos" ADD COLUMN IF NOT EXISTS radicados TEXT`);
   cargasListas = true;
 }
 
@@ -196,9 +197,10 @@ async function asegurarCargas() {
 export async function iniciarCargaProcesos(userId: string, radicados: string[], invalidos: string[] = []) {
   await asegurarCargas();
   const [c] = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `INSERT INTO "CargaProcesos" ("userId", total) VALUES ($1, $2) RETURNING id`,
+    `INSERT INTO "CargaProcesos" ("userId", total, radicados) VALUES ($1, $2, $3) RETURNING id`,
     userId,
     radicados.length,
+    [...radicados, ...invalidos.map((r) => `${r} (inválido)`)].join(", "),
   );
   enFondo(async () => {
     let r: ResultadoAgregar;
@@ -974,6 +976,38 @@ function escapeHtml(s: string): string {
 }
 
 /** Intentos de carga por abogado (Panel admin → Usuarios). */
+/** Root: cargas, reintentos y procesos de un usuario (página de soporte). */
+export async function detalleCargasUsuario(userId: string) {
+  await asegurarCargas();
+  await asegurarReintentos();
+  const [cargas, reintentos, procesos] = await Promise.all([
+    prisma.$queryRawUnsafe<
+      (CargaProcesos & { radicados: string | null })[]
+    >(
+      `SELECT id, total, listos, estado, ok, error, detalle, radicados, "createdAt" FROM "CargaProcesos"
+       WHERE "userId" = $1 ORDER BY id DESC LIMIT 50`,
+      userId,
+    ),
+    prisma.$queryRawUnsafe<
+      { radicado: string; intentos: number; proximoAt: Date; ultimoError: string | null }[]
+    >(
+      `SELECT radicado, intentos, "proximoAt", "ultimoError" FROM "RadicadoReintento"
+       WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+      userId,
+    ),
+    prisma.case.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, radicado: true, ubicacion: true, lastError: true, _count: { select: { actuaciones: true } } },
+    }),
+  ]);
+  return {
+    cargas,
+    reintentos,
+    procesos: procesos.map((p) => ({ ...p, actuaciones: p._count.actuaciones })),
+  };
+}
+
 export async function resumenCargasPorUsuario() {
   await asegurarCargas();
   await asegurarReintentos();
