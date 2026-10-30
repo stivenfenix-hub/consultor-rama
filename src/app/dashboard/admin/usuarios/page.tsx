@@ -98,7 +98,7 @@ export default async function UsuariosAdmin() {
               {users.map((u) => (
                 <tr key={u.id}>
                   <td>
-                    {u.name ?? "—"}
+                    <Link href={`/dashboard/admin/usuarios/${u.id}`}>{u.name ?? "—"}</Link>
                     {sospechas.has(u.id) && (
                       <div className="badge warn" title={sospechas.get(u.id)!.join("; ")} style={{ marginTop: 4 }}>
                         ⚠️ Sospechoso

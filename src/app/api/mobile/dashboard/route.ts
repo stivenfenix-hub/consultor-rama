@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
-import { estadoActualizarTodos } from "@/lib/limits";
+import { estadoActualizarTodos, sinLimiteManual } from "@/lib/limits";
 import { withMobileUser } from "@/lib/mobile";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   return withMobileUser(req, async (user) => {
     const [stats, refreshAll, recientes] = await Promise.all([
       getDashboardStats(user.id),
-      estadoActualizarTodos(user.id, user.role === "admin"),
+      estadoActualizarTodos(user.id, await sinLimiteManual(user)),
       prisma.case.findMany({
         where: { userId: user.id },
         orderBy: { lastActuacionDate: "desc" },

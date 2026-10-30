@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { proximaActualizacionProceso } from "@/lib/limits";
+import { proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
 import { extraerGrabaciones, parsePartes } from "@/lib/case-detail";
 import { jsonError, withMobileUser } from "@/lib/mobile";
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
       },
     });
     if (!caso) return jsonError("Proceso no encontrado.", 404);
-    const proximaActualizacion = await proximaActualizacionProceso(caso.id, user.role === "admin");
+    const proximaActualizacion = await proximaActualizacionProceso(caso.id, await sinLimiteManual(user));
 
     const datos = [
       { label: "Despacho", value: caso.despacho },

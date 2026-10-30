@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
 import { RefreshAllButton } from "./refresh-all-button";
-import { estadoActualizarTodos } from "@/lib/limits";
+import { estadoActualizarTodos, sinLimiteManual } from "@/lib/limits";
 import { OpenInChrome } from "./open-in-chrome";
 
 function fmt(d: Date | null | undefined) {
@@ -29,7 +29,7 @@ export default async function DashboardPage({
 
   const [stats, refreshAll] = await Promise.all([
     getDashboardStats(user.id),
-    estadoActualizarTodos(user.id, user.role === "admin"),
+    estadoActualizarTodos(user.id, await sinLimiteManual(user)),
   ]);
 
   // Una fila por radicado: de sus registros (uno por sistema de la Rama) se

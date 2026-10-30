@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { marcarActualizacionProceso, proximaActualizacionProceso } from "@/lib/limits";
+import { marcarActualizacionProceso, proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
 import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual } from "@/lib/sync-queue";
 import { jsonError, withMobileUser } from "@/lib/mobile";
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return withMobileUser(req, async (user) => {
     const caso = await prisma.case.findFirst({ where: { id, userId: user.id } });
     if (!caso) return jsonError("Proceso no encontrado.", 404);
-    if (await proximaActualizacionProceso(id, user.role === "admin")) {
+    if (await proximaActualizacionProceso(id, await sinLimiteManual(user))) {
       return jsonError("Este proceso ya se actualizó hoy. Podrás hacerlo de nuevo mañana.", 429);
     }
     try {

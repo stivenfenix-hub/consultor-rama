@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
-import { proximaActualizacionProceso } from "@/lib/limits";
+import { proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
 import { CaseTabs, type Datos } from "./case-tabs";
 import { Icon } from "@/components/icon";
 import { avisoProceso } from "@/lib/aviso-rama";
@@ -53,7 +53,7 @@ export default async function CaseDetail({
     r.ubicacion?.replace(/^Software:\s*/i, "").trim() || "Consulta Nacional Unificada";
   const proximaActualizacion = await proximaActualizacionProceso(
     caso.id,
-    user.role === "admin",
+    await sinLimiteManual(user),
   );
 
   const datos: Datos = [

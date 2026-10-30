@@ -85,6 +85,8 @@ import {
   ejecutarActualizarTodos,
   marcarActualizacionProceso,
   proximaActualizacionProceso,
+  sinLimiteManual,
+  cambiarSinLimiteManual,
   reservarActualizarTodos,
 } from "@/lib/limits";
 
@@ -462,7 +464,7 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
     where: { id: caseId, userId: user.id },
   });
   if (!caso) return { error: "Proceso no encontrado." };
-  if (await proximaActualizacionProceso(caseId, user.role === "admin")) {
+  if (await proximaActualizacionProceso(caseId, await sinLimiteManual(user))) {
     return { error: "Este proceso ya se actualizó hoy. Podrás hacerlo de nuevo mañana." };
   }
   let resultado: ActionState;
@@ -489,7 +491,7 @@ export async function actualizarTodosAction(): Promise<ActionState> {
   const user = await requireUser();
   const sinAcceso = await bloqueoPorSuscripcion(user.id);
   if (sinAcceso) return sinAcceso;
-  const error = await reservarActualizarTodos(user.id, user.role === "admin");
+  const error = await reservarActualizarTodos(user.id, await sinLimiteManual(user));
   if (error) return { error };
   after(() => ejecutarActualizarTodos(user.id));
   revalidatePath("/dashboard");
@@ -660,6 +662,14 @@ export async function eliminarUsuarioAction(userId: string): Promise<ActionState
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/usuarios");
   return { ok: `Usuario ${user.email} eliminado.` };
+}
+
+/** Root: quita o devuelve el límite de actualizaciones manuales a un usuario. */
+export async function sinLimiteManualAction(userId: string, valor: boolean): Promise<ActionState> {
+  await requireAdmin();
+  await cambiarSinLimiteManual(userId, valor);
+  revalidatePath(`/dashboard/admin/usuarios/${userId}`);
+  return { ok: valor ? "Sin límite de actualizaciones manuales." : "Con el límite normal." };
 }
 
 // ---------- Campana de notificaciones ----------

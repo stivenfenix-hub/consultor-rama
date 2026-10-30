@@ -23,6 +23,31 @@ async function ensureColumns() {
   await ensureColumn("User", "manualRefreshAllAt", "TIMESTAMPTZ");
   await ensureColumn("User", "refreshAllStartedAt", "TIMESTAMPTZ");
   await ensureColumn("Case", "manualRefreshAt", "TIMESTAMPTZ");
+  await ensureColumn("User", "sinLimiteManual", "BOOLEAN NOT NULL DEFAULT false");
+}
+
+/** El admin y los usuarios que el root marque no tienen límite manual. */
+export async function sinLimiteManual(user: { id: string; role: string }): Promise<boolean> {
+  if (user.role === "admin") return true;
+  try {
+    await ensureColumns();
+    const rows = await prisma.$queryRawUnsafe<{ v: boolean }[]>(
+      `SELECT "sinLimiteManual" AS v FROM "User" WHERE id = $1`,
+      user.id,
+    );
+    return !!rows[0]?.v;
+  } catch {
+    return false;
+  }
+}
+
+export async function cambiarSinLimiteManual(userId: string, valor: boolean) {
+  await ensureColumns();
+  await prisma.$executeRawUnsafe(
+    `UPDATE "User" SET "sinLimiteManual" = $2 WHERE id = $1`,
+    userId,
+    valor,
+  );
 }
 
 /** Inicio del día siguiente (medianoche de Colombia) a partir de una fecha. */
