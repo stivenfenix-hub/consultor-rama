@@ -127,9 +127,11 @@ function getFetcher(): Promise<Fetcher> {
  * RAMA_MAX_CONCURRENT consultas a la vez y RAMA_MIN_GAP_MS entre el inicio de
  * una y otra. Si muchos abogados actualizan a la vez, esperan su turno en
  * lugar de disparar ráfagas que harían que la Rama bloquee la IP.
+ * El 29/10/2026 la Rama bloqueó dos veces con 4 a la vez y 250 ms (hasta
+ * 240 por minuto): ahora 2 a la vez y 1 s entre consultas (60 por minuto).
  */
-const MAX_SIMULTANEAS = Math.max(1, Number(process.env.RAMA_MAX_CONCURRENT ?? 4) || 4);
-const ESPACIO_MS = Math.max(0, Number(process.env.RAMA_MIN_GAP_MS ?? 250) || 0);
+const MAX_SIMULTANEAS = Math.max(1, Number(process.env.RAMA_MAX_CONCURRENT ?? 2) || 2);
+const ESPACIO_MS = Math.max(0, Number(process.env.RAMA_MIN_GAP_MS ?? 1000) || 0);
 const FRENO_MS = 5 * 60_000;
 let frenoHasta = 0; // tras un 429/403, nadie consulta la Rama por 5 minutos
 let enCurso = 0;

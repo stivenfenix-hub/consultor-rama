@@ -17,3 +17,18 @@ export const MSG_RAMA_REVISION =
 /** ¿El mensaje es de una falla de la Rama (para mostrarlo con estilo tranquilo)? */
 export const esMensajeRama = (m?: string | null) => !!m && m.startsWith("La Rama Judicial");
 export const MSG_RAMA_DOC_RESTRINGIDO = "La Rama Judicial no permite descargar este documento: el juzgado lo dejó restringido en su plataforma. No es una falla de Estradox; si lo necesitas, solicítalo directamente al despacho.";
+
+/**
+ * Qué decirle al abogado según el último error guardado del proceso. No todo
+ * error es una caída: privado y "sin actuaciones" son respuestas normales.
+ */
+export function avisoProceso(lastError?: string | null): { tipo: "privado" | "sinActuaciones" | "rama"; texto: string } | null {
+  if (!lastError) return null;
+  if (/privad/i.test(lastError)) {
+    return { tipo: "privado", texto: "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones." };
+  }
+  if (/no se encontraron actuaciones/i.test(lastError)) {
+    return { tipo: "sinActuaciones", texto: "Este proceso aún no tiene actuaciones publicadas en la Rama Judicial. Te avisamos cuando aparezca la primera." };
+  }
+  return { tipo: "rama", texto: MSG_RAMA_REVISION };
+}

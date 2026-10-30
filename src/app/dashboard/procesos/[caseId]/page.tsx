@@ -6,6 +6,7 @@ import { CaseActions } from "./case-actions";
 import { proximaActualizacionProceso } from "@/lib/limits";
 import { CaseTabs, type Datos } from "./case-tabs";
 import { Icon } from "@/components/icon";
+import { avisoProceso } from "@/lib/aviso-rama";
 import { extraerGrabaciones, parsePartes } from "@/lib/case-detail";
 
 const TZ = "America/Bogota";
@@ -161,11 +162,13 @@ export default async function CaseDetail({
 
       <p className="muted small">
         Sincronizado: {fmtHora(caso.lastSyncedAt)}
-        {caso.lastError
-          ? caso.lastError.startsWith("Proceso privado")
-            ? ` · 🔒 ${caso.lastError}`
-            : " · la Rama Judicial no respondió en la última revisión (lo reintentamos solos)"
-          : ""}
+        {(() => {
+          const a = avisoProceso(caso.lastError);
+          if (!a) return "";
+          return a.tipo === "rama"
+            ? " · la Rama Judicial no respondió en la última revisión (lo reintentamos solos)"
+            : ` · ${a.texto}`;
+        })()}
       </p>
 
       <section className="fuente">

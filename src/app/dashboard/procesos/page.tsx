@@ -7,7 +7,7 @@ import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
-import { MSG_RAMA_CAIDA, MSG_RAMA_REVISION } from "@/lib/aviso-rama";
+import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { ramaCaida } from "@/lib/monitor-rama";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
@@ -169,12 +169,15 @@ export default async function ProcesosPage({
             {c.despacho ?? "Despacho no disponible"}
             {c.departamento ? ` · ${c.departamento}` : ""}
           </div>
-          {c.lastError &&
-            (c.lastError.startsWith("Proceso privado") ? (
-              <div className="muted small" style={{ marginTop: 4 }}>🔒 {c.lastError}</div>
-            ) : caidaRama ? null : (
-              <div className="aviso-rama small" style={{ marginTop: 6 }}>ℹ️ {MSG_RAMA_REVISION}</div>
-            ))}
+          {(() => {
+            const a = avisoProceso(c.lastError);
+            if (!a || (a.tipo === "rama" && caidaRama)) return null;
+            return a.tipo === "rama" ? (
+              <div className="aviso-rama small" style={{ marginTop: 6 }}>ℹ️ {a.texto}</div>
+            ) : (
+              <div className="muted small" style={{ marginTop: 4 }}>{a.texto}</div>
+            );
+          })()}
         </Link>
       ))}
     </div>
