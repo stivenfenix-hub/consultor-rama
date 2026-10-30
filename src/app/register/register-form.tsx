@@ -44,6 +44,10 @@ export function RegisterForm() {
 
   // Marca en rojo el campo con error.
   const cls = (name: string) => (error?.field === name ? "input-error" : undefined);
+  // El aviso va justo debajo del campo equivocado, no al final del formulario.
+  const aviso = (name: string) =>
+    error?.field === name ? <div className="error" role="alert" style={{ marginTop: 4 }}>{error.error}</div> : null;
+  const campos = ["firstName", "lastName", "email", "whatsapp", "password", "password2"];
 
   if (state.ok) {
     return (
@@ -63,10 +67,12 @@ export function RegisterForm() {
         <div style={{ flex: 1, minWidth: 140 }}>
           <label className="small muted" htmlFor="firstName">Nombre</label>
           <input id="firstName" className={cls("firstName")} name="firstName" type="text" required placeholder="Ana" />
+          {aviso("firstName")}
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
           <label className="small muted" htmlFor="lastName">Apellido</label>
           <input id="lastName" className={cls("lastName")} name="lastName" type="text" required placeholder="Pérez" />
+          {aviso("lastName")}
         </div>
       </div>
       <div style={{ height: 10 }} />
@@ -80,6 +86,7 @@ export function RegisterForm() {
         placeholder="abogado@ejemplo.com"
         aria-describedby="email-ayuda"
       />
+      {aviso("email")}
       <div id="email-ayuda" className="muted small" style={{ marginTop: 4 }}>
         📩 A este correo te llegarán los avisos de <b>actuaciones nuevas</b> de tus
         procesos. Usa el que revisas a diario.
@@ -96,12 +103,15 @@ export function RegisterForm() {
         required
         placeholder="300 123 4567"
       />
+      {aviso("whatsapp")}
       <div style={{ height: 10 }} />
       <label className="small muted" htmlFor="password">Contraseña</label>
       <input id="password" className={cls("password")} name="password" type="password" required autoComplete="new-password" placeholder="Mínimo 8, con letras y números" />
+      {aviso("password")}
       <div style={{ height: 10 }} />
       <label className="small muted" htmlFor="password2">Repetir contraseña</label>
       <input id="password2" className={cls("password2")} name="password2" type="password" required autoComplete="new-password" placeholder="Escríbela de nuevo" />
+      {aviso("password2")}
 
       {/* Honeypot anti-bot: oculto para humanos */}
       <input
@@ -124,7 +134,7 @@ export function RegisterForm() {
       <button className="btn" type="submit" disabled={pending} style={{ width: "100%", justifyContent: "center" }}>
         {pending ? "Creando cuenta..." : "Crear cuenta"}
       </button>
-      {error && <div className="error">{error.error}</div>}
+      {error && !campos.includes(error.field ?? "") && <div className="error">{error.error}</div>}
 
       <p className="muted small" style={{ marginTop: 14 }}>
         ¿Ya tienes cuenta? <Link href="/login">Inicia sesión</Link>.

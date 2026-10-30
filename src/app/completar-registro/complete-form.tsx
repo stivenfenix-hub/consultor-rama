@@ -19,11 +19,11 @@ export function CompleteForm() {
         placeholder="300 123 4567"
         className={state.error ? "input-error" : undefined}
       />
+      {state.error && <div className="error" role="alert" style={{ marginTop: 4 }}>{state.error}</div>}
       <div style={{ height: 14 }} />
       <button className="btn" type="submit" disabled={pending} style={{ width: "100%", justifyContent: "center" }}>
         {pending ? "Guardando..." : "Entrar a Estradox"}
       </button>
-      {state.error && <div className="error">{state.error}</div>}
     </form>
   );
 }
