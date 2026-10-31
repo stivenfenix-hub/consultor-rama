@@ -403,6 +403,81 @@ async function cruzarDespacho(despacho: string) {
   return total;
 }
 
+// ---------- Nombres de los juzgados ----------
+// El portal trae en su página de inicio la lista de todos los despachos
+// ("252904003001 - JUZGADO 001 CIVIL MUNICIPAL DE FUSAGASUGÁ"). Se guarda en
+// la base y se vuelve a pedir solo si falta algún código (máximo una vez al día).
+let nombresListos = false;
+let ultimoIntentoNombres = 0;
+async function asegurarNombres() {
+  if (nombresListos) return;
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "DespachoNombre" (codigo TEXT PRIMARY KEY, nombre TEXT NOT NULL)`,
+  );
+  nombresListos = true;
+}
+
+const MINUSCULAS = new Set(["de", "del", "la", "las", "los", "y", "e", "en", "con", "para", "a"]);
+function nombreBonito(s: string) {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .map((p, i) => (i > 0 && MINUSCULAS.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(" ")
+    .replace(/\b(Epms|Desaj)\b/g, (m) => m.toUpperCase());
+}
+
+async function cargarNombresDelPortal() {
+  const html = await (await traer(`${BASE}/web/publicaciones-procesales/`, 90_000)).text();
+  const codigos: string[] = [];
+  const nombres: string[] = [];
+  for (const m of html.matchAll(/<option[^>]*value="(\d{12})"[^>]*>\s*\d{12}\s*-\s*([^<]+)/g)) {
+    codigos.push(m[1]);
+    nombres.push(nombreBonito(decodificar(m[2]).trim()));
+  }
+  if (codigos.length === 0) return;
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "DespachoNombre" (codigo, nombre) SELECT * FROM unnest($1::text[], $2::text[])
+     ON CONFLICT (codigo) DO UPDATE SET nombre = EXCLUDED.nombre`,
+    codigos,
+    nombres,
+  );
+}
+
+/** Nombre de cada despacho (código de 12 dígitos); los que no estén en el portal no vienen. */
+export async function nombresDespachos(codigos: string[]): Promise<Map<string, string>> {
+  if (codigos.length === 0) return new Map();
+  try {
+    await asegurarNombres();
+    const leer = async () =>
+      prisma.$queryRawUnsafe<{ codigo: string; nombre: string }[]>(
+        `SELECT codigo, nombre FROM "DespachoNombre" WHERE codigo = ANY($1::text[])`,
+        codigos,
+      );
+    const filas = await leer();
+    // Si falta alguno, se piden al portal en segundo plano (la página no espera al portal, que es lento).
+    if (filas.length < new Set(codigos).size && Date.now() - ultimoIntentoNombres > 86400_000) {
+      ultimoIntentoNombres = Date.now();
+      void cargarNombresDelPortal().catch((e) => console.error("[estados] nombres del portal", e));
+    }
+    const mapa = new Map(filas.map((f) => [f.codigo, f.nombre]));
+    // Los que el portal no tiene: el nombre que da la Consulta Nacional, si hay un proceso de ese despacho.
+    const faltan = [...new Set(codigos)].filter((c) => !mapa.has(c));
+    if (faltan.length > 0) {
+      const deRama = await prisma.$queryRawUnsafe<{ codigo: string; nombre: string }[]>(
+        `SELECT DISTINCT ON (left(radicado, 12)) left(radicado, 12) AS codigo, despacho AS nombre
+         FROM "Case" WHERE left(radicado, 12) = ANY($1::text[]) AND despacho IS NOT NULL`,
+        faltan,
+      );
+      for (const d of deRama) mapa.set(d.codigo, nombreBonito(d.nombre));
+    }
+    return mapa;
+  } catch (e) {
+    console.error("[estados] nombres de despachos", e);
+    return new Map();
+  }
+}
+
 // ---------- Para las páginas ----------
 export type HallazgoVista = {
   id: number;
@@ -444,6 +519,8 @@ export async function hallazgosSinVer(userId: string): Promise<number> {
 export type SoloEstados = {
   radicado: string;
   despacho: string;
+  /** "Juzgado 001 Civil Municipal de Fusagasugá", si el portal lo tiene. */
+  juzgado: string | null;
   revisadoAt: Date | null;
   /** id del proceso si también está en la Consulta Nacional. */
   caseId: string | null;
@@ -479,12 +556,14 @@ export async function soloEnEstados(userId: string): Promise<SoloEstados[]> {
     faltan.map((f) => f.radicado),
   );
   const porRad = new Map(ultimos.map((u) => [u.radicado, u]));
+  const nombres = await nombresDespachos(faltan.map((f) => f.despacho));
   return faltan
     .map((f) => {
       const u = porRad.get(f.radicado);
       return {
         radicado: f.radicado,
         despacho: f.despacho,
+        juzgado: nombres.get(f.despacho) ?? null,
         revisadoAt: f.revisadoAt ?? null,
         caseId: casos.get(f.radicado) ?? null,
         ultimo: u ? { titulo: u.titulo, fecha: u.fecha, extracto: u.extracto, url: u.url } : null,
@@ -507,7 +586,13 @@ export async function vigiladosDelUsuario(userId: string) {
     despachos,
   );
   const porDespacho = new Map(estado.map((e) => [e.despacho, e]));
+  const nombres = await nombresDespachos(despachos);
   return segs
-    .map((s) => ({ radicado: s.radicado, despacho: despachoDe(s.radicado), ...porDespacho.get(despachoDe(s.radicado)) }))
+    .map((s) => ({
+      radicado: s.radicado,
+      despacho: despachoDe(s.radicado),
+      juzgado: nombres.get(despachoDe(s.radicado)) ?? null,
+      ...porDespacho.get(despachoDe(s.radicado)),
+    }))
     .sort((a, b) => a.radicado.localeCompare(b.radicado));
 }

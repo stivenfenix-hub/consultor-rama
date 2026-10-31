@@ -75,7 +75,10 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
               <tbody>
                 {[...new Map(vigilados.map((v) => [v.despacho, v])).values()].map((v) => (
                   <tr key={v.despacho}>
-                    <td>{v.despacho}</td>
+                    <td>
+                      {v.despacho}
+                      {v.juzgado && <div className="small muted">{v.juzgado}</div>}
+                    </td>
                     <td>{vigilados.filter((x) => x.despacho === v.despacho).length}</td>
                     <td className="small">{hora(v.revisadoAt ?? null)}</td>
                     <td>{v.publicaciones ?? "—"}</td>

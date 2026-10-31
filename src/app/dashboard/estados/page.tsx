@@ -88,7 +88,7 @@ export default async function EstadosPage() {
             <thead>
               <tr>
                 <th>Radicado</th>
-                <th>Juzgado (código)</th>
+                <th>Juzgado</th>
                 <th>Última revisión</th>
               </tr>
             </thead>
@@ -98,7 +98,7 @@ export default async function EstadosPage() {
                   <td className="radicado">
                     {v.radicado} <span className="muted small">({corto(v.radicado)})</span>
                   </td>
-                  <td className="muted">{v.despacho}</td>
+                  <td className="muted">{v.juzgado ?? v.despacho}</td>
                   <td className="small">
                     {hora(v.revisadoAt)}
                     {v.ultimoError && <div className="muted">El portal no respondió; lo reintentamos.</div>}

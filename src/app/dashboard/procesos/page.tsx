@@ -224,7 +224,7 @@ export default async function ProcesosPage({
                 </span>
               </div>
               <div className="muted small" style={{ marginTop: 6 }}>
-                Juzgado {s.despacho} · {s.radicado.slice(12, 16)}-{s.radicado.slice(16, 21)}
+                {s.juzgado ?? `Juzgado ${s.despacho}`} · {s.radicado.slice(12, 16)}-{s.radicado.slice(16, 21)}
               </div>
               {s.ultimo ? (
                 <div className="small" style={{ marginTop: 4 }}>
