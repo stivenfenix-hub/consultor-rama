@@ -109,8 +109,9 @@ export function CargaAviso({
                       {noExisten.length === 1 ? "El radicado " : "Los radicados "}
                       <b>{noExisten.join(", ")}</b>{" "}
                       {noExisten.length === 1 ? "no aparece" : "no aparecen"} en la Consulta Nacional de la Rama
-                      Judicial, pero muchos juzgados solo los publican en sus <b>estados electrónicos</b>. Los
-                      revisamos automáticamente: si aparece, te notificamos y lo verás aquí en Procesos.
+                      Judicial, pero muchos juzgados solo los publican en sus <b>estados electrónicos</b>. Ya
+                      quedó en tu lista, en <b>&quot;En estados electrónicos&quot;</b> (más abajo), y lo revisamos
+                      automáticamente cada noche: si en los próximos días aparece, te notificamos y lo verás aquí.
                     </>
                   ) : (
                     <>

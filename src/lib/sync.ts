@@ -155,7 +155,7 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
       (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
       (r.noEncontrados.length
         ? enEstados
-          ? ` ${r.noEncontrados.join(", ")} no aparece(n) en la Consulta Nacional; lo(s) revisamos en los estados electrónicos del juzgado y te avisamos si aparece(n).`
+          ? ` ${r.noEncontrados.join(", ")} no aparece(n) en la Consulta Nacional. Quedó en tu lista de estados electrónicos y lo revisamos cada noche; te avisamos si aparece.`
           : ` No existen en la Rama: ${r.noEncontrados.join(", ")}.`
         : "") +
       (r.fallidos.length + r.sinIntentar.length
@@ -386,7 +386,7 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
         await sendPushToUser(f.userId, {
           title: enEstados ? "🔎 Lo buscaremos en los estados electrónicos" : "⚠️ No pudimos cargar un proceso",
           body: enEstados
-            ? `El radicado ${f.radicado} no aparece en la Consulta Nacional; lo revisamos en los estados electrónicos del juzgado y te avisamos si aparece.`
+            ? `El radicado ${f.radicado} no aparece en la Consulta Nacional. Quedó en tu lista de estados electrónicos y lo revisamos cada noche; te avisamos si aparece.`
             : noExiste
               ? `El radicado ${f.radicado} no existe en la Rama Judicial. Revisa el número.`
               : `La Rama Judicial no respondió por más de un día para ${f.radicado}. Intenta agregarlo de nuevo más tarde.`,
