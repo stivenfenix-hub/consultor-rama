@@ -42,8 +42,8 @@ export default async function EstadosPage() {
         <h2>Dónde salieron tus procesos ({hallazgos.length})</h2>
         {hallazgos.length === 0 ? (
           <p className="muted small">
-            Todavía no encontramos tus radicados en los estados de los últimos 30 días. Revisamos cada juzgado
-            varias veces al día y te avisamos apenas aparezcan.
+            Todavía no encontramos tus radicados en los estados revisados. Cada noche revisamos el último estado
+            que publica cada juzgado y te avisamos apenas aparezcan.
           </p>
         ) : (
           hallazgos.map((h) => (

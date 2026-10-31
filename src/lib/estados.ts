@@ -9,16 +9,19 @@ import { ensureColumn } from "./runtime-columns";
 // radicado vigilado, se leen los PDF y se busca el radicado (completo o
 // "2026-00894", como lo escriben los juzgados).
 //
-// El portal es lento (una búsqueda tarda ~4 min y a veces da 504), así que cada
-// corrida revisa pocos despachos y cada despacho se revisa cada ~8 horas.
+// El portal es lento (una búsqueda tarda ~4 min y a veces da 504). Beta: solo
+// para los usuarios que el root active, solo de noche (8 p. m. a 6:45 a. m.),
+// cada despacho una vez por noche y solo se lee su último estado publicado.
 
 const BASE = "https://publicacionesprocesales.ramajudicial.gov.co";
 const PORTLET = "co_com_avanti_efectosProcesales_PublicacionesEfectosProcesalesPortletV2_INSTANCE_BIyXQFHVaYaq";
 const NS = `_${PORTLET}`;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
-const CADA_HORAS = 8; // cada cuánto se revisa un despacho
-const DIAS_ATRAS = 30; // publicaciones que se miran (y se guardan)
+const CADA_HORAS = 20; // una vez por noche
+const DIAS_ATRAS = 7; // ventana de búsqueda (de ahí solo se toma el último estado)
+const NOCHE_DESDE = 20 * 60; // 8:00 p. m. (minutos, hora de Bogotá)
+const NOCHE_HASTA = 6 * 60 + 45; // 6:45 a. m.
 const DESPACHOS_POR_CORRIDA = 2;
 const PRESUPUESTO_MS = 15 * 60 * 1000;
 const MAX_ARCHIVOS = 60; // por publicación
@@ -73,7 +76,8 @@ async function seguimientos(despacho?: string) {
     `SELECT DISTINCT r."userId", r.radicado FROM (
        SELECT c."userId", c.radicado FROM "Case" c JOIN "User" u ON u.id = c."userId" WHERE u."estadosActivo"
        UNION
-       SELECT cp."userId", (regexp_matches(coalesce(cp.radicados, ''), '\\d{23}', 'g'))[1]
+       SELECT cp."userId", (regexp_matches(
+         coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1]
        FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId" WHERE u."estadosActivo"
      ) r`,
   );
@@ -252,6 +256,9 @@ async function soltarLock() {
 
 /** Lo llama el cron cada 5 min: revisa los despachos que ya toca y avisa lo que encuentre. */
 export async function revisarEstados() {
+  const ahora = new Date(Date.now() - 5 * 3600_000); // Bogotá (UTC-5)
+  const m = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
+  if (m < NOCHE_DESDE && m >= NOCHE_HASTA) return { omitido: "fuera del horario nocturno" };
   await asegurarTablas();
   if (!(await tomarLock())) return { omitido: "otra corrida en curso" };
   const inicio = Date.now();
@@ -299,17 +306,16 @@ async function revisarDespacho(despacho: string) {
     return { despacho, error: msg };
   }
 
-  const ya = new Set(
-    (
-      await prisma.$queryRawUnsafe<{ id: string }[]>(
-        `SELECT id FROM "EstadoPublicacion" WHERE id = ANY($1::text[])`,
-        items.map((i) => i.id),
-      )
-    ).map((r) => r.id),
-  );
+  // Solo el último estado publicado (no traslados, entradas, etc.).
+  const ultimo = items
+    .filter((i) => /estado/i.test(i.titulo))
+    .sort((a, b) => (b.fecha ?? "").localeCompare(a.fecha ?? "") || Number(b.id) - Number(a.id))[0];
+  const ya = ultimo
+    ? (await prisma.$queryRawUnsafe<{ id: string }[]>(`SELECT id FROM "EstadoPublicacion" WHERE id = $1`, ultimo.id))
+        .length > 0
+    : true;
   let nuevas = 0;
-  for (const it of items) {
-    if (ya.has(it.id)) continue;
+  for (const it of ya || !ultimo ? [] : [ultimo]) {
     try {
       const archivos = await leerPublicacion(it.id);
       await prisma.$executeRawUnsafe(
