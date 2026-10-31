@@ -268,8 +268,9 @@ export function CaseTabs({
             <p className="muted small" style={{ marginTop: 0 }}>
               Estados que publica {estados.juzgado ?? "el juzgado"} en Publicaciones Procesales de la Rama Judicial
               donde aparece este radicado. A veces el juzgado notifica por estado sin registrar la actuación en la
-              Consulta Nacional. Última revisión: {estados.revisado ?? "esta noche"}.
+              Consulta Nacional.
             </p>
+            <p className="muted small">Última revisión: {estados.revisado ?? "pendiente (esta noche)"}</p>
             {estados.publicaciones.length === 0 ? (
               <p className="muted small">
                 Este radicado todavía no ha salido en los estados revisados. Lo revisamos cada noche y te avisamos
@@ -279,7 +280,7 @@ export function CaseTabs({
               estados.publicaciones.map((e) => (
                 <div key={e.id} className="doc-row">
                   <div style={{ minWidth: 0 }}>
-                    <div className="name">
+                    <div className="name" style={{ whiteSpace: "normal" }}>
                       📋 {e.titulo} {e.nuevo && <span className="badge new">nuevo</span>}
                     </div>
                     <div className="muted small">{e.fecha}</div>
