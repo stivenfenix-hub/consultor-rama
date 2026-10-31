@@ -204,16 +204,20 @@ export default async function ProcesosPage({
       {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado. */}
       {filtro === "todos" && estados && estados.solo.length > 0 && (
         <>
-          <h2 style={{ margin: "18px 0 4px" }}>Solo en estados ({estados.solo.length})</h2>
+          <h2 style={{ margin: "18px 0 4px" }}>En estados electrónicos ({estados.solo.length})</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            La Consulta Nacional de la Rama no tiene estos radicados. Los buscamos cada noche en el último estado que
-            publica su juzgado.
+            Cada noche buscamos tus radicados en el último estado que publica su juzgado. Aquí están los que la
+            Consulta Nacional no tiene y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).
           </p>
           {estados.solo.map((s) => (
-            <Link key={s.radicado} href="/dashboard/estados" className="case">
+            <Link
+              key={s.radicado}
+              href={s.caseId ? `/dashboard/procesos/${s.caseId}` : "/dashboard/estados"}
+              className="case"
+            >
               <div className="row wrap">
                 <span className="radicado">{s.radicado}</span>
-                <span className="badge">solo en estados</span>
+                <span className="badge">{s.caseId ? "también en la Rama" : "solo en estados"}</span>
                 <div className="spacer" />
                 <span className="muted small">
                   {s.ultimo ? `Últ. estado: ${fmtUTC(s.ultimo.fecha)}` : "Sin estados encontrados aún"}

@@ -445,19 +445,28 @@ export type SoloEstados = {
   radicado: string;
   despacho: string;
   revisadoAt: Date | null;
+  /** id del proceso si también está en la Consulta Nacional. */
+  caseId: string | null;
   ultimo: { titulo: string; fecha: Date | null; extracto: string | null; url: string | null } | null;
 };
 
 /**
- * Radicados que el usuario intentó agregar y la Consulta Nacional no tiene: se
- * muestran en Procesos como "Solo en estados", con lo último que se encontró.
+ * Lo que va en Procesos → "En estados electrónicos": los radicados que la
+ * Consulta Nacional no tiene (siempre) y los que sí tiene pero salieron en un
+ * estado (hay juzgados que publican el estado y no registran la actuación).
  */
 export async function soloEnEstados(userId: string): Promise<SoloEstados[]> {
   const vigilados = await vigiladosDelUsuario(userId);
-  const casos = new Set(
-    (await prisma.case.findMany({ where: { userId }, select: { radicado: true } })).map((c) => c.radicado),
+  const casos = new Map(
+    (
+      await prisma.case.findMany({
+        where: { userId },
+        select: { id: true, radicado: true },
+        orderBy: { lastActuacionDate: { sort: "desc", nulls: "last" } },
+      })
+    ).map((c) => [c.radicado, c.id] as const).reverse(),
   );
-  const faltan = vigilados.filter((v) => !casos.has(v.radicado));
+  const faltan = vigilados;
   if (faltan.length === 0) return [];
   const ultimos = await prisma.$queryRawUnsafe<
     { radicado: string; titulo: string; fecha: Date | null; extracto: string | null; url: string | null }[]
@@ -477,9 +486,12 @@ export async function soloEnEstados(userId: string): Promise<SoloEstados[]> {
         radicado: f.radicado,
         despacho: f.despacho,
         revisadoAt: f.revisadoAt ?? null,
+        caseId: casos.get(f.radicado) ?? null,
         ultimo: u ? { titulo: u.titulo, fecha: u.fecha, extracto: u.extracto, url: u.url } : null,
       };
     })
+    // Los que están en la Rama solo aparecen aquí si salieron en un estado.
+    .filter((s) => !s.caseId || s.ultimo)
     .sort((a, b) => (b.ultimo?.fecha?.getTime() ?? 0) - (a.ultimo?.fecha?.getTime() ?? 0));
 }
 
