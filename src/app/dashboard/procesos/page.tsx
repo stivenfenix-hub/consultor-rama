@@ -9,7 +9,7 @@ import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
 import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { ramaCaida } from "@/lib/monitor-rama";
-import { estadosActivo, hallazgosSinVer } from "@/lib/estados";
+import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -63,7 +63,11 @@ export default async function ProcesosPage({
     cargasPendientesDeVer(user.id).catch(() => []),
     reintentosDelUsuario(user.id).catch(() => []),
     ramaCaida().catch(() => false),
-    estadosActivo(user.id).then(async (a) => (a ? { sinVer: await hallazgosSinVer(user.id) } : null)).catch(() => null),
+    estadosActivo(user.id)
+      .then(async (a) =>
+        a ? { sinVer: await hallazgosSinVer(user.id), solo: await soloEnEstados(user.id) } : null,
+      )
+      .catch(() => null),
   ]);
 
   // Un radicado puede estar en varios sistemas de la Rama (p. ej. Justicia XXI
@@ -196,6 +200,50 @@ export default async function ProcesosPage({
           })()}
         </Link>
       ))}
+
+      {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado. */}
+      {filtro === "todos" && estados && estados.solo.length > 0 && (
+        <>
+          <h2 style={{ margin: "18px 0 4px" }}>Solo en estados ({estados.solo.length})</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            La Consulta Nacional de la Rama no tiene estos radicados. Los buscamos cada noche en el último estado que
+            publica su juzgado.
+          </p>
+          {estados.solo.map((s) => (
+            <Link key={s.radicado} href="/dashboard/estados" className="case">
+              <div className="row wrap">
+                <span className="radicado">{s.radicado}</span>
+                <span className="badge">solo en estados</span>
+                <div className="spacer" />
+                <span className="muted small">
+                  {s.ultimo ? `Últ. estado: ${fmtUTC(s.ultimo.fecha)}` : "Sin estados encontrados aún"}
+                </span>
+              </div>
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Juzgado {s.despacho} · {s.radicado.slice(12, 16)}-{s.radicado.slice(16, 21)}
+              </div>
+              {s.ultimo ? (
+                <div className="small" style={{ marginTop: 4 }}>
+                  <b>{s.ultimo.titulo}</b>
+                  {s.ultimo.extracto && <div className="muted">…{s.ultimo.extracto.slice(0, 220)}…</div>}
+                </div>
+              ) : (
+                <div className="muted small" style={{ marginTop: 4 }}>
+                  {s.revisadoAt
+                    ? "No salió en el último estado del juzgado."
+                    : "Lo revisamos esta noche (de 8 p. m. a 6:45 a. m.)."}
+                </div>
+              )}
+            </Link>
+          ))}
+        </>
+      )}
     </div>
   );
+}
+
+// Las fechas de los estados se guardan como día (sin hora).
+function fmtUTC(d: Date | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }

@@ -441,6 +441,48 @@ export async function hallazgosSinVer(userId: string): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
+export type SoloEstados = {
+  radicado: string;
+  despacho: string;
+  revisadoAt: Date | null;
+  ultimo: { titulo: string; fecha: Date | null; extracto: string | null; url: string | null } | null;
+};
+
+/**
+ * Radicados que el usuario intentó agregar y la Consulta Nacional no tiene: se
+ * muestran en Procesos como "Solo en estados", con lo último que se encontró.
+ */
+export async function soloEnEstados(userId: string): Promise<SoloEstados[]> {
+  const vigilados = await vigiladosDelUsuario(userId);
+  const casos = new Set(
+    (await prisma.case.findMany({ where: { userId }, select: { radicado: true } })).map((c) => c.radicado),
+  );
+  const faltan = vigilados.filter((v) => !casos.has(v.radicado));
+  if (faltan.length === 0) return [];
+  const ultimos = await prisma.$queryRawUnsafe<
+    { radicado: string; titulo: string; fecha: Date | null; extracto: string | null; url: string | null }[]
+  >(
+    `SELECT DISTINCT ON (h.radicado) h.radicado, p.titulo, p.fecha, h.extracto, h.url
+     FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
+     WHERE h."userId" = $1 AND h.radicado = ANY($2::text[])
+     ORDER BY h.radicado, p.fecha DESC NULLS LAST, h.id DESC`,
+    userId,
+    faltan.map((f) => f.radicado),
+  );
+  const porRad = new Map(ultimos.map((u) => [u.radicado, u]));
+  return faltan
+    .map((f) => {
+      const u = porRad.get(f.radicado);
+      return {
+        radicado: f.radicado,
+        despacho: f.despacho,
+        revisadoAt: f.revisadoAt ?? null,
+        ultimo: u ? { titulo: u.titulo, fecha: u.fecha, extracto: u.extracto, url: u.url } : null,
+      };
+    })
+    .sort((a, b) => (b.ultimo?.fecha?.getTime() ?? 0) - (a.ultimo?.fecha?.getTime() ?? 0));
+}
+
 /** Radicados vigilados del usuario y cuándo se revisó su despacho. */
 export async function vigiladosDelUsuario(userId: string) {
   await asegurarTablas();
