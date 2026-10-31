@@ -681,6 +681,20 @@ export async function estadosActivoAction(userId: string, valor: boolean): Promi
   return { ok: valor ? "Vigilando estados." : "Sin vigilancia de estados." };
 }
 
+/** Root: corre ya la revisión de estados (sin esperar la noche). */
+export async function revisarEstadosAhoraAction(): Promise<ActionState> {
+  await requireAdmin();
+  const { revisarEstados } = await import("@/lib/estados");
+  after(async () => {
+    try {
+      console.log("[estados] manual", JSON.stringify(await revisarEstados({ forzar: true })));
+    } catch (e) {
+      console.error("[estados] manual error", e);
+    }
+  });
+  return { ok: "Revisión iniciada. Tarda unos minutos por juzgado; recarga esta página para ver el avance." };
+}
+
 // ---------- Campana de notificaciones ----------
 /**
  * Cuántos avisos sin leer tiene. Con `ruta` (la página que acaba de abrir),

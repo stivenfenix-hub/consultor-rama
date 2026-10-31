@@ -18,7 +18,6 @@ const PORTLET = "co_com_avanti_efectosProcesales_PublicacionesEfectosProcesalesP
 const NS = `_${PORTLET}`;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
-const CADA_HORAS = 20; // una vez por noche
 const DIAS_ATRAS = 7; // ventana de búsqueda (de ahí solo se toma el último estado)
 const NOCHE_DESDE = 20 * 60; // 8:00 p. m. (minutos, hora de Bogotá)
 const NOCHE_HASTA = 6 * 60 + 45; // 6:45 a. m.
@@ -47,6 +46,7 @@ async function asegurarTablas() {
       archivos JSONB NOT NULL DEFAULT '[]',
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "EstadoDespacho" ADD COLUMN IF NOT EXISTS "errorAt" TIMESTAMPTZ`);
   await prisma.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "EstadoPublicacion_despacho" ON "EstadoPublicacion" (despacho, fecha)`,
   );
@@ -236,7 +236,7 @@ function extracto(texto: string, i: number) {
 
 // ---------- Corrida ----------
 let lockListo = false;
-async function tomarLock(): Promise<boolean> {
+async function tomarLock(minutos: number): Promise<boolean> {
   if (!lockListo) {
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS "EstadoLock" (id INTEGER PRIMARY KEY, hasta TIMESTAMPTZ)`,
@@ -245,8 +245,9 @@ async function tomarLock(): Promise<boolean> {
     lockListo = true;
   }
   const n = await prisma.$executeRawUnsafe(
-    `UPDATE "EstadoLock" SET hasta = now() + interval '20 minutes'
+    `UPDATE "EstadoLock" SET hasta = now() + ($1 || ' minutes')::interval
      WHERE id = 1 AND (hasta IS NULL OR hasta < now())`,
+    String(minutos),
   );
   return n > 0;
 }
@@ -255,32 +256,56 @@ async function soltarLock() {
 }
 
 /** Lo llama el cron cada 5 min: revisa los despachos que ya toca y avisa lo que encuentre. */
-export async function revisarEstados() {
+/** Inicio (8 p. m. de Bogotá) de la noche en curso o de la última. */
+function inicioNoche(): Date {
+  const BOG = 5 * 3600_000;
+  const local = new Date(Date.now() - BOG);
+  const m = local.getUTCHours() * 60 + local.getUTCMinutes();
+  const dia = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+  const noche = dia + NOCHE_DESDE * 60_000 - (m < NOCHE_DESDE ? 86400_000 : 0);
+  return new Date(noche + BOG);
+}
+
+/**
+ * Lo llama el cron cada 5 min: de noche revisa los despachos que aún no se
+ * revisaron en esta noche. `forzar` (botón del root) corre ya, a cualquier
+ * hora, todos los despachos de una vez (de a 2 en paralelo).
+ */
+export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   const ahora = new Date(Date.now() - 5 * 3600_000); // Bogotá (UTC-5)
   const m = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
-  if (m < NOCHE_DESDE && m >= NOCHE_HASTA) return { omitido: "fuera del horario nocturno" };
+  const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA);
+  if (!opts.forzar && !deNoche) return { omitido: "fuera del horario nocturno" };
   await asegurarTablas();
-  if (!(await tomarLock())) return { omitido: "otra corrida en curso" };
+  if (!(await tomarLock(opts.forzar ? 150 : 20))) return { omitido: "otra corrida en curso" };
   const inicio = Date.now();
   const info: Record<string, unknown>[] = [];
   try {
     const segs = await seguimientos();
     const despachos = [...new Set(segs.map((s) => despachoDe(s.radicado)))];
     if (despachos.length === 0) return { despachos: 0 };
-    const pendientes = await prisma.$queryRawUnsafe<{ despacho: string }[]>(
-      `SELECT d.despacho FROM unnest($1::text[]) AS d(despacho)
-       LEFT JOIN "EstadoDespacho" e ON e.despacho = d.despacho
-       WHERE e."revisadoAt" IS NULL OR e."revisadoAt" < now() - ($2 || ' hours')::interval
-       ORDER BY e."revisadoAt" NULLS FIRST
-       LIMIT $3`,
-      despachos,
-      String(CADA_HORAS),
-      DESPACHOS_POR_CORRIDA,
-    );
-    for (const { despacho } of pendientes) {
-      if (Date.now() - inicio > PRESUPUESTO_MS) break;
-      info.push(await revisarDespacho(despacho));
-    }
+    const pendientes = opts.forzar
+      ? despachos.map((despacho) => ({ despacho }))
+      : await prisma.$queryRawUnsafe<{ despacho: string }[]>(
+          `SELECT d.despacho FROM unnest($1::text[]) AS d(despacho)
+           LEFT JOIN "EstadoDespacho" e ON e.despacho = d.despacho
+           WHERE (e."revisadoAt" IS NULL OR e."revisadoAt" < $2)
+             AND (e."errorAt" IS NULL OR e."errorAt" < now() - interval '1 hour')
+           ORDER BY e."revisadoAt" NULLS FIRST
+           LIMIT $3`,
+          despachos,
+          inicioNoche(),
+          DESPACHOS_POR_CORRIDA,
+        );
+    const presupuesto = opts.forzar ? 140 * 60_000 : PRESUPUESTO_MS;
+    const cola = [...pendientes];
+    const trabajador = async () => {
+      for (let p = cola.shift(); p; p = cola.shift()) {
+        if (Date.now() - inicio > presupuesto) break;
+        info.push(await revisarDespacho(p.despacho));
+      }
+    };
+    await Promise.all(opts.forzar ? [trabajador(), trabajador()] : [trabajador()]);
     return { despachos: despachos.length, revisados: info };
   } finally {
     await soltarLock();
@@ -295,13 +320,12 @@ async function revisarDespacho(despacho: string) {
     items = await buscarPublicaciones(despacho, desde, hasta);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // Reintenta en ~1 hora (no en 8).
+    // No cuenta como revisado: se reintenta en ~1 hora (ver "errorAt" en revisarEstados).
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "EstadoDespacho" (despacho, "revisadoAt", "ultimoError") VALUES ($1, now() - ($3 || ' hours')::interval, $2)
-       ON CONFLICT (despacho) DO UPDATE SET "revisadoAt" = EXCLUDED."revisadoAt", "ultimoError" = EXCLUDED."ultimoError"`,
+      `INSERT INTO "EstadoDespacho" (despacho, "ultimoError", "errorAt") VALUES ($1, $2, now())
+       ON CONFLICT (despacho) DO UPDATE SET "ultimoError" = EXCLUDED."ultimoError", "errorAt" = now()`,
       despacho,
       msg.slice(0, 300),
-      String(CADA_HORAS - 1),
     );
     return { despacho, error: msg };
   }
@@ -334,7 +358,7 @@ async function revisarDespacho(despacho: string) {
   }
   await prisma.$executeRawUnsafe(
     `INSERT INTO "EstadoDespacho" (despacho, "revisadoAt", "ultimoError", publicaciones) VALUES ($1, now(), NULL, $2)
-     ON CONFLICT (despacho) DO UPDATE SET "revisadoAt" = now(), "ultimoError" = NULL, publicaciones = $2`,
+     ON CONFLICT (despacho) DO UPDATE SET "revisadoAt" = now(), "ultimoError" = NULL, "errorAt" = NULL, publicaciones = $2`,
     despacho,
     items.length,
   );

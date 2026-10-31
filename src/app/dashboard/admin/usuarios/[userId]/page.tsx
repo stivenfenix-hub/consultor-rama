@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { detalleCargasUsuario } from "@/lib/sync";
 import { sinLimiteManual } from "@/lib/limits";
 import { Interruptor } from "./sin-limite";
+import { RevisarEstadosAhora } from "./revisar-estados";
 import { estadosActivo, hallazgosDelUsuario, vigiladosDelUsuario } from "@/lib/estados";
 
 const hora = (d: Date | null) =>
@@ -69,6 +70,10 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
             </div>
           )}
           <h2 style={{ marginTop: 16 }}>Juzgados revisados</h2>
+          <p className="muted small" style={{ margin: 0 }}>
+            Se revisan solos cada noche (8 p. m. a 6:45 a. m.). El botón corre la revisión ya, para todos los usuarios en prueba.
+          </p>
+          <RevisarEstadosAhora />
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Despacho</th><th>Radicados</th><th>Última revisión</th><th>Publicaciones</th><th>Error</th></tr></thead>
