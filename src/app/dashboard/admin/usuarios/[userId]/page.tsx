@@ -4,7 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { detalleCargasUsuario } from "@/lib/sync";
 import { sinLimiteManual } from "@/lib/limits";
-import { SinLimite } from "./sin-limite";
+import { Interruptor } from "./sin-limite";
+import { estadosActivo } from "@/lib/estados";
 
 const hora = (d: Date | null) =>
   d ? new Date(d).toLocaleString("es-CO", { timeZone: "America/Bogota" }) : "—";
@@ -19,9 +20,10 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
     select: { email: true, firstName: true, lastName: true, role: true },
   });
   if (!user) notFound();
-  const [{ cargas, reintentos, procesos }, libre] = await Promise.all([
+  const [{ cargas, reintentos, procesos }, libre, estados] = await Promise.all([
     detalleCargasUsuario(userId),
     sinLimiteManual({ id: userId, role: user.role }),
+    estadosActivo(userId),
   ]);
 
   return (
@@ -36,11 +38,11 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
         </div>
       </div>
 
-      {user.role !== "admin" && (
-        <div className="card">
-          <SinLimite userId={userId} valor={libre} />
-        </div>
-      )}
+      <div className="card">
+        {user.role !== "admin" && <Interruptor userId={userId} valor={libre} tipo="sinLimite" />}
+        <div style={{ height: 8 }} />
+        <Interruptor userId={userId} valor={estados} tipo="estados" />
+      </div>
 
       <div className="card">
         <h2>Procesos en su lista ({procesos.length})</h2>

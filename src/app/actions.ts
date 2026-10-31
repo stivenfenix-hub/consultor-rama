@@ -672,6 +672,15 @@ export async function sinLimiteManualAction(userId: string, valor: boolean): Pro
   return { ok: valor ? "Sin límite de actualizaciones manuales." : "Con el límite normal." };
 }
 
+/** Root: activa la vigilancia de estados electrónicos para un usuario (en prueba). */
+export async function estadosActivoAction(userId: string, valor: boolean): Promise<ActionState> {
+  await requireAdmin();
+  const { cambiarEstadosActivo } = await import("@/lib/estados");
+  await cambiarEstadosActivo(userId, valor);
+  revalidatePath(`/dashboard/admin/usuarios/${userId}`);
+  return { ok: valor ? "Vigilando estados." : "Sin vigilancia de estados." };
+}
+
 // ---------- Campana de notificaciones ----------
 /**
  * Cuántos avisos sin leer tiene. Con `ruta` (la página que acaba de abrir),

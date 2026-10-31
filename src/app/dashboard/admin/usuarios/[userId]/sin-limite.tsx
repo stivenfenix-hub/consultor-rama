@@ -1,11 +1,25 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sinLimiteManualAction } from "@/app/actions";
+import { estadosActivoAction, sinLimiteManualAction } from "@/app/actions";
 
-export function SinLimite({ userId, valor }: { userId: string; valor: boolean }) {
+const OPCIONES = {
+  sinLimite: {
+    accion: sinLimiteManualAction,
+    texto: "Sin límite de actualizaciones manuales",
+    ayuda: '(puede actualizar cada proceso y "todos" cuando quiera)',
+  },
+  estados: {
+    accion: estadosActivoAction,
+    texto: "Vigilar estados electrónicos (en prueba)",
+    ayuda: "(busca sus radicados en los estados que publica cada juzgado, aunque no estén en la Consulta Nacional)",
+  },
+};
+
+export function Interruptor({ userId, valor, tipo }: { userId: string; valor: boolean; tipo: keyof typeof OPCIONES }) {
   const [activo, setActivo] = useState(valor);
   const [pending, start] = useTransition();
+  const o = OPCIONES[tipo];
 
   return (
     <label className="row" style={{ gap: 8, cursor: "pointer" }}>
@@ -18,14 +32,13 @@ export function SinLimite({ userId, valor }: { userId: string; valor: boolean })
           const v = e.target.checked;
           setActivo(v);
           start(async () => {
-            const r = await sinLimiteManualAction(userId, v);
+            const r = await o.accion(userId, v);
             if (r.error) setActivo(!v);
           });
         }}
       />
       <span>
-        Sin límite de actualizaciones manuales{" "}
-        <span className="muted small">(puede actualizar cada proceso y "todos" cuando quiera)</span>
+        {o.texto} <span className="muted small">{o.ayuda}</span>
       </span>
     </label>
   );

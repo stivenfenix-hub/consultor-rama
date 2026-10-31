@@ -9,6 +9,7 @@ import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
 import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { ramaCaida } from "@/lib/monitor-rama";
+import { estadosActivo, hallazgosSinVer } from "@/lib/estados";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -54,7 +55,7 @@ export default async function ProcesosPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todos, cargas, reintentos, caidaRama] = await Promise.all([
+  const [todos, cargas, reintentos, caidaRama, estados] = await Promise.all([
     prisma.case.findMany({
       where: { userId: user.id },
       orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
@@ -62,6 +63,7 @@ export default async function ProcesosPage({
     cargasPendientesDeVer(user.id).catch(() => []),
     reintentosDelUsuario(user.id).catch(() => []),
     ramaCaida().catch(() => false),
+    estadosActivo(user.id).then(async (a) => (a ? { sinVer: await hallazgosSinVer(user.id) } : null)).catch(() => null),
   ]);
 
   // Un radicado puede estar en varios sistemas de la Rama (p. ej. Justicia XXI
@@ -107,6 +109,20 @@ export default async function ProcesosPage({
         <h2>Agregar proceso por radicado</h2>
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
       </div>
+
+      {estados && (
+        <Link href="/dashboard/estados" className="case">
+          <div className="row wrap">
+            <b>📋 Estados electrónicos</b>
+            {estados.sinVer > 0 && <span className="badge new">{estados.sinVer} nuevos</span>}
+            <div className="spacer" />
+            <span className="muted small">Ver dónde salieron tus procesos →</span>
+          </div>
+          <div className="muted small" style={{ marginTop: 4 }}>
+            Buscamos tus radicados en los estados que publica cada juzgado, aunque no estén en la Consulta Nacional.
+          </div>
+        </Link>
+      )}
 
       {(cargas.length > 0 || reintentos.length > 0) && (
         <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} />
