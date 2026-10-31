@@ -47,6 +47,8 @@ async function asegurarTablas() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "EstadoDespacho" ADD COLUMN IF NOT EXISTS "errorAt" TIMESTAMPTZ`);
+  // Pedido de revisión fuera de la noche (un abogado en prueba agregó un radicado de ese despacho).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "EstadoDespacho" ADD COLUMN IF NOT EXISTS "pedidoAt" TIMESTAMPTZ`);
   await prisma.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "EstadoPublicacion_despacho" ON "EstadoPublicacion" (despacho, fecha)`,
   );
@@ -275,8 +277,14 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   const ahora = new Date(Date.now() - 5 * 3600_000); // Bogotá (UTC-5)
   const m = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
   const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA);
-  if (!opts.forzar && !deNoche) return { omitido: "fuera del horario nocturno" };
   await asegurarTablas();
+  // De día solo se atienden los pedidos (radicados recién agregados).
+  if (!opts.forzar && !deNoche) {
+    const [p] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+      `SELECT count(*) AS n FROM "EstadoDespacho" WHERE "pedidoAt" IS NOT NULL`,
+    );
+    if (Number(p?.n ?? 0) === 0) return { omitido: "fuera del horario nocturno" };
+  }
   if (!(await tomarLock(opts.forzar ? 150 : 20))) return { omitido: "otra corrida en curso" };
   const inicio = Date.now();
   const info: Record<string, unknown>[] = [];
@@ -289,13 +297,14 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
       : await prisma.$queryRawUnsafe<{ despacho: string }[]>(
           `SELECT d.despacho FROM unnest($1::text[]) AS d(despacho)
            LEFT JOIN "EstadoDespacho" e ON e.despacho = d.despacho
-           WHERE (e."revisadoAt" IS NULL OR e."revisadoAt" < $2)
+           WHERE (e."pedidoAt" IS NOT NULL OR ($4 AND (e."revisadoAt" IS NULL OR e."revisadoAt" < $2)))
              AND (e."errorAt" IS NULL OR e."errorAt" < now() - interval '1 hour')
-           ORDER BY e."revisadoAt" NULLS FIRST
+           ORDER BY e."pedidoAt" NULLS LAST, e."revisadoAt" NULLS FIRST
            LIMIT $3`,
           despachos,
           inicioNoche(),
           DESPACHOS_POR_CORRIDA,
+          deNoche,
         );
     const presupuesto = opts.forzar ? 140 * 60_000 : PRESUPUESTO_MS;
     const cola = [...pendientes];
@@ -358,7 +367,8 @@ async function revisarDespacho(despacho: string) {
   }
   await prisma.$executeRawUnsafe(
     `INSERT INTO "EstadoDespacho" (despacho, "revisadoAt", "ultimoError", publicaciones) VALUES ($1, now(), NULL, $2)
-     ON CONFLICT (despacho) DO UPDATE SET "revisadoAt" = now(), "ultimoError" = NULL, "errorAt" = NULL, publicaciones = $2`,
+     ON CONFLICT (despacho) DO UPDATE SET "revisadoAt" = now(), "ultimoError" = NULL, "errorAt" = NULL,
+      "pedidoAt" = NULL, publicaciones = $2`,
     despacho,
     items.length,
   );
@@ -425,6 +435,35 @@ async function cruzarDespacho(despacho: string) {
     }).catch(() => {});
   }
   return total;
+}
+
+/**
+ * Un abogado en prueba agregó radicados: se buscan en estados en segundo plano.
+ * Si el despacho ya se revisó en las últimas 24 h, se cruza con el estado ya
+ * guardado (sin ir al portal); si no, queda pedido para el próximo cron (cada
+ * 5 min, de 2 en 2). No bloquea la carga: se llama sin esperar.
+ */
+export async function buscarEstadosDeNuevos(userId: string, radicados: string[]) {
+  try {
+    if (radicados.length === 0 || !(await estadosActivo(userId))) return;
+    for (const despacho of [...new Set(radicados.map(despachoDe))]) {
+      const [d] = await prisma.$queryRawUnsafe<{ reciente: boolean }[]>(
+        `SELECT "revisadoAt" > now() - interval '24 hours' AS reciente FROM "EstadoDespacho" WHERE despacho = $1`,
+        despacho,
+      );
+      if (d?.reciente) {
+        await cruzarDespacho(despacho);
+      } else {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "EstadoDespacho" (despacho, "pedidoAt") VALUES ($1, now())
+           ON CONFLICT (despacho) DO UPDATE SET "pedidoAt" = coalesce("EstadoDespacho"."pedidoAt", now())`,
+          despacho,
+        );
+      }
+    }
+  } catch (e) {
+    console.error("[estados] radicados nuevos", e);
+  }
 }
 
 // ---------- Nombres de los juzgados ----------

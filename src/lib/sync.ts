@@ -202,6 +202,11 @@ export async function iniciarCargaProcesos(userId: string, radicados: string[], 
     radicados.length,
     [...radicados, ...invalidos.map((r) => `${r} (inválido)`)].join(", "),
   );
+  // Abogados en prueba de estados electrónicos: también se buscan ahí (aparte, sin frenar la carga).
+  enFondo(async () => {
+    const { buscarEstadosDeNuevos } = await import("./estados");
+    await buscarEstadosDeNuevos(userId, radicados);
+  });
   enFondo(async () => {
     let r: ResultadoAgregar;
     try {
