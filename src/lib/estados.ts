@@ -565,6 +565,27 @@ export async function hallazgosDelUsuario(userId: string, limite = 200): Promise
   );
 }
 
+/** Para la pestaña "Estados electrónicos" del proceso: dónde salió este radicado. */
+export async function estadosDelRadicado(userId: string, radicado: string) {
+  await asegurarTablas();
+  const despacho = despachoDe(radicado);
+  const [pubs, [d], nombres] = await Promise.all([
+    prisma.$queryRawUnsafe<HallazgoVista[]>(
+      `SELECT h.id, h.radicado, p.titulo, p.fecha, h.archivo, h.url, h.extracto, h.visto, h."createdAt"
+       FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
+       WHERE h."userId" = $1 AND h.radicado = $2 ORDER BY p.fecha DESC NULLS LAST, h.id DESC`,
+      userId,
+      radicado,
+    ),
+    prisma.$queryRawUnsafe<{ revisadoAt: Date | null }[]>(
+      `SELECT "revisadoAt" FROM "EstadoDespacho" WHERE despacho = $1`,
+      despacho,
+    ),
+    nombresDespachos([despacho]),
+  ]);
+  return { publicaciones: pubs, juzgado: nombres.get(despacho) ?? null, revisadoAt: d?.revisadoAt ?? null };
+}
+
 export async function marcarHallazgosVistos(userId: string) {
   await asegurarTablas();
   await prisma.$executeRawUnsafe(`UPDATE "EstadoHallazgo" SET visto = true WHERE "userId" = $1 AND NOT visto`, userId);

@@ -8,6 +8,7 @@ import { CaseTabs, type Datos } from "./case-tabs";
 import { Icon } from "@/components/icon";
 import { avisoProceso } from "@/lib/aviso-rama";
 import { extraerGrabaciones, parsePartes } from "@/lib/case-detail";
+import { estadosActivo, estadosDelRadicado } from "@/lib/estados";
 
 const TZ = "America/Bogota";
 function fmtFecha(d: Date | null | undefined) {
@@ -132,6 +133,28 @@ export default async function CaseDetail({
     fecha: fmtFecha(g.fecha),
   }));
 
+  // Prueba de estados electrónicos: pestaña con los estados donde salió el radicado.
+  const estados = (await estadosActivo(user.id))
+    ? await estadosDelRadicado(user.id, caso.radicado)
+        .then((e) => ({
+          juzgado: e.juzgado,
+          revisado: e.revisadoAt ? fmtHora(e.revisadoAt) : null,
+          publicaciones: e.publicaciones.map((p) => ({
+            id: p.id,
+            titulo: p.titulo,
+            // Fecha del estado (día sin hora): se muestra tal cual, sin pasar a Bogotá.
+            fecha: p.fecha
+              ? new Date(p.fecha).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
+              : "—",
+            extracto: p.extracto,
+            archivo: p.archivo,
+            url: p.url,
+            nuevo: !p.visto,
+          })),
+        }))
+        .catch(() => undefined)
+    : undefined;
+
   const syncLogs = caso.syncLogs.map((l) => ({
     inicio: fmtHora(l.createdAt),
     origen: l.origen,
@@ -211,6 +234,7 @@ export default async function CaseDetail({
         documentos={documentos}
         grabaciones={grabaciones}
         syncLogs={syncLogs}
+        estados={estados}
       />
     </div>
   );

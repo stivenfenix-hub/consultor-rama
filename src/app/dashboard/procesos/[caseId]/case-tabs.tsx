@@ -44,12 +44,24 @@ export type Sync = {
   error: string | null;
 };
 
+/** Publicación de estados electrónicos donde salió el radicado (beta). */
+export type EstadoPub = {
+  id: number;
+  titulo: string;
+  fecha: string;
+  extracto: string | null;
+  archivo: string | null;
+  url: string | null;
+  nuevo: boolean;
+};
+
 type TabKey =
   | "resumen"
   | "actuaciones"
   | "documentos"
   | "partes"
   | "grabaciones"
+  | "estados"
   | "sincronizacion";
 
 export function CaseTabs({
@@ -59,6 +71,7 @@ export function CaseTabs({
   documentos,
   grabaciones,
   syncLogs,
+  estados,
 }: {
   datos: Datos;
   actuaciones: Act[];
@@ -66,6 +79,8 @@ export function CaseTabs({
   documentos: Doc[];
   grabaciones: Grabacion[];
   syncLogs: Sync[];
+  /** Solo para abogados en la prueba de estados electrónicos. */
+  estados?: { publicaciones: EstadoPub[]; juzgado: string | null; revisado: string | null };
 }) {
   const [tab, setTab] = useState<TabKey>("resumen");
   const [visor, setVisor] = useState<ViewerDoc | null>(null);
@@ -76,6 +91,9 @@ export function CaseTabs({
     { key: "documentos", label: "Documentos", n: documentos.length },
     { key: "partes", label: "Partes", n: partes.length },
     { key: "grabaciones", label: "Grabaciones", n: grabaciones.length },
+    ...(estados
+      ? [{ key: "estados" as const, label: "Estados electrónicos", n: estados.publicaciones.length }]
+      : []),
     { key: "sincronizacion", label: "Sincronización" },
   ];
 
@@ -238,6 +256,40 @@ export function CaseTabs({
                   >
                     Abrir
                   </a>
+                </div>
+              ))
+            )}
+          </>
+        )}
+
+        {tab === "estados" && estados && (
+          <>
+            <h2>Estados electrónicos ({estados.publicaciones.length})</h2>
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Estados que publica {estados.juzgado ?? "el juzgado"} en Publicaciones Procesales de la Rama Judicial
+              donde aparece este radicado. A veces el juzgado notifica por estado sin registrar la actuación en la
+              Consulta Nacional. Última revisión: {estados.revisado ?? "esta noche"}.
+            </p>
+            {estados.publicaciones.length === 0 ? (
+              <p className="muted small">
+                Este radicado todavía no ha salido en los estados revisados. Lo revisamos cada noche y te avisamos
+                cuando aparezca.
+              </p>
+            ) : (
+              estados.publicaciones.map((e) => (
+                <div key={e.id} className="doc-row">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="name">
+                      📋 {e.titulo} {e.nuevo && <span className="badge new">nuevo</span>}
+                    </div>
+                    <div className="muted small">{e.fecha}</div>
+                    {e.extracto && <div className="small" style={{ marginTop: 4 }}>…{e.extracto}…</div>}
+                  </div>
+                  {e.url && (
+                    <a className="btn secondary small" href={e.url} target="_blank" rel="noopener noreferrer">
+                      Ver {e.archivo && e.archivo !== "Página de la publicación" ? "PDF" : "estado"}
+                    </a>
+                  )}
                 </div>
               ))
             )}
