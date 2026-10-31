@@ -1759,6 +1759,14 @@ dd {
   color: var(--green);
   flex-shrink: 0;
 }
+.carga-aviso.estados {
+  border-color: rgba(139, 61, 255, 0.5);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+.carga-aviso.estados > .icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
 .carga-aviso.falla > .icon {
   color: var(--amber);
   flex-shrink: 0;

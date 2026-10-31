@@ -23,10 +23,13 @@ export function CargaAviso({
   cargas,
   reintentos = [],
   esAdmin = false,
+  estados = false,
 }: {
   cargas: Carga[];
   reintentos?: { radicado: string; intentos: number }[];
   esAdmin?: boolean;
+  /** El abogado está en la prueba de estados electrónicos. */
+  estados?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -53,27 +56,71 @@ export function CargaAviso({
           </div>
         </div>
       )}
-      {cargas.map((c) =>
-        c.estado === "cargando" ? (
-          <div key={c.id} className="carga-aviso cargando">
-            <div className="carga-spin" aria-hidden />
-            <div style={{ flex: 1 }}>
-              <b>Cargando tus procesos desde la Rama Judicial…</b>
-              <div className="small muted">
-                {c.listos} de {c.total} listo(s). Puedes seguir usando Estradox: te avisamos al terminar.
-              </div>
-              <div className="carga-barra">
-                <div style={{ width: `${Math.max(6, (c.listos / Math.max(c.total, 1)) * 100)}%` }} />
+      {cargas.map((c) => {
+        if (c.estado === "cargando") {
+          return (
+            <div key={c.id} className="carga-aviso cargando">
+              <div className="carga-spin" aria-hidden />
+              <div style={{ flex: 1 }}>
+                <b>Cargando tus procesos desde la Rama Judicial…</b>
+                <div className="small muted">
+                  {c.listos} de {c.total} listo(s). Puedes seguir usando Estradox: te avisamos al terminar.
+                </div>
+                <div className="carga-barra">
+                  <div style={{ width: `${Math.max(6, (c.listos / Math.max(c.total, 1)) * 100)}%` }} />
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div key={c.id} className={`carga-aviso ${c.ok ? "listo" : "falla"}`}>
-            <Icon name={c.ok ? "check" : "alert"} size={22} />
+          );
+        }
+
+        // Los radicados que la Consulta Nacional no tiene no son una falla: se
+        // explican aparte (y a los abogados en prueba se les dice que se buscan en estados).
+        const m = c.error?.match(/No existen en la Rama Judicial: ([^.]*)\./);
+        const noExisten = m ? m[1].split(/,\s*/).filter(Boolean) : [];
+        const resto = (m ? c.error!.replace(m[0], "") : c.error ?? "").trim();
+        const fallaRama = /no respondi|interrumpi/i.test(resto);
+
+        const clase = c.ok ? "listo" : resto ? "falla" : estados ? "estados" : "falla";
+        const titulo = c.ok
+          ? "¡Tus procesos ya están cargados! Ya puedes revisarlos."
+          : resto
+            ? "La Rama Judicial no respondió todavía"
+            : estados
+              ? "Lo buscaremos en los estados electrónicos"
+              : "No encontramos este radicado en la Rama Judicial";
+
+        return (
+          <div key={c.id} className={`carga-aviso ${clase}`}>
+            <Icon name={c.ok ? "check" : clase === "estados" ? "bell" : "alert"} size={22} />
             <div style={{ flex: 1 }}>
-              <b>{c.ok ? "¡Tus procesos ya están cargados! Ya puedes revisarlos." : "La Rama Judicial no respondió todavía"}</b>
+              <b>{titulo}</b>
               {c.ok && <div className="small">{c.ok}</div>}
-              {c.error && <div className="small aviso-rama" style={{ margin: "6px 0 0" }}>ℹ️ {c.error} Es una falla temporal de la plataforma de la Rama, no de Estradox.</div>}
+              {resto && (
+                <div className="small aviso-rama" style={{ margin: "6px 0 0" }}>
+                  ℹ️ {resto}
+                  {fallaRama && " Es una falla temporal de la plataforma de la Rama, no de Estradox."}
+                </div>
+              )}
+              {noExisten.length > 0 && (
+                <div className="small" style={{ marginTop: 6 }}>
+                  {estados ? (
+                    <>
+                      {noExisten.length === 1 ? "El radicado " : "Los radicados "}
+                      <b>{noExisten.join(", ")}</b>{" "}
+                      {noExisten.length === 1 ? "no aparece" : "no aparecen"} en la Consulta Nacional de la Rama
+                      Judicial, pero muchos juzgados solo los publican en sus <b>estados electrónicos</b>. Los
+                      revisamos automáticamente: si aparece, te notificamos y lo verás aquí en Procesos.
+                    </>
+                  ) : (
+                    <>
+                      La Consulta Nacional de la Rama Judicial no tiene{" "}
+                      {noExisten.length === 1 ? "el radicado" : "los radicados"} <b>{noExisten.join(", ")}</b>.
+                      Revisa que el número esté bien escrito.
+                    </>
+                  )}
+                </div>
+              )}
               {esAdmin && c.detalle && (
                 <pre className="small muted" style={{ whiteSpace: "pre-wrap", margin: "6px 0 0" }}>{c.detalle}</pre>
               )}
@@ -86,8 +133,8 @@ export function CargaAviso({
               Entendido
             </button>
           </div>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }

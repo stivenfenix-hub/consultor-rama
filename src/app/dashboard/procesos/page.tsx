@@ -129,7 +129,7 @@ export default async function ProcesosPage({
       )}
 
       {(cargas.length > 0 || reintentos.length > 0) && (
-        <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} />
+        <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} estados={!!estados} />
       )}
 
       {todos.length > 0 && (
