@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { detalleCargasUsuario } from "@/lib/sync";
 import { sinLimiteManual } from "@/lib/limits";
 import { Interruptor } from "./sin-limite";
-import { estadosActivo } from "@/lib/estados";
+import { estadosActivo, hallazgosDelUsuario, vigiladosDelUsuario } from "@/lib/estados";
 
 const hora = (d: Date | null) =>
   d ? new Date(d).toLocaleString("es-CO", { timeZone: "America/Bogota" }) : "—";
@@ -25,6 +25,9 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
     sinLimiteManual({ id: userId, role: user.role }),
     estadosActivo(userId),
   ]);
+  const [hallazgos, vigilados] = estados
+    ? await Promise.all([hallazgosDelUsuario(userId, 100), vigiladosDelUsuario(userId)])
+    : [[], []];
 
   return (
     <div className="page">
@@ -43,6 +46,47 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
         <div style={{ height: 8 }} />
         <Interruptor userId={userId} valor={estados} tipo="estados" />
       </div>
+
+      {estados && (
+        <div className="card">
+          <h2>Estados electrónicos: hallazgos ({hallazgos.length})</h2>
+          {hallazgos.length > 0 && (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Radicado</th><th>Publicación</th><th>Extracto</th></tr></thead>
+                <tbody>
+                  {hallazgos.map((h) => (
+                    <tr key={h.id}>
+                      <td className="radicado">{h.radicado}</td>
+                      <td className="small">
+                        {h.url ? <a href={h.url} target="_blank" rel="noopener noreferrer">{h.titulo}</a> : h.titulo}
+                      </td>
+                      <td className="small muted">{h.extracto?.slice(0, 200)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <h2 style={{ marginTop: 16 }}>Juzgados revisados</h2>
+          <div className="table-wrap">
+            <table className="table">
+              <thead><tr><th>Despacho</th><th>Radicados</th><th>Última revisión</th><th>Publicaciones</th><th>Error</th></tr></thead>
+              <tbody>
+                {[...new Map(vigilados.map((v) => [v.despacho, v])).values()].map((v) => (
+                  <tr key={v.despacho}>
+                    <td>{v.despacho}</td>
+                    <td>{vigilados.filter((x) => x.despacho === v.despacho).length}</td>
+                    <td className="small">{hora(v.revisadoAt ?? null)}</td>
+                    <td>{v.publicaciones ?? "—"}</td>
+                    <td className="small">{v.ultimoError ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2>Procesos en su lista ({procesos.length})</h2>
