@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
+import { nocheHabil } from "./dias-habiles";
 
 // ---------- Estados electrónicos (Publicaciones Procesales) ----------
 // Muchos juzgados publican sus estados solo en publicacionesprocesales.ramajudicial.gov.co,
@@ -276,7 +277,9 @@ function inicioNoche(): Date {
 export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   const ahora = new Date(Date.now() - 5 * 3600_000); // Bogotá (UTC-5)
   const m = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
-  const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA);
+  // Sábado, domingo y festivos no hay revisión nocturna (los juzgados no publican);
+  // los pedidos de radicados recién agregados sí se atienden.
+  const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA) && nocheHabil();
   await asegurarTablas();
   // De día solo se atienden los pedidos (radicados recién agregados).
   if (!opts.forzar && !deNoche) {

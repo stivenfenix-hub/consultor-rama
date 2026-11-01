@@ -16,6 +16,7 @@ import { usuariosConAcceso } from "./subscription";
 import { completarDocumentosPendientes, completarRegistrosIncompletos, enviarResumen, procesarReintentos } from "./sync";
 import { sendPushToUser } from "./push";
 import { revisarRama } from "./monitor-rama";
+import { nocheHabil } from "./dias-habiles";
 import {
   avisarReporteSinProcesos,
   enviarReporteWhatsapp,
@@ -629,6 +630,9 @@ export async function tick(opts: { forzar?: boolean } = {}) {
 
     if (!opts.forzar && !enVentanaNocturna()) {
       info.cola = "fuera de horario";
+    } else if (!opts.forzar && !nocheHabil()) {
+      // Sábado, domingo y festivos los juzgados no publican: no se consulta la Rama.
+      info.cola = "noche no hábil (fin de semana o festivo)";
     } else if (s?.pausa && new Date(s.pausa) > new Date()) {
       info.cola = `en pausa por bloqueo hasta ${new Date(s.pausa).toISOString()}`;
     } else {
