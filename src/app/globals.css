@@ -1907,3 +1907,42 @@ dd {
 span.aviso-rama {
   display: inline-flex;
 }
+
+/* ---------- Carga de página (dashboard/loading.tsx) ---------- */
+.carga-pagina {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 1000;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.carga-pagina::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--accent);
+  animation: carga-pagina 1s ease-in-out infinite;
+}
+@keyframes carga-pagina {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+.skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--border) 0%, color-mix(in srgb, var(--border) 50%, var(--panel)) 50%, var(--border) 100%);
+  background-size: 200% 100%;
+  animation: skel 1.2s linear infinite;
+}
+.skel-titulo { height: 28px; width: 180px; margin: 4px 0 18px; }
+.skel-linea { height: 12px; width: 100%; margin: 10px 0; }
+@keyframes skel {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel, .carga-pagina::after { animation: none; }
+}
