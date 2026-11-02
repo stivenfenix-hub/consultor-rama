@@ -7,6 +7,7 @@ import { getSiteSettings } from "@/lib/settings";
 import { LOGOS } from "@/lib/marca";
 import { boldConfigurado, getSuscripcion, ofertaRelampago, tieneAcceso } from "@/lib/subscription";
 import { FlashOffer } from "@/components/flash-offer";
+import { NavProgress } from "@/components/nav-progress";
 import { logoutAction } from "@/app/actions";
 import { AppShell } from "./sidebar";
 import { getWhatsapp } from "@/lib/accounts";
@@ -98,6 +99,7 @@ export default async function AppLayout({
       carga={carga}
       logoutAction={logoutAction}
     >
+      <NavProgress />
       {oferta && (
         <FlashOffer
           precio={oferta.precio}
