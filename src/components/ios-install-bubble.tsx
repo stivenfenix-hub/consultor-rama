@@ -94,6 +94,16 @@ export function IosInstallBubble() {
       e.preventDefault();
       clearTimeout(espera);
       if (standalone || dismissed) return;
+      // Computador: máximo una vez al día (aunque no la cierre).
+      if (!/android|iphone|ipad|ipod/i.test(navigator.userAgent)) {
+        const hoy = new Date().toLocaleDateString("en-CA");
+        try {
+          if (localStorage.getItem("estradox_pwa_dia") === hoy) return;
+          localStorage.setItem("estradox_pwa_dia", hoy);
+        } catch {
+          // ignore
+        }
+      }
       setDeferred(e as BeforeInstallPromptEvent);
       setShow(true);
     };
