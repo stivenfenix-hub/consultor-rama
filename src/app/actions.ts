@@ -82,12 +82,10 @@ import {
 } from "@/lib/validation";
 import { estadoCarga, iniciarCargaProcesos, marcarCargaVista, marcarVistas } from "@/lib/sync";
 import {
-  ejecutarActualizarTodos,
   marcarActualizacionProceso,
   proximaActualizacionProceso,
   sinLimiteManual,
   cambiarSinLimiteManual,
-  reservarActualizarTodos,
 } from "@/lib/limits";
 
 type ActionState = {
@@ -484,20 +482,6 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
   revalidatePath("/dashboard/procesos");
   revalidatePath(`/dashboard/procesos/${caseId}`);
   return resultado;
-}
-
-// "Actualizar todos": una vez por semana, en segundo plano y por tandas.
-export async function actualizarTodosAction(): Promise<ActionState> {
-  const user = await requireUser();
-  const sinAcceso = await bloqueoPorSuscripcion(user.id);
-  if (sinAcceso) return sinAcceso;
-  const error = await reservarActualizarTodos(user.id, await sinLimiteManual(user));
-  if (error) return { error };
-  after(() => ejecutarActualizarTodos(user.id));
-  revalidatePath("/dashboard");
-  return {
-    ok: "Actualización iniciada en segundo plano. Puedes seguir usando la plataforma; te avisaremos si hay actuaciones nuevas.",
-  };
 }
 
 export async function marcarVistasAction(caseId: string) {

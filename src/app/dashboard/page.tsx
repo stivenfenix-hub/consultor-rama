@@ -4,8 +4,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
-import { RefreshAllButton } from "./refresh-all-button";
-import { estadoActualizarTodos, sinLimiteManual } from "@/lib/limits";
 import { OpenInChrome } from "./open-in-chrome";
 
 function fmt(d: Date | null | undefined) {
@@ -27,10 +25,7 @@ export default async function DashboardPage({
   if (!user) redirect("/login");
   const { verificado } = await searchParams;
 
-  const [stats, refreshAll] = await Promise.all([
-    getDashboardStats(user.id),
-    estadoActualizarTodos(user.id, await sinLimiteManual(user)),
-  ]);
+  const stats = await getDashboardStats(user.id);
 
   // Una fila por radicado: de sus registros (uno por sistema de la Rama) se
   // muestra el de la actuación más reciente.
@@ -56,10 +51,6 @@ export default async function DashboardPage({
       <div className="page-head wrap">
         <h1>Dashboard</h1>
         <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
-          <RefreshAllButton
-            enCurso={refreshAll.enCurso}
-            disponibleEn={refreshAll.disponibleEn}
-          />
           <Link href="/dashboard/procesos" className="btn">
             + Agregar proceso
           </Link>

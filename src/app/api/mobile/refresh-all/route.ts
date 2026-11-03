@@ -1,17 +1,12 @@
-import { NextRequest, NextResponse, after } from "next/server";
-import { ejecutarActualizarTodos, reservarActualizarTodos, sinLimiteManual } from "@/lib/limits";
+import { NextRequest } from "next/server";
 import { jsonError, withMobileUser } from "@/lib/mobile";
 
 export const dynamic = "force-dynamic";
 
-// POST -> { ok }. "Actualizar todos": una vez por semana, en segundo plano y por tandas.
+// "Actualizar todos" se retiró: solo queda el botón de cada proceso (la cola nocturna
+// sigue actualizando todos). Se deja la ruta para que las apps viejas reciban un aviso claro.
 export async function POST(req: NextRequest) {
-  return withMobileUser(req, async (user) => {
-    const error = await reservarActualizarTodos(user.id, await sinLimiteManual(user));
-    if (error) return jsonError(error, 429);
-    after(() => ejecutarActualizarTodos(user.id));
-    return NextResponse.json({
-      ok: "Actualización iniciada en segundo plano. Te avisaremos si hay actuaciones nuevas.",
-    });
-  });
+  return withMobileUser(req, async () =>
+    jsonError("Actualizar todos ya no está disponible. Actualiza cada proceso desde su detalle; cada noche revisamos todos automáticamente.", 410),
+  );
 }
