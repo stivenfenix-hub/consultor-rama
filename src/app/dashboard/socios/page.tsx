@@ -209,8 +209,8 @@ export default async function PortalSocios({
         <div className="card">
           <h2>Google Drive</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Los archivos no se guardan en la base de datos: esperan en el servidor ({CARPETA_ARCHIVOS}, fuera de la
-            app) hasta subirlos a Drive, y ahí se borran del servidor.
+            Los archivos no se guardan en la base de datos: esperan en el servidor ({CARPETA_ARCHIVOS}; la app está
+            en {process.cwd()}) hasta subirlos a Drive, y ahí se borran del servidor.
           </p>
           {!driveDisponible() ? (
             <p className="muted small">Falta configurar Google (GOOGLE_CLIENT_ID) en el servidor.</p>
