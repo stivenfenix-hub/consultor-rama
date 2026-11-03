@@ -40,7 +40,7 @@ async function borrarDeDisco(ruta: string | null) {
 // de servicios para Estradox). Gemini lee monto, fecha, a quién se pagó y el
 // concepto; el socio revisa y confirma. Solo lo confirmado suma. Los ingresos
 // de la plataforma salen solos de los pagos aprobados de Bold. El archivo se
-// guarda en la base solo hasta subirlo al Google Drive del root.
+// guarda en el disco del servidor (no en la base) solo hasta subirlo al Google Drive del root.
 //
 // Variables: GEMINI_API_KEY (obligatoria para leer comprobantes) y
 // GEMINI_MODEL (opcional, por defecto gemini-2.5-flash).
