@@ -138,6 +138,11 @@ async function agregarEnFondo(userId: string, radicados: string[]) {
 
 async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
   const listos = r.agregados + r.pendientes + r.privados + r.enFondo;
+  // Plan con procesos incluidos: si pasó del límite, aviso del valor adicional.
+  if (listos > 0) {
+    const { avisarProcesosAdicionales } = await import("./subscription");
+    await avisarProcesosAdicionales(userId);
+  }
   const { sendPushToUser } = await import("./push");
   const { estadosActivo } = await import("./estados");
   const enEstados = r.noEncontrados.length > 0 && (await estadosActivo(userId));
@@ -370,6 +375,8 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
         url: "/dashboard/procesos",
         tag: `reintento-${f.radicado}`,
       }).catch(() => {});
+      const { avisarProcesosAdicionales } = await import("./subscription");
+      await avisarProcesosAdicionales(f.userId);
     } catch (err) {
       if (err instanceof RamaError && err.isRateLimit) break; // la Rama pidió pausar
       const noExiste = err instanceof RamaError && err.status === 404;

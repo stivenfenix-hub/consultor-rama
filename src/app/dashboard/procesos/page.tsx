@@ -10,6 +10,7 @@ import { CargaAviso } from "./carga-aviso";
 import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { ramaCaida } from "@/lib/monitor-rama";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
+import { usoProcesos } from "@/lib/subscription";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -55,7 +56,7 @@ export default async function ProcesosPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todos, cargas, reintentos, caidaRama, estados] = await Promise.all([
+  const [todos, cargas, reintentos, caidaRama, estados, uso] = await Promise.all([
     prisma.case.findMany({
       where: { userId: user.id },
       orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
@@ -68,7 +69,20 @@ export default async function ProcesosPage({
         a ? { sinVer: await hallazgosSinVer(user.id), solo: await soloEnEstados(user.id) } : null,
       )
       .catch(() => null),
+    usoProcesos(user.id).catch(() => null),
   ]);
+  const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
+  const beneficios = uso?.limitado
+    ? BENEFICIOS.map((b) =>
+        b.icon === "scale"
+          ? {
+              ...b,
+              titulo: `Hasta ${uso.incluidos} procesos incluidos`,
+              texto: `Pega varios radicados a la vez. Desde el ${uso.incluidos + 1}, cada uno vale ${pesos(uso.precioAdicional)} al mes.`,
+            }
+          : b,
+      )
+    : BENEFICIOS;
 
   // Un radicado puede estar en varios sistemas de la Rama (p. ej. Justicia XXI
   // y SIUGJ): son registros del mismo proceso y se muestran en una sola tarjeta.
@@ -112,6 +126,20 @@ export default async function ProcesosPage({
       <div className="card">
         <h2>Agregar proceso por radicado</h2>
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
+        {/* Plan con procesos incluidos (usuarios desde el 3 nov 2026). */}
+        {uso?.limitado && (
+          <div className="muted small" style={{ marginTop: 10 }}>
+            📋 Tu plan incluye <b>{uso.incluidos} procesos</b> · llevas <b>{uso.total}</b>.{" "}
+            {uso.adicionales > 0 ? (
+              <>
+                Tienes <b>{uso.adicionales} adicional(es)</b>: +{pesos(uso.valorMes)} al mes que se suman a tu
+                próximo pago. <Link href="/dashboard/suscripcion">Ver detalle</Link>
+              </>
+            ) : (
+              <>Desde el {uso.incluidos + 1}, cada proceso adicional vale {pesos(uso.precioAdicional)} al mes.</>
+            )}
+          </div>
+        )}
       </div>
 
       {estados && (
@@ -155,7 +183,7 @@ export default async function ProcesosPage({
             Escribe arriba el radicado de 23 dígitos. Esto es lo que obtienes:
           </p>
           <div className="benefit-grid">
-            {BENEFICIOS.map((b) => (
+            {beneficios.map((b) => (
               <div key={b.titulo} className="benefit">
                 <span className="benefit-icon"><Icon name={b.icon} size={20} /></span>
                 <div>

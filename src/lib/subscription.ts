@@ -4,7 +4,8 @@ import { ensureColumn } from "./runtime-columns";
 
 // Suscripción: prueba gratis de N días y luego plan mensual pagado con Bold
 // (link de pago: tarjeta, PSE, Nequi, Botón Bancolombia). Bold no cobra
-// automáticamente cada mes, así que cada pago suma 30 días de acceso.
+// automáticamente cada mes, así que cada pago suma 30 días de acceso. Los
+// procesos adicionales (ver usoProcesos) se suman al valor de cada link.
 //
 // Variables de entorno:
 //   BOLD_API_KEY     llave de identidad del Botón de pagos (crea y consulta links)
@@ -35,11 +36,27 @@ const COL_PRECIO: Record<MesesPaquete, string> = {
   12: "planPrice12",
 };
 
-export type Plan = { precio: number; diasPrueba: number; paquetes: Paquete[] };
+// Procesos incluidos: quien se registra desde LIMITE_DESDE tiene hasta N procesos
+// en el plan; cada radicado adicional vale X por mes y se suma a su próximo pago
+// (Bold no cobra solo: el link de pago ya trae el valor). Los anteriores siguen ilimitados.
+const LIMITE_DESDE = new Date("2026-11-03T05:00:00Z"); // 3 nov 2026, 00:00 Bogotá
+const INCLUIDOS_DEFAULT = 40;
+const ADICIONAL_DEFAULT = 499;
+
+export type Plan = {
+  precio: number;
+  diasPrueba: number;
+  paquetes: Paquete[];
+  procesosIncluidos: number;
+  /** Valor por proceso adicional y por mes (COP). */
+  precioAdicional: number;
+};
 export const PLAN_DEFAULTS: Plan = {
   precio: PRECIOS_DEFAULT[1],
   diasPrueba: 30,
   paquetes: MESES_PAQUETES.map((meses) => ({ meses, precio: PRECIOS_DEFAULT[meses] })),
+  procesosIncluidos: INCLUIDOS_DEFAULT,
+  precioAdicional: ADICIONAL_DEFAULT,
 };
 
 export function esMesesPaquete(n: number): n is MesesPaquete {
@@ -62,6 +79,10 @@ async function ensureSchema() {
     await ensureColumn("SiteSetting", col, "INTEGER");
   }
   await ensureColumn("SiteSetting", "trialDays", "INTEGER");
+  await ensureColumn("SiteSetting", "procesosIncluidos", "INTEGER");
+  await ensureColumn("SiteSetting", "precioAdicional", "INTEGER");
+  // Cuántos adicionales ya se le avisaron (para avisar solo cuando sube).
+  await ensureColumn("User", "adicionalesAvisados", "INTEGER NOT NULL DEFAULT 0");
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "BoldPayment" (
       id TEXT PRIMARY KEY,
@@ -111,7 +132,8 @@ export async function getPlan(): Promise<Plan> {
     await ensureSchema();
     const cols = MESES_PAQUETES.map((m) => `"${COL_PRECIO[m]}" AS p${m}`).join(", ");
     const rows = await prisma.$queryRawUnsafe<Record<string, number | null>[]>(
-      `SELECT ${cols}, "trialDays" AS d FROM "SiteSetting" WHERE id = 'site'`,
+      `SELECT ${cols}, "trialDays" AS d, "procesosIncluidos" AS inc, "precioAdicional" AS adi
+       FROM "SiteSetting" WHERE id = 'site'`,
     );
     const r = rows[0] ?? {};
     const paquetes = MESES_PAQUETES.map((meses) => ({
@@ -122,13 +144,19 @@ export async function getPlan(): Promise<Plan> {
       precio: paquetes[0].precio,
       diasPrueba: r.d ?? PLAN_DEFAULTS.diasPrueba,
       paquetes,
+      procesosIncluidos: r.inc ?? INCLUIDOS_DEFAULT,
+      precioAdicional: r.adi ?? ADICIONAL_DEFAULT,
     };
   } catch {
     return PLAN_DEFAULTS;
   }
 }
 
-export async function savePlan(precios: Record<MesesPaquete, number>, diasPrueba: number) {
+export async function savePlan(
+  precios: Record<MesesPaquete, number>,
+  diasPrueba: number,
+  procesos?: { incluidos: number; adicional: number },
+) {
   await ensureSchema();
   await prisma.siteSetting.upsert({
     where: { id: "site" },
@@ -141,6 +169,88 @@ export async function savePlan(precios: Record<MesesPaquete, number>, diasPrueba
     ...MESES_PAQUETES.map((m) => precios[m]),
     diasPrueba,
   );
+  if (procesos) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "SiteSetting" SET "procesosIncluidos" = $1, "precioAdicional" = $2 WHERE id = 'site'`,
+      procesos.incluidos,
+      procesos.adicional,
+    );
+  }
+}
+
+// ---------- Procesos incluidos y adicionales ----------
+export type UsoProcesos = {
+  /** false: usuario anterior al cambio (o admin), sin límite. */
+  limitado: boolean;
+  incluidos: number;
+  /** Radicados distintos en su lista (un radicado en 2 sistemas cuenta 1). */
+  total: number;
+  adicionales: number;
+  precioAdicional: number;
+  /** Lo que suman los adicionales por mes. */
+  valorMes: number;
+};
+
+export async function usoProcesos(userId: string): Promise<UsoProcesos> {
+  const plan = await getPlan();
+  const [u] = await prisma.$queryRawUnsafe<{ role: string; createdAt: Date; total: bigint }[]>(
+    `SELECT u.role, u."createdAt", (SELECT count(DISTINCT radicado) FROM "Case" c WHERE c."userId" = u.id) AS total
+     FROM "User" u WHERE u.id = $1`,
+    userId,
+  );
+  const limitado = !!u && u.role !== "admin" && new Date(u.createdAt) >= LIMITE_DESDE;
+  const total = Number(u?.total ?? 0);
+  const adicionales = limitado ? Math.max(0, total - plan.procesosIncluidos) : 0;
+  return {
+    limitado,
+    incluidos: plan.procesosIncluidos,
+    total,
+    adicionales,
+    precioAdicional: plan.precioAdicional,
+    valorMes: adicionales * plan.precioAdicional,
+  };
+}
+
+/**
+ * Después de agregar procesos: si pasó del límite (o tiene más adicionales que
+ * la última vez), se le avisa con el valor que se sumará a su próximo pago.
+ */
+export async function avisarProcesosAdicionales(userId: string) {
+  try {
+    await ensureSchema();
+    const uso = await usoProcesos(userId);
+    if (!uso.limitado) return;
+    const [r] = await prisma.$queryRawUnsafe<{ n: number }[]>(
+      `SELECT "adicionalesAvisados" AS n FROM "User" WHERE id = $1`,
+      userId,
+    );
+    const avisados = r?.n ?? 0;
+    // Si borró procesos, se baja el contador para volver a avisar cuando suba.
+    if (uso.adicionales !== avisados) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "User" SET "adicionalesAvisados" = $2 WHERE id = $1`,
+        userId,
+        uso.adicionales,
+      );
+    }
+    if (uso.adicionales <= avisados) return;
+    const sub = await getSuscripcion(userId);
+    const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
+    const { sendPushToUser } = await import("./push");
+    await sendPushToUser(userId, {
+      title: `📋 Tienes ${uso.adicionales} proceso(s) adicional(es)`,
+      body:
+        `Tu plan incluye ${uso.incluidos} procesos y llevas ${uso.total}. Cada adicional vale ` +
+        `${pesos(uso.precioAdicional)} al mes: ${pesos(uso.valorMes)}/mes en total. ` +
+        (sub.estado === "prueba"
+          ? "Durante tu prueba gratis no se cobra; se sumará a tu primer pago."
+          : "Se sumará a tu próximo pago."),
+      url: "/dashboard/suscripcion",
+      tag: "procesos-adicionales",
+    });
+  } catch (e) {
+    console.error("[suscripcion] aviso adicionales", e);
+  }
 }
 
 // ---------- Estado de la suscripción ----------
@@ -276,13 +386,20 @@ export async function crearLinkDePago(user: { id: string; email: string }, meses
   if (!boldConfigurado()) throw new Error("Los pagos aún no están configurados.");
   await ensureSchema();
   const plan = await getPlan();
-  const precio = plan.paquetes.find((p) => p.meses === meses)?.precio ?? plan.precio;
+  const base = plan.paquetes.find((p) => p.meses === meses)?.precio ?? plan.precio;
+  // Procesos adicionales (sobre los incluidos) por cada mes del paquete.
+  const uso = await usoProcesos(user.id);
+  const extra = uso.valorMes * meses;
+  const precio = base + extra;
+  const plazo = meses === 1 ? "Plan 1 mes" : `Plan ${meses} meses`;
   const j = await bold("/online/link/v1", {
     method: "POST",
     body: JSON.stringify({
       amount_type: "CLOSE",
       amount: { currency: "COP", total_amount: precio, tip_amount: 0 },
-      description: meses === 1 ? "Estradox - Plan 1 mes" : `Estradox - Plan ${meses} meses`,
+      description: extra
+        ? `Estradox - ${plazo} + ${uso.adicionales} proceso(s) adicional(es)`
+        : `Estradox - ${plazo}`,
       callback_url: `${APP_URL}/dashboard/suscripcion?pago=1`,
       payer_email: user.email,
     }),

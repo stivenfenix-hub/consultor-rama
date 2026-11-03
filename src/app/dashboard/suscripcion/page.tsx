@@ -5,6 +5,7 @@ import {
   getPlan,
   getSuscripcion,
   pagosDeUsuario,
+  usoProcesos,
   verificarPagosPendientes,
 } from "@/lib/subscription";
 import { PricingCards } from "./pay-button";
@@ -36,10 +37,11 @@ export default async function SuscripcionPage({
 
   // Al volver del checkout (o si el webhook se demoró), confirma pagos pendientes.
   await verificarPagosPendientes(user.id);
-  const [sub, plan, pagos] = await Promise.all([
+  const [sub, plan, pagos, uso] = await Promise.all([
     getSuscripcion(user.id),
     getPlan(),
     pagosDeUsuario(user.id),
+    usoProcesos(user.id),
   ]);
   const ultimoAprobado = pagos.find((p) => p.status === "PAID");
   const pagoRecienAprobado =
@@ -77,6 +79,20 @@ export default async function SuscripcionPage({
             {sub.estado !== "vencida" && <span className="muted"> ({sub.diasRestantes} día(s))</span>}
           </p>
         )}
+        {uso.limitado && (
+          <div className="small" style={{ marginTop: 8 }}>
+            <b>Procesos:</b> llevas {uso.total} de {uso.incluidos} incluidos en tu plan.{" "}
+            {uso.adicionales > 0 ? (
+              <>
+                Tienes <b>{uso.adicionales} adicional(es)</b> a {pesos(uso.precioAdicional)} c/u al mes:{" "}
+                <b>+{pesos(uso.valorMes)}/mes</b>, que se suman a{" "}
+                {sub.estado === "prueba" ? "tu primer pago (en la prueba no se cobra)" : "tu próximo pago"}.
+              </>
+            ) : (
+              <>Desde el proceso {uso.incluidos + 1}, cada uno adicional vale {pesos(uso.precioAdicional)} al mes.</>
+            )}
+          </div>
+        )}
       </div>
 
       {sub.estado !== "admin" && (
@@ -93,6 +109,8 @@ export default async function SuscripcionPage({
             <PricingCards
               paquetes={plan.paquetes}
               accion={sub.estado === "vencida" ? "Reactivar" : "Elegir plan"}
+              extraMes={uso.valorMes}
+              adicionales={uso.adicionales}
             />
           ) : (
             <p className="muted small">Los pagos en línea estarán disponibles muy pronto.</p>

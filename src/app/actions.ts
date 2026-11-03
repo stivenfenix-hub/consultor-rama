@@ -566,6 +566,8 @@ const planSchema = z.object({
   p6: precioSchema,
   p12: precioSchema,
   diasPrueba: z.coerce.number().int().min(0).max(365),
+  procesosIncluidos: z.coerce.number().int().min(1).max(100_000),
+  precioAdicional: z.coerce.number().int().min(0).max(1_000_000),
 });
 
 export async function savePlanAction(
@@ -579,12 +581,17 @@ export async function savePlanAction(
     p6: formData.get("p6"),
     p12: formData.get("p12"),
     diasPrueba: formData.get("diasPrueba"),
+    procesosIncluidos: formData.get("procesosIncluidos"),
+    precioAdicional: formData.get("precioAdicional"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  const { p1, p3, p6, p12, diasPrueba } = parsed.data;
-  await savePlan({ 1: p1, 3: p3, 6: p6, 12: p12 }, diasPrueba);
+  const { p1, p3, p6, p12, diasPrueba, procesosIncluidos, precioAdicional } = parsed.data;
+  await savePlan({ 1: p1, 3: p3, 6: p6, 12: p12 }, diasPrueba, {
+    incluidos: procesosIncluidos,
+    adicional: precioAdicional,
+  });
   revalidatePath("/dashboard/admin/suscripciones");
   return { ok: "Plan actualizado." };
 }

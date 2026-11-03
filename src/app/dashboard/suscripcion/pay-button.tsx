@@ -15,10 +15,15 @@ const DESTACADO = 6;
 export function PricingCards({
   paquetes,
   accion,
+  extraMes = 0,
+  adicionales = 0,
 }: {
   paquetes: Paquete[];
   /** "Pagar" (renovar/suscribirse) o "Reactivar" cuando el acceso venció. */
   accion: string;
+  /** Valor por mes de los procesos adicionales (se suma a cada paquete × meses). */
+  extraMes?: number;
+  adicionales?: number;
 }) {
   const [state, formAction, pending] = useActionState(pagarSuscripcionAction, {});
   const [elegido, setElegido] = useState<number | null>(null);
@@ -57,6 +62,14 @@ export function PricingCards({
                 </>
               ) : (
                 <div className="muted small">Pago mes a mes</div>
+              )}
+              {extraMes > 0 && (
+                <div className="small" style={{ marginTop: 6 }}>
+                  + {pesos(extraMes * p.meses)} por {adicionales} proceso(s) adicional(es)
+                  <div>
+                    <b>Total: {pesos(p.precio + extraMes * p.meses)}</b>
+                  </div>
+                </div>
               )}
               <button
                 className={`btn ${p.meses === DESTACADO ? "" : "secondary"}`}

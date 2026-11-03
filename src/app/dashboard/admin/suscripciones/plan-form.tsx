@@ -8,9 +8,13 @@ type Paquete = { meses: number; precio: number };
 export function PlanForm({
   paquetes,
   diasPrueba,
+  procesosIncluidos,
+  precioAdicional,
 }: {
   paquetes: Paquete[];
   diasPrueba: number;
+  procesosIncluidos: number;
+  precioAdicional: number;
 }) {
   const [state, formAction, pending] = useActionState(savePlanAction, {});
   return (
@@ -37,6 +41,20 @@ export function PlanForm({
       <div style={{ maxWidth: 200 }}>
         <label className="small muted" htmlFor="diasPrueba">Días de prueba gratis</label>
         <input id="diasPrueba" name="diasPrueba" type="number" min={0} max={365} required defaultValue={diasPrueba} />
+      </div>
+      <div className="row wrap" style={{ gap: 12, marginTop: 10 }}>
+        <div style={{ maxWidth: 200 }}>
+          <label className="small muted" htmlFor="procesosIncluidos">Procesos incluidos en el plan</label>
+          <input id="procesosIncluidos" name="procesosIncluidos" type="number" min={1} max={100000} required defaultValue={procesosIncluidos} />
+        </div>
+        <div style={{ maxWidth: 220 }}>
+          <label className="small muted" htmlFor="precioAdicional">Proceso adicional (COP por mes)</label>
+          <input id="precioAdicional" name="precioAdicional" type="number" min={0} step={1} required defaultValue={precioAdicional} />
+        </div>
+      </div>
+      <div className="muted small" style={{ marginTop: 6 }}>
+        El límite de procesos aplica solo a quienes se registraron desde el 3 de noviembre de 2026; los
+        anteriores siguen ilimitados. Los adicionales se suman al valor de cada paquete × sus meses.
       </div>
       <div className="muted small" style={{ marginTop: 6 }}>
         El ahorro y el valor mensual equivalente de cada paquete se calculan solos frente al
