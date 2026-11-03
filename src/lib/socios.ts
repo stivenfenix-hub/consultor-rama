@@ -1,6 +1,39 @@
 import "server-only";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { prisma } from "./db";
 import { subirADrive } from "./drive";
+
+// Los archivos NO van a Supabase: se guardan en el disco del servidor, en una
+// carpeta FUERA de la app (las actualizaciones y reinstalaciones no la tocan),
+// hasta subirlos a Drive; ahí se borran. SOCIOS_DIR permite cambiar la ruta.
+export const CARPETA_ARCHIVOS =
+  process.env.SOCIOS_DIR || path.join(os.homedir(), "estradox-archivos", "socios");
+
+async function guardarEnDisco(id: number, nombre: string, datos: Buffer) {
+  await mkdir(CARPETA_ARCHIVOS, { recursive: true });
+  const ext = (nombre.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? "").toLowerCase();
+  const ruta = path.join(CARPETA_ARCHIVOS, `${id}${ext}`);
+  await writeFile(ruta, datos);
+  return ruta;
+}
+
+/** Archivo del movimiento: del disco (o, si es de antes del cambio, de la base). */
+async function leerArchivo(m: { archivoRuta: string | null; archivo: Buffer | null }): Promise<Buffer | null> {
+  if (m.archivoRuta) {
+    try {
+      return await readFile(m.archivoRuta);
+    } catch {
+      return null;
+    }
+  }
+  return m.archivo ? Buffer.from(m.archivo) : null;
+}
+
+async function borrarDeDisco(ruta: string | null) {
+  if (ruta) await unlink(ruta).catch(() => {});
+}
 
 // ---------- Portal socios: contabilidad de la sociedad ----------
 // Cada socio sube sus comprobantes (transferencias, tiquetes, facturas, pagos
@@ -50,6 +83,7 @@ async function asegurar() {
       "creadoPor" TEXT,
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "SocioMovimiento" ADD COLUMN IF NOT EXISTS "archivoRuta" TEXT`);
   listo = true;
 }
 
@@ -134,28 +168,40 @@ export async function crearDesdeComprobante(
 ) {
   await asegurar();
   const [r] = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `INSERT INTO "SocioMovimiento" ("socioId", "creadoPor", nota, "archivoNombre", "archivoTipo", archivo, estado)
-     VALUES ($1, $2, $3, $4, $5, $6, 'procesando') RETURNING id`,
+    `INSERT INTO "SocioMovimiento" ("socioId", "creadoPor", nota, "archivoNombre", "archivoTipo", estado)
+     VALUES ($1, $2, $3, $4, $5, 'procesando') RETURNING id`,
     socioId,
     creadoPor,
     nota,
     archivo.nombre,
     archivo.tipo,
-    archivo.datos,
   );
+  try {
+    const ruta = await guardarEnDisco(r.id, archivo.nombre, archivo.datos);
+    await prisma.$executeRawUnsafe(`UPDATE "SocioMovimiento" SET "archivoRuta" = $2 WHERE id = $1`, r.id, ruta);
+  } catch (e) {
+    await prisma.$executeRawUnsafe(`DELETE FROM "SocioMovimiento" WHERE id = $1`, r.id);
+    throw new Error(`No se pudo guardar el archivo en el servidor: ${e instanceof Error ? e.message : e}`);
+  }
   return r.id;
 }
 
 /** Lee con la IA un movimiento recién subido; queda "por revisar". */
 export async function procesarComprobante(id: number) {
   await asegurar();
-  const [m] = await prisma.$queryRawUnsafe<{ archivo: Buffer | null; archivoTipo: string | null }[]>(
-    `SELECT archivo, "archivoTipo" FROM "SocioMovimiento" WHERE id = $1`,
-    id,
-  );
-  if (!m?.archivo) return;
+  const [m] = await prisma.$queryRawUnsafe<
+    { archivo: Buffer | null; archivoRuta: string | null; archivoTipo: string | null }[]
+  >(`SELECT archivo, "archivoRuta", "archivoTipo" FROM "SocioMovimiento" WHERE id = $1`, id);
+  const datos = m ? await leerArchivo(m) : null;
+  if (!datos) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "SocioMovimiento" SET estado = 'revisar', "iaError" = 'No se encontró el archivo en el servidor.' WHERE id = $1`,
+      id,
+    );
+    return;
+  }
   try {
-    const l = await leerConGemini(m.archivoTipo ?? "application/pdf", Buffer.from(m.archivo));
+    const l = await leerConGemini(m!.archivoTipo ?? "application/pdf", datos);
     await prisma.$executeRawUnsafe(
       `UPDATE "SocioMovimiento" SET estado = 'revisar', "iaError" = NULL, ia = $2::jsonb,
          fecha = coalesce($3::date, fecha), monto = coalesce($4::bigint, monto), concepto = coalesce($5, concepto),
@@ -187,6 +233,7 @@ async function subirMovimientoADrive(id: number) {
   const [m] = await prisma.$queryRawUnsafe<
     {
       archivo: Buffer | null;
+      archivoRuta: string | null;
       archivoTipo: string | null;
       archivoNombre: string | null;
       fecha: Date | null;
@@ -195,12 +242,13 @@ async function subirMovimientoADrive(id: number) {
       socio: string;
     }[]
   >(
-    `SELECT m.archivo, m."archivoTipo", m."archivoNombre", m.fecha, m.monto, m.concepto,
+    `SELECT m.archivo, m."archivoRuta", m."archivoTipo", m."archivoNombre", m.fecha, m.monto, m.concepto,
             coalesce(nullif(trim(coalesce(u."firstName",'') || ' ' || coalesce(u."lastName",'')), ''), u.name, u.email) AS socio
      FROM "SocioMovimiento" m JOIN "User" u ON u.id = m."socioId" WHERE m.id = $1`,
     id,
   );
-  if (!m?.archivo) return;
+  const datos = m ? await leerArchivo(m) : null;
+  if (!m || !datos) return;
   const ext = (m.archivoNombre?.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? "").toLowerCase();
   const nombre = [
     m.fecha ? new Date(m.fecha).toISOString().slice(0, 10) : "sin-fecha",
@@ -213,14 +261,16 @@ async function subirMovimientoADrive(id: number) {
     .join(" - ")
     .replace(/[\\/:*?"<>|]/g, "-");
   try {
-    const r = await subirADrive(nombre + ext, m.archivoTipo ?? "application/octet-stream", Buffer.from(m.archivo));
-    if (!r) return; // Drive aún no conectado: se queda en la base y se sube después.
+    const r = await subirADrive(nombre + ext, m.archivoTipo ?? "application/octet-stream", datos);
+    if (!r) return; // Drive aún no conectado: se queda en el servidor y se sube después.
     await prisma.$executeRawUnsafe(
-      `UPDATE "SocioMovimiento" SET "driveId" = $2, "driveUrl" = $3, "driveError" = NULL, archivo = NULL WHERE id = $1`,
+      `UPDATE "SocioMovimiento" SET "driveId" = $2, "driveUrl" = $3, "driveError" = NULL, archivo = NULL,
+         "archivoRuta" = NULL WHERE id = $1`,
       id,
       r.id,
       r.url,
     );
+    await borrarDeDisco(m.archivoRuta);
   } catch (e) {
     await prisma.$executeRawUnsafe(
       `UPDATE "SocioMovimiento" SET "driveError" = $2 WHERE id = $1`,
@@ -235,7 +285,8 @@ async function subirMovimientoADrive(id: number) {
 export async function subirPendientesADrive() {
   await asegurar();
   const filas = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `SELECT id FROM "SocioMovimiento" WHERE archivo IS NOT NULL AND estado <> 'procesando' ORDER BY id LIMIT 5`,
+    `SELECT id FROM "SocioMovimiento" WHERE ("archivoRuta" IS NOT NULL OR archivo IS NOT NULL)
+       AND estado <> 'procesando' ORDER BY id LIMIT 5`,
   );
   let n = 0;
   for (const f of filas) {
@@ -292,18 +343,33 @@ export async function confirmarMovimiento(
 
 export async function borrarMovimiento(id: number) {
   await asegurar();
-  await prisma.$executeRawUnsafe(`DELETE FROM "SocioMovimiento" WHERE id = $1`, id);
+  const [m] = await prisma.$queryRawUnsafe<{ r: string | null }[]>(
+    `DELETE FROM "SocioMovimiento" WHERE id = $1 RETURNING "archivoRuta" AS r`,
+    id,
+  );
+  await borrarDeDisco(m?.r ?? null);
 }
 
+/** Datos de un movimiento (sin el archivo). */
 export async function movimiento(id: number) {
   await asegurar();
   const [m] = await prisma.$queryRawUnsafe<
-    { id: number; socioId: string; creadoPor: string | null; archivo: Buffer | null; archivoTipo: string | null; archivoNombre: string | null; driveUrl: string | null }[]
+    { id: number; socioId: string; creadoPor: string | null; archivoTipo: string | null; archivoNombre: string | null; driveUrl: string | null }[]
   >(
-    `SELECT id, "socioId", "creadoPor", archivo, "archivoTipo", "archivoNombre", "driveUrl" FROM "SocioMovimiento" WHERE id = $1`,
+    `SELECT id, "socioId", "creadoPor", "archivoTipo", "archivoNombre", "driveUrl" FROM "SocioMovimiento" WHERE id = $1`,
     id,
   );
   return m ?? null;
+}
+
+/** El archivo del comprobante mientras sigue en el servidor (antes de subirlo a Drive). */
+export async function archivoDeMovimiento(id: number) {
+  await asegurar();
+  const [m] = await prisma.$queryRawUnsafe<{ archivo: Buffer | null; archivoRuta: string | null }[]>(
+    `SELECT archivo, "archivoRuta" FROM "SocioMovimiento" WHERE id = $1`,
+    id,
+  );
+  return m ? leerArchivo(m) : null;
 }
 
 export type MovVista = {
@@ -334,7 +400,7 @@ export async function listarMovimientos(desde: number, cantidad: number, socioId
     `SELECT m.id, m."socioId",
             coalesce(nullif(trim(coalesce(u."firstName",'') || ' ' || coalesce(u."lastName",'')), ''), u.name, u.email) AS socio,
             m.tipo, m.fecha, m.monto, m.concepto, m.proveedor, m.medio, m.referencia, m.nota, m.estado, m."iaError",
-            m."archivoNombre", (m.archivo IS NOT NULL) AS "tieneArchivo", m."driveUrl", m."driveError", m."createdAt"
+            m."archivoNombre", (m."archivoRuta" IS NOT NULL OR m.archivo IS NOT NULL) AS "tieneArchivo", m."driveUrl", m."driveError", m."createdAt"
      FROM "SocioMovimiento" m JOIN "User" u ON u.id = m."socioId" ${filtro}
      ORDER BY (m.estado = 'confirmado'), m.fecha DESC NULLS FIRST, m.id DESC
      LIMIT $1 OFFSET $2`,

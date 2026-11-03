@@ -2,7 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { usuarioSocio } from "@/lib/socios-acceso";
 import { listaSocios } from "@/lib/subscription";
-import { iaConfigurada, listarMovimientos, resumenSociedad, TIPOS, type TipoMov } from "@/lib/socios";
+import {
+  CARPETA_ARCHIVOS,
+  iaConfigurada,
+  listarMovimientos,
+  resumenSociedad,
+  TIPOS,
+  type TipoMov,
+} from "@/lib/socios";
 import { driveDisponible, estadoDrive } from "@/lib/drive";
 import { StatTile } from "@/components/charts";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
@@ -201,6 +208,10 @@ export default async function PortalSocios({
       {esRoot && (
         <div className="card">
           <h2>Google Drive</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Los archivos no se guardan en la base de datos: esperan en el servidor ({CARPETA_ARCHIVOS}, fuera de la
+            app) hasta subirlos a Drive, y ahí se borran del servidor.
+          </p>
           {!driveDisponible() ? (
             <p className="muted small">Falta configurar Google (GOOGLE_CLIENT_ID) en el servidor.</p>
           ) : drive.conectado ? (

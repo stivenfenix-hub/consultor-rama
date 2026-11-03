@@ -25,9 +25,14 @@ export async function POST(req: NextRequest) {
     if (!MIMES_OK.includes(tipo)) {
       return NextResponse.json({ error: `${f.name}: sube un PDF o una foto (JPG, PNG, WEBP).` }, { status: 400 });
     }
-    ids.push(
-      await crearDesdeComprobante(socioId, user.id, { nombre: f.name, tipo, datos: Buffer.from(await f.arrayBuffer()) }, nota),
-    );
+    try {
+      ids.push(
+        await crearDesdeComprobante(socioId, user.id, { nombre: f.name, tipo, datos: Buffer.from(await f.arrayBuffer()) }, nota),
+      );
+    } catch (e) {
+      console.error("[socios] guardar archivo", e);
+      return NextResponse.json({ error: `${f.name}: no se pudo guardar en el servidor.` }, { status: 500 });
+    }
   }
   after(async () => {
     for (const id of ids) await procesarComprobante(id).catch((e) => console.error("[socios] procesar", id, e));
