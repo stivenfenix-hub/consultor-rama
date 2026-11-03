@@ -93,6 +93,7 @@ export default async function AppLayout({
       byLogoUrl={LOGOS.by}
       byUrl={settings.byUrl}
       isAdmin={user.role === "admin"}
+      portalSocios={user.role === "admin" || sub.estado === "socio"}
       soloPago={vencida}
       pedirWhatsapp={user.role !== "admin" && waActuaciones === null ? whatsapp : null}
       sospechoso={sospechoso}

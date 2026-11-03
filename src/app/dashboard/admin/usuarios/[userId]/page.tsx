@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { detalleCargasUsuario } from "@/lib/sync";
 import { sinLimiteManual } from "@/lib/limits";
+import { esSocio } from "@/lib/subscription";
 import { Interruptor } from "./sin-limite";
 import { RevisarEstadosAhora } from "./revisar-estados";
 import { estadosActivo, hallazgosDelUsuario, vigiladosDelUsuario } from "@/lib/estados";
@@ -21,10 +22,11 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
     select: { email: true, firstName: true, lastName: true, role: true },
   });
   if (!user) notFound();
-  const [{ cargas, reintentos, procesos }, libre, estados] = await Promise.all([
+  const [{ cargas, reintentos, procesos }, libre, estados, socio] = await Promise.all([
     detalleCargasUsuario(userId),
     sinLimiteManual({ id: userId, role: user.role }),
     estadosActivo(userId),
+    esSocio(userId),
   ]);
   const [hallazgos, vigilados] = estados
     ? await Promise.all([hallazgosDelUsuario(userId, 100), vigiladosDelUsuario(userId)])
@@ -43,6 +45,8 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
       </div>
 
       <div className="card">
+        {user.role !== "admin" && <Interruptor userId={userId} valor={socio} tipo="socio" />}
+        <div style={{ height: 8 }} />
         {user.role !== "admin" && <Interruptor userId={userId} valor={libre} tipo="sinLimite" />}
         <div style={{ height: 8 }} />
         <Interruptor userId={userId} valor={estados} tipo="estados" />

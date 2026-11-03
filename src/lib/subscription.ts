@@ -75,6 +75,8 @@ async function ensureSchema() {
   await ensureColumn("User", "paidUntil", "TIMESTAMPTZ");
   await ensureColumn("User", "subNoticeFor", "TIMESTAMPTZ");
   await ensureColumn("User", "subExpiredFor", "TIMESTAMPTZ");
+  // Socio de Estradox: sin cobro y con acceso al portal de socios.
+  await ensureColumn("User", "socio", "BOOLEAN NOT NULL DEFAULT false");
   for (const col of Object.values(COL_PRECIO)) {
     await ensureColumn("SiteSetting", col, "INTEGER");
   }
@@ -178,6 +180,31 @@ export async function savePlan(
   }
 }
 
+// ---------- Socios ----------
+export async function esSocio(userId: string): Promise<boolean> {
+  try {
+    await ensureSchema();
+    const [r] = await prisma.$queryRawUnsafe<{ s: boolean }[]>(`SELECT socio AS s FROM "User" WHERE id = $1`, userId);
+    return !!r?.s;
+  } catch {
+    return false;
+  }
+}
+
+export async function cambiarSocio(userId: string, valor: boolean) {
+  await ensureSchema();
+  await prisma.$executeRawUnsafe(`UPDATE "User" SET socio = $2 WHERE id = $1`, userId, valor);
+}
+
+/** Socios de Estradox (el root y los marcados como socio), para el portal. */
+export async function listaSocios() {
+  await ensureSchema();
+  return prisma.$queryRawUnsafe<{ id: string; nombre: string; email: string }[]>(
+    `SELECT id, coalesce(nullif(trim(coalesce("firstName",'') || ' ' || coalesce("lastName",'')), ''), name, email) AS nombre, email
+     FROM "User" WHERE role = 'admin' OR socio ORDER BY role = 'admin' DESC, "createdAt"`,
+  );
+}
+
 // ---------- Procesos incluidos y adicionales ----------
 export type UsoProcesos = {
   /** false: usuario anterior al cambio (o admin), sin límite. */
@@ -198,7 +225,7 @@ export async function usoProcesos(userId: string): Promise<UsoProcesos> {
      FROM "User" u WHERE u.id = $1`,
     userId,
   );
-  const limitado = !!u && u.role !== "admin" && new Date(u.createdAt) >= LIMITE_DESDE;
+  const limitado = !!u && u.role !== "admin" && !(await esSocio(userId)) && new Date(u.createdAt) >= LIMITE_DESDE;
   const total = Number(u?.total ?? 0);
   const adicionales = limitado ? Math.max(0, total - plan.procesosIncluidos) : 0;
   return {
@@ -254,7 +281,8 @@ export async function avisarProcesosAdicionales(userId: string) {
 }
 
 // ---------- Estado de la suscripción ----------
-export type EstadoSub = "admin" | "prueba" | "activa" | "vencida";
+/** "socio": socio de Estradox (User.socio): acceso sin cobro y portal de socios. */
+export type EstadoSub = "admin" | "socio" | "prueba" | "activa" | "vencida";
 export type Suscripcion = {
   estado: EstadoSub;
   /** Hasta cuándo tiene acceso (fin de la prueba o del último pago). */
@@ -267,6 +295,7 @@ export type Suscripcion = {
 type FilaSub = {
   id: string;
   role: string;
+  socio: boolean;
   createdAt: Date;
   trialEndsAt: Date | null;
   paidUntil: Date | null;
@@ -286,6 +315,7 @@ function calcular(u: FilaSub, diasPrueba: number): Suscripcion & { trialNuevo: b
   const diasRestantes = Math.max(0, Math.ceil((hasta.getTime() - ahora) / DIA_MS));
   let estado: EstadoSub;
   if (u.role === "admin") estado = "admin";
+  else if (u.socio) estado = "socio";
   else if (paid && paid.getTime() > ahora) estado = "activa";
   else if (trial.getTime() > ahora) estado = "prueba";
   else estado = "vencida";
@@ -295,7 +325,7 @@ function calcular(u: FilaSub, diasPrueba: number): Suscripcion & { trialNuevo: b
 async function filas(where: string, params: unknown[]): Promise<FilaSub[]> {
   await ensureSchema();
   return prisma.$queryRawUnsafe<FilaSub[]>(
-    `SELECT id, role, "createdAt", "trialEndsAt", "paidUntil" FROM "User" ${where}`,
+    `SELECT id, role, coalesce(socio, false) AS socio, "createdAt", "trialEndsAt", "paidUntil" FROM "User" ${where}`,
     ...params,
   );
 }

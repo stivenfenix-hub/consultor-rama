@@ -49,6 +49,7 @@ export function AppShell({
   byLogoUrl,
   byUrl,
   isAdmin,
+  portalSocios = false,
   soloPago = false,
   pedirWhatsapp = null,
   sospechoso = null,
@@ -61,6 +62,8 @@ export function AppShell({
   byLogoUrl: string;
   byUrl: string;
   isAdmin: boolean;
+  /** Root o socio de Estradox: ve el Portal socios (contabilidad de la sociedad). */
+  portalSocios?: boolean;
   /** Acceso vencido: el menú solo muestra Suscripción (para pagar). */
   soloPago?: boolean;
   /** Número del abogado si aún no decide recibir actuaciones por WhatsApp (burbuja). */
@@ -115,6 +118,12 @@ export function AppShell({
 
         <nav className="nav">
           {renderNav(soloPago ? NAV.filter((n) => n.href === "/dashboard/suscripcion") : NAV)}
+          {portalSocios && !soloPago && (
+            <>
+              <div className="nav-section">Sociedad</div>
+              {renderNav([{ href: "/dashboard/socios", label: "Portal socios", icon: "users" }])}
+            </>
+          )}
           {isAdmin && !soloPago && (
             <>
               <div className="nav-section">Administración</div>

@@ -50,6 +50,8 @@ export default async function SuscripcionPage({
   const titulo =
     sub.estado === "admin"
       ? "Cuenta administradora (sin cobro)"
+      : sub.estado === "socio"
+        ? "Socio de Estradox (sin cobro)"
       : sub.estado === "prueba"
         ? "Prueba gratis activa"
         : sub.estado === "activa"
@@ -72,7 +74,7 @@ export default async function SuscripcionPage({
 
       <div className="card" style={{ maxWidth: 560 }}>
         <h2>{titulo}</h2>
-        {sub.estado !== "admin" && (
+        {sub.estado !== "admin" && sub.estado !== "socio" && (
           <p style={{ marginTop: 0 }}>
             {sub.estado === "vencida" ? "Venció el " : "Tienes acceso hasta el "}
             <b>{fecha(sub.accesoHasta)}</b>
@@ -95,7 +97,7 @@ export default async function SuscripcionPage({
         )}
       </div>
 
-      {sub.estado !== "admin" && (
+      {sub.estado !== "admin" && sub.estado !== "socio" && (
         <div style={{ maxWidth: 980 }}>
           <h2 style={{ marginBottom: 4 }}>
             {sub.estado === "vencida" ? "Elige un plan para reactivar tu cuenta" : "Elige tu plan"}

@@ -22,6 +22,7 @@ const fecha = (d: Date | null) =>
 
 const ETIQUETA = {
   admin: <span className="badge new">admin</span>,
+  socio: <span className="badge new">socio</span>,
   prueba: <span className="badge">prueba</span>,
   activa: <span className="badge" style={{ color: "var(--green)" }}>activa</span>,
   vencida: <span className="badge" style={{ color: "var(--amber)" }}>vencida</span>,
@@ -92,7 +93,7 @@ export default async function SuscripcionesAdmin() {
                     <td className="muted">{u.email}</td>
                     <td>{s ? ETIQUETA[s.estado] : "—"}</td>
                     <td className="muted">
-                      {s?.estado === "admin" ? "—" : fecha(s?.accesoHasta ?? null)}
+                      {s?.estado === "admin" || s?.estado === "socio" ? "—" : fecha(s?.accesoHasta ?? null)}
                     </td>
                     <td>
                       {u.role !== "admin" && (

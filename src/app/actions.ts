@@ -688,6 +688,93 @@ export async function estadosActivoAction(userId: string, valor: boolean): Promi
   return { ok: valor ? "Vigilando estados." : "Sin vigilancia de estados." };
 }
 
+// ---------- Portal socios ----------
+const movSchema = z.object({
+  tipo: z.enum(["gasto", "aporte", "ingreso"]),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  monto: z.coerce.number().int("El valor debe ser entero").min(1, "Escribe el valor").max(10_000_000_000),
+  concepto: z.string().trim().min(2, "Escribe el concepto").max(200),
+  proveedor: z.string().trim().max(200).optional(),
+  medio: z.string().trim().max(60).optional(),
+  socioId: z.string().optional(),
+});
+
+async function socioDelPortal() {
+  const { usuarioSocio } = await import("@/lib/socios-acceso");
+  const user = await usuarioSocio();
+  if (!user) throw new Error("FORBIDDEN");
+  return user;
+}
+
+function leerMov(formData: FormData) {
+  return movSchema.safeParse({
+    tipo: formData.get("tipo"),
+    fecha: formData.get("fecha"),
+    monto: String(formData.get("monto") ?? "").replace(/[^\d]/g, ""),
+    concepto: formData.get("concepto"),
+    proveedor: formData.get("proveedor") || undefined,
+    medio: formData.get("medio") || undefined,
+    socioId: formData.get("socioId") || undefined,
+  });
+}
+
+/** Socio: confirma (y corrige) lo que leyó la IA de un comprobante. */
+export async function confirmarMovimientoAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await socioDelPortal();
+  const { confirmarMovimiento, movimiento } = await import("@/lib/socios");
+  const { listaSocios } = await import("@/lib/subscription");
+  const id = Number(formData.get("id"));
+  const m = await movimiento(id);
+  if (!m) return { error: "El movimiento ya no existe." };
+  if (user.role !== "admin" && m.socioId !== user.id && m.creadoPor !== user.id) {
+    return { error: "Solo puedes editar tus propios movimientos." };
+  }
+  const p = leerMov(formData);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Datos inválidos" };
+  const socios = await listaSocios();
+  const socioId = user.role === "admin" && socios.some((s) => s.id === p.data.socioId) ? p.data.socioId! : m.socioId;
+  await confirmarMovimiento(id, { ...p.data, proveedor: p.data.proveedor ?? null, medio: p.data.medio ?? null, socioId });
+  revalidatePath("/dashboard/socios");
+  return { ok: "Movimiento confirmado." };
+}
+
+/** Socio: agrega un movimiento sin comprobante (p. ej. efectivo). */
+export async function movimientoManualAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await socioDelPortal();
+  const { crearManual } = await import("@/lib/socios");
+  const { listaSocios } = await import("@/lib/subscription");
+  const p = leerMov(formData);
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Datos inválidos" };
+  const socios = await listaSocios();
+  const socioId = user.role === "admin" && socios.some((s) => s.id === p.data.socioId) ? p.data.socioId! : user.id;
+  await crearManual(socioId, user.id, { ...p.data, proveedor: p.data.proveedor ?? null, medio: p.data.medio ?? null });
+  revalidatePath("/dashboard/socios");
+  return { ok: "Movimiento agregado." };
+}
+
+/** Socio: borra un movimiento suyo (el root, cualquiera). El archivo en Drive se conserva. */
+export async function borrarMovimientoAction(id: number): Promise<ActionState> {
+  const user = await socioDelPortal();
+  const { borrarMovimiento, movimiento } = await import("@/lib/socios");
+  const m = await movimiento(id);
+  if (!m) return { ok: "Ya no existe." };
+  if (user.role !== "admin" && m.socioId !== user.id && m.creadoPor !== user.id) {
+    return { error: "Solo puedes borrar tus propios movimientos." };
+  }
+  await borrarMovimiento(id);
+  revalidatePath("/dashboard/socios");
+  return { ok: "Movimiento borrado." };
+}
+
+/** Root: marca a un usuario como socio de Estradox (sin cobro + portal de socios). */
+export async function socioAction(userId: string, valor: boolean): Promise<ActionState> {
+  await requireAdmin();
+  const { cambiarSocio } = await import("@/lib/subscription");
+  await cambiarSocio(userId, valor);
+  revalidatePath(`/dashboard/admin/usuarios/${userId}`);
+  return { ok: valor ? "Ahora es socio." : "Ya no es socio." };
+}
+
 /** Root: corre ya la revisión de estados (sin esperar la noche). */
 export async function revisarEstadosAhoraAction(): Promise<ActionState> {
   await requireAdmin();

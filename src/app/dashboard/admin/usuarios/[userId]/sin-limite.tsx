@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { estadosActivoAction, sinLimiteManualAction } from "@/app/actions";
+import { estadosActivoAction, sinLimiteManualAction, socioAction } from "@/app/actions";
 
 const OPCIONES = {
+  socio: {
+    accion: socioAction,
+    texto: "Socio de Estradox",
+    ayuda: "(no se le cobra el servicio y entra al Portal de socios)",
+  },
   sinLimite: {
     accion: sinLimiteManualAction,
     texto: "Sin límite de actualizaciones manuales",

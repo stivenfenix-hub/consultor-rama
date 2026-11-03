@@ -32,6 +32,16 @@ async function handle(req: NextRequest) {
       console.error("[cron] error", e);
     }
   });
+  // Portal socios: comprobantes que siguen en la base (Drive no conectado o falló).
+  after(async () => {
+    try {
+      const { subirPendientesADrive } = await import("@/lib/socios");
+      const n = await subirPendientesADrive();
+      if (n) console.log("[socios] subidos a Drive", n);
+    } catch (e) {
+      console.error("[socios] drive", e);
+    }
+  });
   // Estados electrónicos: aparte, con su propio candado (el portal tarda minutos).
   after(async () => {
     try {
