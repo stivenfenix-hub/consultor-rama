@@ -35,6 +35,17 @@ export async function getAdminStats() {
   };
 }
 
+/** Usuarios registrados (sin contar admins) y cuántos entraron este mes, para el portal socios. */
+export async function usuariosRegistrados() {
+  const now = new Date();
+  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [total, nuevosMes] = await Promise.all([
+    prisma.user.count({ where: { role: { not: "admin" } } }),
+    prisma.user.count({ where: { role: { not: "admin" }, createdAt: { gte: inicioMes } } }),
+  ]);
+  return { total, nuevosMes };
+}
+
 /** Usuarios para la tabla del root, por páginas y con búsqueda opcional (nombre o correo). */
 export async function listUsers(opts: { pagina?: number; porPagina?: number; q?: string } = {}) {
   const porPagina = opts.porPagina ?? 20;

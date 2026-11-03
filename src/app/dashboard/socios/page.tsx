@@ -11,6 +11,7 @@ import {
   type TipoMov,
 } from "@/lib/socios";
 import { driveDisponible, estadoDrive } from "@/lib/drive";
+import { usuariosRegistrados } from "@/lib/admin";
 import { StatTile } from "@/components/charts";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { BorrarMovimiento, FormMovimiento, RefrescoMientrasLee, SubirComprobantes } from "./piezas";
@@ -31,7 +32,12 @@ export default async function PortalSocios({
   const esRoot = user.role === "admin";
   const sp = await searchParams;
 
-  const [resumen, socios, drive] = await Promise.all([resumenSociedad(), listaSocios(), estadoDrive()]);
+  const [resumen, socios, drive, usuarios] = await Promise.all([
+    resumenSociedad(),
+    listaSocios(),
+    estadoDrive(),
+    usuariosRegistrados(),
+  ]);
   const { total } = await listarMovimientos(0, 0);
   const pag = paginaDe(sp.pagina, total);
   const { movimientos } = await listarMovimientos(pag.desde, POR_PAGINA);
@@ -57,6 +63,11 @@ export default async function PortalSocios({
       )}
 
       <section className="stat-grid">
+        <StatTile
+          label="Usuarios registrados"
+          value={usuarios.total.toLocaleString("es-CO")}
+          hint={`${usuarios.nuevosMes} nuevos este mes`}
+        />
         <StatTile label="Total invertido" value={pesos(resumen.invertido)} />
         <StatTile label="Ingresos (Bold + otros)" value={pesos(resumen.ingresos)} accent="var(--green)" />
         <StatTile
