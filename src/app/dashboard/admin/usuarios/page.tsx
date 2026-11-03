@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listUsers } from "@/lib/admin";
+import { listUsers, resumenUsuarios } from "@/lib/admin";
 import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
 import { EliminarUsuario } from "./eliminar-usuario";
@@ -16,20 +16,41 @@ function fmt(d: Date | null | undefined) {
   });
 }
 
-export default async function UsuariosAdmin() {
-  const [users, whatsapp, cargas] = await Promise.all([
-    listUsers(),
-    getWhatsappPorUsuario(),
-    resumenCargasPorUsuario().catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
+const POR_PAGINA = 20;
+
+export default async function UsuariosAdmin({
+  searchParams,
+}: {
+  searchParams: Promise<{ pagina?: string; q?: string }>;
+}) {
+  const sp = await searchParams;
+  const q = sp.q?.trim() ?? "";
+  // La tabla va de a 20 (solo se cargan esos); totales y sospechosos miran a todos.
+  const [todos, pagina] = await Promise.all([
+    resumenUsuarios(),
+    listUsers({ pagina: Number(sp.pagina) || 1, porPagina: POR_PAGINA, q }),
+  ]);
+  const users = pagina.users;
+  const ids = users.map((u) => u.id);
+  const [whatsapp, cargas] = await Promise.all([
+    getWhatsappPorUsuario(ids),
+    resumenCargasPorUsuario(ids).catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
   ]);
   const sospechas = new Map<string, string[]>();
-  for (const u of users) {
+  for (const u of todos) {
     const m = u.role === "admin" ? [] : motivosSospecha(u);
     if (m.length > 0) sospechas.set(u.id, m);
   }
-  const sospechosos = users.filter((u) => sospechas.has(u.id));
+  const sospechosos = todos.filter((u) => sospechas.has(u.id));
+  const enlace = (p: number) => {
+    const s = new URLSearchParams();
+    if (p > 1) s.set("pagina", String(p));
+    if (q) s.set("q", q);
+    const t = s.toString();
+    return `/dashboard/admin/usuarios${t ? `?${t}` : ""}`;
+  };
   const now = Date.now();
-  const activos = users.filter(
+  const activos = todos.filter(
     (u) =>
       u.lastLoginAt &&
       now - new Date(u.lastLoginAt).getTime() < 30 * 24 * 60 * 60 * 1000,
@@ -42,11 +63,11 @@ export default async function UsuariosAdmin() {
       </div>
 
       <section className="stat-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        <StatTile label="Total" value={users.length} />
+        <StatTile label="Total" value={todos.length} />
         <StatTile label="Activos (30 días)" value={activos} accent="var(--green)" />
         <StatTile
           label="Verificados"
-          value={users.filter((u) => u.emailVerified).length}
+          value={todos.filter((u) => u.emailVerified).length}
         />
       </section>
 
@@ -78,6 +99,21 @@ export default async function UsuariosAdmin() {
       )}
 
       <div className="card">
+        <form method="get" className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Buscar por nombre o correo"
+            style={{ flex: 1, minWidth: 200 }}
+          />
+          <button className="btn secondary" type="submit">Buscar</button>
+          {q && <Link className="btn secondary" href="/dashboard/admin/usuarios">Limpiar</Link>}
+        </form>
+        <div className="muted small" style={{ marginBottom: 8 }}>
+          {pagina.total === 0
+            ? "Ningún usuario coincide."
+            : `Mostrando ${(pagina.pagina - 1) * POR_PAGINA + 1}–${Math.min(pagina.pagina * POR_PAGINA, pagina.total)} de ${pagina.total}${q ? ` que coinciden con “${q}”` : ""}`}
+        </div>
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -151,6 +187,23 @@ export default async function UsuariosAdmin() {
             </tbody>
           </table>
         </div>
+        {pagina.paginas > 1 && (
+          <div className="row wrap" style={{ gap: 8, marginTop: 12, justifyContent: "center", alignItems: "center" }}>
+            {pagina.pagina > 1 ? (
+              <Link className="btn secondary small" href={enlace(pagina.pagina - 1)}>← Anterior</Link>
+            ) : (
+              <span className="btn secondary small" aria-disabled style={{ opacity: 0.4 }}>← Anterior</span>
+            )}
+            <span className="muted small">
+              Página {pagina.pagina} de {pagina.paginas}
+            </span>
+            {pagina.pagina < pagina.paginas ? (
+              <Link className="btn secondary small" href={enlace(pagina.pagina + 1)}>Siguiente →</Link>
+            ) : (
+              <span className="btn secondary small" aria-disabled style={{ opacity: 0.4 }}>Siguiente →</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

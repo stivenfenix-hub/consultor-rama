@@ -1,4 +1,4 @@
-import { listUsers } from "@/lib/admin";
+import { resumenUsuarios } from "@/lib/admin";
 import { StatTile } from "@/components/charts";
 import {
   boldConfigurado,
@@ -29,7 +29,7 @@ const ETIQUETA = {
 
 export default async function SuscripcionesAdmin() {
   const [users, subs, plan, pagos, eventos] = await Promise.all([
-    listUsers(),
+    resumenUsuarios(),
     suscripcionesDeTodos(),
     getPlan(),
     totalPagosAprobados(),

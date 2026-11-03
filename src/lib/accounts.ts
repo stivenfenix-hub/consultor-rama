@@ -93,12 +93,17 @@ export async function setWhatsapp(userId: string, whatsapp: string) {
 }
 
 /** WhatsApp de cada usuario (id -> número), para el reporte de admin. */
-export async function getWhatsappPorUsuario(): Promise<Map<string, string>> {
+export async function getWhatsappPorUsuario(ids?: string[]): Promise<Map<string, string>> {
   try {
     await ensureWhatsappColumn();
-    const rows = await prisma.$queryRawUnsafe<{ id: string; w: string }[]>(
-      `SELECT id, "whatsapp" AS w FROM "User" WHERE "whatsapp" IS NOT NULL`,
-    );
+    const rows = ids
+      ? await prisma.$queryRawUnsafe<{ id: string; w: string }[]>(
+          `SELECT id, "whatsapp" AS w FROM "User" WHERE "whatsapp" IS NOT NULL AND id = ANY($1::text[])`,
+          ids,
+        )
+      : await prisma.$queryRawUnsafe<{ id: string; w: string }[]>(
+          `SELECT id, "whatsapp" AS w FROM "User" WHERE "whatsapp" IS NOT NULL`,
+        );
     return new Map(rows.map((r) => [r.id, r.w]));
   } catch {
     return new Map();

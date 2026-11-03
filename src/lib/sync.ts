@@ -1033,7 +1033,7 @@ export async function detalleCargasUsuario(userId: string) {
   };
 }
 
-export async function resumenCargasPorUsuario() {
+export async function resumenCargasPorUsuario(ids: string[]) {
   await asegurarCargas();
   await asegurarReintentos();
   const filas = await prisma.$queryRawUnsafe<
@@ -1043,7 +1043,8 @@ export async function resumenCargasPorUsuario() {
             (SELECT count(*) FROM "CargaProcesos" c WHERE c."userId" = u.id) AS cargas,
             (SELECT count(*) FROM "CargaProcesos" c WHERE c."userId" = u.id AND c.error IS NOT NULL) AS "conError",
             (SELECT count(*) FROM "RadicadoReintento" r WHERE r."userId" = u.id) AS reintentos
-     FROM "User" u`,
+     FROM "User" u WHERE u.id = ANY($1::text[])`,
+    ids,
   );
   return new Map(
     filas.map((f) => [f.userId, { cargas: Number(f.cargas), conError: Number(f.conError), reintentos: Number(f.reintentos) }]),
