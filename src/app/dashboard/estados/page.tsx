@@ -3,7 +3,14 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Icon } from "@/components/icon";
-import { estadosActivo, hallazgosDelUsuario, marcarHallazgosVistos, vigiladosDelUsuario } from "@/lib/estados";
+import {
+  estadosActivo,
+  hallazgosDelUsuario,
+  marcarHallazgosVistos,
+  totalHallazgos,
+  vigiladosDelUsuario,
+} from "@/lib/estados";
+import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 
 const TZ = "America/Bogota";
 const fecha = (d: Date | null) =>
@@ -13,16 +20,33 @@ const hora = (d: Date | null | undefined) =>
 const corto = (r: string) => `${r.slice(12, 16)}-${r.slice(16, 21)}`;
 
 /** Estados electrónicos: en qué publicaciones de los juzgados salieron sus radicados. */
-export default async function EstadosPage() {
+export default async function EstadosPage({
+  searchParams,
+}: {
+  /** p: página de "Dónde salieron"; pv: página de "Radicados vigilados" (de a 20). */
+  searchParams: Promise<{ p?: string; pv?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!(await estadosActivo(user.id))) redirect("/dashboard/procesos");
+  const sp = await searchParams;
 
-  const [hallazgos, vigilados, casos] = await Promise.all([
-    hallazgosDelUsuario(user.id),
+  const total = await totalHallazgos(user.id);
+  const pagH = paginaDe(sp.p, total);
+  const [hallazgos, todosVigilados, casos] = await Promise.all([
+    hallazgosDelUsuario(user.id, POR_PAGINA, pagH.desde),
     vigiladosDelUsuario(user.id),
     prisma.case.findMany({ where: { userId: user.id }, select: { id: true, radicado: true } }),
   ]);
+  const pagV = paginaDe(sp.pv, todosVigilados.length);
+  const vigilados = todosVigilados.slice(pagV.desde, pagV.desde + POR_PAGINA);
+  const href = (p: number, pv: number) => {
+    const s = new URLSearchParams();
+    if (p > 1) s.set("p", String(p));
+    if (pv > 1) s.set("pv", String(pv));
+    const t = s.toString();
+    return `/dashboard/estados${t ? `?${t}` : ""}`;
+  };
   await marcarHallazgosVistos(user.id);
   const casoDe = new Map(casos.map((c) => [c.radicado, c.id]));
 
@@ -39,7 +63,7 @@ export default async function EstadosPage() {
       </div>
 
       <div className="card">
-        <h2>Dónde salieron tus procesos ({hallazgos.length})</h2>
+        <h2>Dónde salieron tus procesos ({total})</h2>
         {hallazgos.length === 0 ? (
           <p className="muted small">
             Todavía no encontramos tus radicados en los estados revisados. Cada noche revisamos el último estado
@@ -76,10 +100,11 @@ export default async function EstadosPage() {
             </div>
           ))
         )}
+        <Paginador pagina={pagH.pagina} paginas={pagH.paginas} hrefDe={(p) => href(p, pagV.pagina)} />
       </div>
 
       <div className="card">
-        <h2>Radicados vigilados ({vigilados.length})</h2>
+        <h2>Radicados vigilados ({todosVigilados.length})</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
           Buscamos cada radicado como lo escriben los juzgados (completo o año-número, p. ej. 2026-00894).
         </p>
@@ -108,6 +133,7 @@ export default async function EstadosPage() {
             </tbody>
           </table>
         </div>
+        <Paginador pagina={pagV.pagina} paginas={pagV.paginas} hrefDe={(pv) => href(pagH.pagina, pv)} />
       </div>
     </div>
   );

@@ -217,7 +217,7 @@ const AVISOS_DEL_USUARIO = `FROM "MobileNotice" n JOIN "User" u ON u.id = $1
     AND n."createdAt" > now() - interval '7 days'`;
 
 /** Últimos avisos del usuario (los suyos y los generales), última semana. */
-export async function listarAvisos(userId: string, limite = 30): Promise<AvisoApp[]> {
+export async function listarAvisos(userId: string, limite = 20): Promise<AvisoApp[]> {
   await asegurarLecturas();
   return prisma.$queryRawUnsafe<AvisoApp[]>(
     `SELECT n.id, n.title, n.body, n.url, n."createdAt", ${LEIDO_SQL} AS leido

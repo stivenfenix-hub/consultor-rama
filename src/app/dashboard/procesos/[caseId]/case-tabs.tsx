@@ -8,6 +8,7 @@ import {
   type ViewerDoc,
 } from "@/components/document-viewer";
 import { Icon } from "@/components/icon";
+import { Paginador } from "@/components/paginador";
 
 export type Datos = { label: string; value: string }[];
 export type Act = {
@@ -72,8 +73,11 @@ export function CaseTabs({
   grabaciones,
   syncLogs,
   estados,
+  tabInicial,
+  paginas,
 }: {
   datos: Datos;
+  /** Solo la página que se ve (de a 20); el total viene en `paginas`. */
   actuaciones: Act[];
   partes: Parte[];
   documentos: Doc[];
@@ -81,14 +85,32 @@ export function CaseTabs({
   syncLogs: Sync[];
   /** Solo para abogados en la prueba de estados electrónicos. */
   estados?: { publicaciones: EstadoPub[]; juzgado: string | null; revisado: string | null };
+  /** Pestaña abierta al llegar (?tab=), p. ej. al pasar de página. */
+  tabInicial?: string;
+  paginas: {
+    base: string;
+    actuaciones: { pagina: number; paginas: number; total: number };
+    documentos: { pagina: number; paginas: number; total: number };
+  };
 }) {
-  const [tab, setTab] = useState<TabKey>("resumen");
+  const [tab, setTab] = useState<TabKey>(
+    tabInicial === "actuaciones" || tabInicial === "documentos" ? tabInicial : "resumen",
+  );
   const [visor, setVisor] = useState<ViewerDoc | null>(null);
+  // Enlace a otra página de actuaciones (pa) o documentos (pd), conservando la otra.
+  const hrefPagina = (lista: "actuaciones" | "documentos") => (p: number) => {
+    const s = new URLSearchParams({ tab: lista });
+    const pa = lista === "actuaciones" ? p : paginas.actuaciones.pagina;
+    const pd = lista === "documentos" ? p : paginas.documentos.pagina;
+    if (pa > 1) s.set("pa", String(pa));
+    if (pd > 1) s.set("pd", String(pd));
+    return `${paginas.base}?${s}`;
+  };
 
   const tabs: { key: TabKey; label: string; n?: number }[] = [
     { key: "resumen", label: "Resumen" },
-    { key: "actuaciones", label: "Actuaciones", n: actuaciones.length },
-    { key: "documentos", label: "Documentos", n: documentos.length },
+    { key: "actuaciones", label: "Actuaciones", n: paginas.actuaciones.total },
+    { key: "documentos", label: "Documentos", n: paginas.documentos.total },
     { key: "partes", label: "Partes", n: partes.length },
     { key: "grabaciones", label: "Grabaciones", n: grabaciones.length },
     ...(estados
@@ -134,7 +156,7 @@ export function CaseTabs({
 
         {tab === "actuaciones" && (
           <>
-            <h2>Actuaciones ({actuaciones.length})</h2>
+            <h2>Actuaciones ({paginas.actuaciones.total})</h2>
             {actuaciones.length === 0 && (
               <p className="muted small">Sin actuaciones registradas.</p>
             )}
@@ -169,12 +191,17 @@ export function CaseTabs({
                 )}
               </div>
             ))}
+            <Paginador
+              pagina={paginas.actuaciones.pagina}
+              paginas={paginas.actuaciones.paginas}
+              hrefDe={hrefPagina("actuaciones")}
+            />
           </>
         )}
 
         {tab === "documentos" && (
           <>
-            <h2>Documentos ({documentos.length})</h2>
+            <h2>Documentos ({paginas.documentos.total})</h2>
             {documentos.length === 0 ? (
               <p className="muted small">
                 Este proceso no tiene documentos en la Rama Judicial.
@@ -199,6 +226,11 @@ export function CaseTabs({
                 </div>
               ))
             )}
+            <Paginador
+              pagina={paginas.documentos.pagina}
+              paginas={paginas.documentos.paginas}
+              hrefDe={hrefPagina("documentos")}
+            />
           </>
         )}
 

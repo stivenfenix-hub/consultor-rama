@@ -557,15 +557,25 @@ export type HallazgoVista = {
   createdAt: Date;
 };
 
-export async function hallazgosDelUsuario(userId: string, limite = 200): Promise<HallazgoVista[]> {
+export async function hallazgosDelUsuario(userId: string, limite = 200, desde = 0): Promise<HallazgoVista[]> {
   await asegurarTablas();
   return prisma.$queryRawUnsafe<HallazgoVista[]>(
     `SELECT h.id, h.radicado, p.titulo, p.fecha, h.archivo, h.url, h.extracto, h.visto, h."createdAt"
      FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
-     WHERE h."userId" = $1 ORDER BY p.fecha DESC NULLS LAST, h.id DESC LIMIT $2`,
+     WHERE h."userId" = $1 ORDER BY p.fecha DESC NULLS LAST, h.id DESC LIMIT $2 OFFSET $3`,
     userId,
     limite,
+    desde,
   );
+}
+
+export async function totalHallazgos(userId: string): Promise<number> {
+  await asegurarTablas();
+  const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(*) AS n FROM "EstadoHallazgo" WHERE "userId" = $1`,
+    userId,
+  );
+  return Number(r?.n ?? 0);
 }
 
 /** Para la pestaña "Estados electrónicos" del proceso: dónde salió este radicado. */

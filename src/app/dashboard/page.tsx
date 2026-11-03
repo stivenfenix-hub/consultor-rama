@@ -37,7 +37,7 @@ export default async function DashboardPage({
   const registros = await prisma.case.findMany({
     where: { userId: user.id },
     orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-    take: 30,
+    take: 20,
     include: {
       actuaciones: { orderBy: { fechaActuacion: "desc" }, take: 1 },
     },

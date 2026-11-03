@@ -11,6 +11,7 @@ import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { ramaCaida } from "@/lib/monitor-rama";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
 import { usoProcesos } from "@/lib/subscription";
+import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 
 // Lo que gana el abogado al agregar sus procesos (pantalla vacía).
 const BENEFICIOS: { icon: "scale" | "download" | "bell" | "eye"; titulo: string; texto: string }[] = [
@@ -51,15 +52,26 @@ type Filtro = "todos" | "novedades" | "aldia";
 export default async function ProcesosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filtro?: string }>;
+  searchParams: Promise<{ filtro?: string; pagina?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const [todos, cargas, reintentos, caidaRama, estados, uso] = await Promise.all([
+    // Solo los campos de la tarjeta (sin partes, sujetos, etc.); se muestran de a 20.
     prisma.case.findMany({
       where: { userId: user.id },
       orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        radicado: true,
+        unseenCount: true,
+        esPrivado: true,
+        lastActuacionDate: true,
+        despacho: true,
+        departamento: true,
+        lastError: true,
+      },
     }),
     cargasPendientesDeVer(user.id).catch(() => []),
     reintentosDelUsuario(user.id).catch(() => []),
@@ -98,11 +110,20 @@ export default async function ProcesosPage({
   }));
 
   // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
-  const { filtro: f } = await searchParams;
+  const { filtro: f, pagina: pg } = await searchParams;
   const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
   const conNovedades = grupos.filter((g) => g.nuevas > 0);
   const alDia = grupos.filter((g) => g.nuevas === 0);
-  const lista = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : grupos;
+  const filtrados = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : grupos;
+  const pag = paginaDe(pg, filtrados.length);
+  const lista = filtrados.slice(pag.desde, pag.desde + POR_PAGINA);
+  const hrefPagina = (p: number) => {
+    const s = new URLSearchParams();
+    if (filtro !== "todos") s.set("filtro", filtro);
+    if (p > 1) s.set("pagina", String(p));
+    const t = s.toString();
+    return `/dashboard/procesos${t ? `?${t}` : ""}`;
+  };
   const pestanas: { key: Filtro; label: string; n: number }[] = [
     { key: "todos", label: "Todos", n: grupos.length },
     { key: "novedades", label: "Con novedades", n: conNovedades.length },
@@ -229,8 +250,10 @@ export default async function ProcesosPage({
         </Link>
       ))}
 
-      {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado. */}
-      {filtro === "todos" && estados && estados.solo.length > 0 && (
+      <Paginador pagina={pag.pagina} paginas={pag.paginas} hrefDe={hrefPagina} />
+
+      {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado (al final de la lista). */}
+      {filtro === "todos" && pag.pagina === pag.paginas && estados && estados.solo.length > 0 && (
         <>
           <h2 style={{ margin: "18px 0 4px" }}>En estados electrónicos ({estados.solo.length})</h2>
           <p className="muted small" style={{ marginTop: 0 }}>

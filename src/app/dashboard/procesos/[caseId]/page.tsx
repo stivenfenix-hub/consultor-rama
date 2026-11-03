@@ -9,6 +9,7 @@ import { Icon } from "@/components/icon";
 import { avisoProceso } from "@/lib/aviso-rama";
 import { extraerGrabaciones, parsePartes } from "@/lib/case-detail";
 import { estadosActivo, estadosDelRadicado } from "@/lib/estados";
+import { POR_PAGINA, paginaDe } from "@/components/paginador";
 
 const TZ = "America/Bogota";
 function fmtFecha(d: Date | null | undefined) {
@@ -27,23 +28,52 @@ function fmtHora(d: Date | null | undefined) {
 
 export default async function CaseDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ caseId: string }>;
+  /** tab: pestaña abierta; pa / pd: página de actuaciones / documentos (de a 20). */
+  searchParams: Promise<{ tab?: string; pa?: string; pd?: string }>;
 }) {
   const { caseId } = await params;
+  const sp = await searchParams;
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const caso = await prisma.case.findFirst({
     where: { id: caseId, userId: user.id },
     include: {
-      actuaciones: { orderBy: { fechaActuacion: "desc" } },
-      documentos: { orderBy: { fechaCarga: "desc" } },
       partes: true,
-      syncLogs: { orderBy: { createdAt: "desc" }, take: 50 },
+      syncLogs: { orderBy: { createdAt: "desc" }, take: POR_PAGINA },
     },
   });
   if (!caso) notFound();
+
+  // Actuaciones: solo las 20 de la página que se ve.
+  const totalActs = await prisma.actuacion.count({ where: { caseId: caso.id } });
+  const pagActs = paginaDe(sp.pa, totalActs);
+  const actsPagina = await prisma.actuacion.findMany({
+    where: { caseId: caso.id },
+    orderBy: [{ fechaActuacion: { sort: "desc", nulls: "last" } }, { consActuacion: "desc" }],
+    skip: pagActs.desde,
+    take: POR_PAGINA,
+  });
+  // Documentos de esas actuaciones (para sus botones "Ver").
+  const consPagina = actsPagina.map((a) => a.consActuacion).filter((c): c is number => c != null);
+  const docsDeActs = consPagina.length
+    ? await prisma.documento.findMany({
+        where: { caseId: caso.id, consActuacion: { in: consPagina } },
+        select: { idRegDocumento: true, nombre: true, tipo: true, consActuacion: true },
+      })
+    : [];
+  // Grabaciones: solo las actuaciones con un enlace (no hace falta traerlas todas).
+  const actsConEnlace = await prisma.actuacion.findMany({
+    where: {
+      caseId: caso.id,
+      OR: [{ anotacion: { contains: "http", mode: "insensitive" } }, { actuacion: { contains: "http", mode: "insensitive" } }],
+    },
+    orderBy: { fechaActuacion: "desc" },
+    select: { actuacion: true, anotacion: true, fechaActuacion: true },
+  });
   // Otros registros del mismo radicado (un sistema de la Rama cada uno).
   const registros = await prisma.case.findMany({
     where: { userId: user.id, radicado: caso.radicado },
@@ -74,7 +104,7 @@ export default async function CaseDetail({
     number,
     { idRegDocumento: string; nombre: string; tipo: string | null }[]
   >();
-  for (const d of caso.documentos) {
+  for (const d of docsDeActs) {
     if (d.consActuacion == null) continue;
     const arr = docsByCons.get(d.consActuacion) ?? [];
     arr.push({
@@ -85,7 +115,7 @@ export default async function CaseDetail({
     docsByCons.set(d.consActuacion, arr);
   }
 
-  const actuaciones = caso.actuaciones.map((a) => ({
+  const actuaciones = actsPagina.map((a) => ({
     id: a.id,
     fecha: fmtFecha(a.fechaActuacion),
     nombre: a.actuacion ?? "Actuación",
@@ -109,16 +139,20 @@ export default async function CaseDetail({
   // documentos pero Justicia XXI sí; antes, al abrir el registro SIUGJ,
   // parecía que el proceso no tenía documentos.
   const sistemaDe = new Map(registros.map((r) => [r.id, sistema(r)]));
-  const docsTodos =
-    registros.length > 1
-      ? await prisma.documento.findMany({
-          where: { caseId: { in: registros.map((r) => r.id) } },
-          orderBy: { fechaCarga: "desc" },
-        })
-      : caso.documentos;
+  // Solo los campos que se muestran; se quitan repetidos entre fuentes y se
+  // envían al navegador los 20 de la página.
+  const docsTodos = await prisma.documento.findMany({
+    where: { caseId: { in: registros.map((r) => r.id) } },
+    orderBy: { fechaCarga: "desc" },
+    select: { idRegDocumento: true, nombre: true, descripcion: true, tipo: true, fechaCarga: true, caseId: true },
+  });
   const docsVistos = new Set<string>();
-  const documentos = docsTodos
-    .filter((d) => !docsVistos.has(d.idRegDocumento) && !!docsVistos.add(d.idRegDocumento))
+  const docsUnicos = docsTodos.filter(
+    (d) => !docsVistos.has(d.idRegDocumento) && !!docsVistos.add(d.idRegDocumento),
+  );
+  const pagDocs = paginaDe(sp.pd, docsUnicos.length);
+  const documentos = docsUnicos
+    .slice(pagDocs.desde, pagDocs.desde + POR_PAGINA)
     .map((d) => ({
       idRegDocumento: d.idRegDocumento,
       nombre: d.nombre ?? "Documento",
@@ -128,7 +162,7 @@ export default async function CaseDetail({
       fuente: registros.length > 1 ? sistemaDe.get(d.caseId) : undefined,
     }));
 
-  const grabaciones = extraerGrabaciones(caso.actuaciones).map((g) => ({
+  const grabaciones = extraerGrabaciones(actsConEnlace).map((g) => ({
     ...g,
     fecha: fmtFecha(g.fecha),
   }));
@@ -235,6 +269,12 @@ export default async function CaseDetail({
         grabaciones={grabaciones}
         syncLogs={syncLogs}
         estados={estados}
+        tabInicial={sp.tab}
+        paginas={{
+          base: `/dashboard/procesos/${caso.id}`,
+          actuaciones: { pagina: pagActs.pagina, paginas: pagActs.paginas, total: totalActs },
+          documentos: { pagina: pagDocs.pagina, paginas: pagDocs.paginas, total: docsUnicos.length },
+        }}
       />
     </div>
   );
