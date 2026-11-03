@@ -49,6 +49,9 @@ export const TIPOS = {
   gasto: "Gasto pagado por el socio",
   aporte: "Aporte de dinero a Estradox",
   ingreso: "Ingreso (fuera de Bold)",
+  // Dinero de un socio a otro para quedar parejos: no es inversión en Estradox;
+  // suma al que paga y resta al que recibe (receptorId).
+  liquidacion: "Pago a otro socio (para igualar)",
 } as const;
 export type TipoMov = keyof typeof TIPOS;
 export const esTipo = (t: string): t is TipoMov => t in TIPOS;
@@ -84,6 +87,7 @@ async function asegurar() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "SocioMovimiento" ADD COLUMN IF NOT EXISTS "archivoRuta" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "SocioMovimiento" ADD COLUMN IF NOT EXISTS "receptorId" TEXT`);
   listo = true;
 }
 
@@ -304,12 +308,20 @@ export async function subirPendientesADrive() {
 export async function crearManual(
   socioId: string,
   creadoPor: string,
-  d: { tipo: TipoMov; fecha: string; monto: number; concepto: string; proveedor: string | null; medio: string | null },
+  d: {
+    tipo: TipoMov;
+    fecha: string;
+    monto: number;
+    concepto: string;
+    proveedor: string | null;
+    medio: string | null;
+    receptorId: string | null;
+  },
 ) {
   await asegurar();
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "SocioMovimiento" ("socioId", "creadoPor", tipo, fecha, monto, concepto, proveedor, medio, estado)
-     VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, 'confirmado')`,
+    `INSERT INTO "SocioMovimiento" ("socioId", "creadoPor", tipo, fecha, monto, concepto, proveedor, medio, "receptorId", estado)
+     VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, 'confirmado')`,
     socioId,
     creadoPor,
     d.tipo,
@@ -318,18 +330,28 @@ export async function crearManual(
     d.concepto,
     d.proveedor,
     d.medio,
+    d.tipo === "liquidacion" ? d.receptorId : null,
   );
 }
 
 /** El socio revisa lo que leyó la IA, corrige y confirma (solo lo confirmado suma). */
 export async function confirmarMovimiento(
   id: number,
-  d: { tipo: TipoMov; fecha: string; monto: number; concepto: string; proveedor: string | null; medio: string | null; socioId: string },
+  d: {
+    tipo: TipoMov;
+    fecha: string;
+    monto: number;
+    concepto: string;
+    proveedor: string | null;
+    medio: string | null;
+    socioId: string;
+    receptorId: string | null;
+  },
 ) {
   await asegurar();
   await prisma.$executeRawUnsafe(
     `UPDATE "SocioMovimiento" SET tipo = $2, fecha = $3::date, monto = $4, concepto = $5, proveedor = $6, medio = $7,
-       "socioId" = $8, estado = 'confirmado' WHERE id = $1`,
+       "socioId" = $8, "receptorId" = $9, estado = 'confirmado' WHERE id = $1`,
     id,
     d.tipo,
     d.fecha,
@@ -338,6 +360,7 @@ export async function confirmarMovimiento(
     d.proveedor,
     d.medio,
     d.socioId,
+    d.tipo === "liquidacion" ? d.receptorId : null,
   );
 }
 
@@ -391,6 +414,8 @@ export type MovVista = {
   driveUrl: string | null;
   driveError: string | null;
   createdAt: Date;
+  receptorId: string | null;
+  receptor: string | null;
 };
 
 export async function listarMovimientos(desde: number, cantidad: number, socioId?: string) {
@@ -400,8 +425,10 @@ export async function listarMovimientos(desde: number, cantidad: number, socioId
     `SELECT m.id, m."socioId",
             coalesce(nullif(trim(coalesce(u."firstName",'') || ' ' || coalesce(u."lastName",'')), ''), u.name, u.email) AS socio,
             m.tipo, m.fecha, m.monto, m.concepto, m.proveedor, m.medio, m.referencia, m.nota, m.estado, m."iaError",
-            m."archivoNombre", (m."archivoRuta" IS NOT NULL OR m.archivo IS NOT NULL) AS "tieneArchivo", m."driveUrl", m."driveError", m."createdAt"
-     FROM "SocioMovimiento" m JOIN "User" u ON u.id = m."socioId" ${filtro}
+            m."archivoNombre", (m."archivoRuta" IS NOT NULL OR m.archivo IS NOT NULL) AS "tieneArchivo", m."driveUrl", m."driveError", m."createdAt",
+            m."receptorId",
+            coalesce(nullif(trim(coalesce(r."firstName",'') || ' ' || coalesce(r."lastName",'')), ''), r.name, r.email) AS receptor
+     FROM "SocioMovimiento" m JOIN "User" u ON u.id = m."socioId" LEFT JOIN "User" r ON r.id = m."receptorId" ${filtro}
      ORDER BY (m.estado = 'confirmado'), m.fecha DESC NULLS FIRST, m.id DESC
      LIMIT $1 OFFSET $2`,
     ...(socioId ? [cantidad, desde, socioId] : [cantidad, desde]),
@@ -440,21 +467,56 @@ export async function resumenSociedad() {
   } catch {
     // tabla aún no creada
   }
+  // Pagos entre socios recibidos (para restarlos al que recibe).
+  const recibidas = await prisma.$queryRawUnsafe<{ receptorId: string; total: bigint }[]>(
+    `SELECT "receptorId", coalesce(sum(monto), 0) AS total FROM "SocioMovimiento"
+     WHERE estado = 'confirmado' AND tipo = 'liquidacion' AND "receptorId" IS NOT NULL GROUP BY "receptorId"`,
+  );
   const de = (socioId: string, tipo: string) =>
     Number(sumas.find((s) => s.socioId === socioId && s.tipo === tipo)?.total ?? 0);
-  const porSocio = socios.map((s) => ({
-    ...s,
-    gastos: de(s.id, "gasto"),
-    aportes: de(s.id, "aporte"),
-    invertido: de(s.id, "gasto") + de(s.id, "aporte"),
-    ingresos: de(s.id, "ingreso"),
-  }));
+  const porSocio = socios.map((s) => {
+    const pagado = de(s.id, "liquidacion");
+    const recibido = Number(recibidas.find((r) => r.receptorId === s.id)?.total ?? 0);
+    return {
+      ...s,
+      gastos: de(s.id, "gasto"),
+      aportes: de(s.id, "aporte"),
+      // Lo invertido en Estradox (los pagos entre socios no cuentan aquí).
+      invertido: de(s.id, "gasto") + de(s.id, "aporte"),
+      ingresos: de(s.id, "ingreso"),
+      /** Pagos a otros socios (+) menos los recibidos (−). */
+      liquidado: pagado - recibido,
+    };
+  });
   const invertido = porSocio.reduce((n, s) => n + s.invertido, 0);
   const ingresosManuales = porSocio.reduce((n, s) => n + s.ingresos, 0);
-  // Reparto 50/50 (partes iguales entre los socios): cuánto le falta a cada uno para igualar.
+  // Reparto en partes iguales (50/50 con dos socios). "diferencia" = lo que ha
+  // puesto de más (+) o de menos (−) frente a su parte. Para quedar parejos, el
+  // que puso de menos le transfiere esa diferencia al que puso de más.
   const parte = socios.length ? invertido / socios.length : 0;
+  const conDif = porSocio.map((s) => ({
+    ...s,
+    parte: Math.round(parte),
+    diferencia: Math.round(s.invertido + s.liquidado - parte),
+  }));
+  const deben = conDif.filter((s) => s.diferencia < 0).map((s) => ({ ...s, saldo: -s.diferencia }));
+  const reciben = conDif.filter((s) => s.diferencia > 0).map((s) => ({ ...s, saldo: s.diferencia }));
+  const transferencias: { de: string; a: string; valor: number }[] = [];
+  for (const d of deben) {
+    for (const r of reciben) {
+      const v = Math.min(d.saldo, r.saldo);
+      if (v <= 0) continue;
+      transferencias.push({ de: d.nombre, a: r.nombre, valor: v });
+      d.saldo -= v;
+      r.saldo -= v;
+    }
+  }
+  const montos = porSocio.map((s) => s.invertido + s.liquidado);
   return {
-    porSocio: porSocio.map((s) => ({ ...s, diferencia: Math.round(s.invertido - parte) })),
+    porSocio: conDif,
+    transferencias,
+    /** Distancia entre el que más y el que menos ha puesto (para igualar pagando gastos). */
+    brecha: montos.length ? Math.max(...montos) - Math.min(...montos) : 0,
     invertido,
     ingresosBold: bold,
     ingresosManuales,

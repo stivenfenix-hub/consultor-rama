@@ -690,7 +690,8 @@ export async function estadosActivoAction(userId: string, valor: boolean): Promi
 
 // ---------- Portal socios ----------
 const movSchema = z.object({
-  tipo: z.enum(["gasto", "aporte", "ingreso"]),
+  tipo: z.enum(["gasto", "aporte", "ingreso", "liquidacion"]),
+  receptorId: z.string().optional(),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
   monto: z.coerce.number().int("El valor debe ser entero").min(1, "Escribe el valor").max(10_000_000_000),
   concepto: z.string().trim().min(2, "Escribe el concepto").max(200),
@@ -715,7 +716,22 @@ function leerMov(formData: FormData) {
     proveedor: formData.get("proveedor") || undefined,
     medio: formData.get("medio") || undefined,
     socioId: formData.get("socioId") || undefined,
+    receptorId: formData.get("receptorId") || undefined,
   });
+}
+
+/** Pago entre socios: el que recibe debe ser otro socio. */
+function receptorValido(
+  tipo: string,
+  receptorId: string | undefined,
+  socioId: string,
+  socios: { id: string }[],
+): { ok: true; receptorId: string | null } | { ok: false; error: string } {
+  if (tipo !== "liquidacion") return { ok: true, receptorId: null };
+  if (!receptorId || receptorId === socioId || !socios.some((s) => s.id === receptorId)) {
+    return { ok: false, error: "Elige a cuál socio se le pagó (debe ser otro socio)." };
+  }
+  return { ok: true, receptorId };
 }
 
 /** Socio: confirma (y corrige) lo que leyó la IA de un comprobante. */
@@ -733,7 +749,15 @@ export async function confirmarMovimientoAction(_prev: ActionState, formData: Fo
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Datos inválidos" };
   const socios = await listaSocios();
   const socioId = user.role === "admin" && socios.some((s) => s.id === p.data.socioId) ? p.data.socioId! : m.socioId;
-  await confirmarMovimiento(id, { ...p.data, proveedor: p.data.proveedor ?? null, medio: p.data.medio ?? null, socioId });
+  const rec = receptorValido(p.data.tipo, p.data.receptorId, socioId, socios);
+  if (!rec.ok) return { error: rec.error };
+  await confirmarMovimiento(id, {
+    ...p.data,
+    proveedor: p.data.proveedor ?? null,
+    medio: p.data.medio ?? null,
+    socioId,
+    receptorId: rec.receptorId,
+  });
   revalidatePath("/dashboard/socios");
   return { ok: "Movimiento confirmado." };
 }
@@ -747,7 +771,14 @@ export async function movimientoManualAction(_prev: ActionState, formData: FormD
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Datos inválidos" };
   const socios = await listaSocios();
   const socioId = user.role === "admin" && socios.some((s) => s.id === p.data.socioId) ? p.data.socioId! : user.id;
-  await crearManual(socioId, user.id, { ...p.data, proveedor: p.data.proveedor ?? null, medio: p.data.medio ?? null });
+  const rec = receptorValido(p.data.tipo, p.data.receptorId, socioId, socios);
+  if (!rec.ok) return { error: rec.error };
+  await crearManual(socioId, user.id, {
+    ...p.data,
+    proveedor: p.data.proveedor ?? null,
+    medio: p.data.medio ?? null,
+    receptorId: rec.receptorId,
+  });
   revalidatePath("/dashboard/socios");
   return { ok: "Movimiento agregado." };
 }

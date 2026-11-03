@@ -78,7 +78,9 @@ export default async function PortalSocios({
                 <th>Aportes</th>
                 <th>Total invertido</th>
                 <th>% del total</th>
-                <th>Balance 50/50</th>
+                <th>Le corresponde (50%)</th>
+                <th>Pagos entre socios</th>
+                <th>Balance</th>
               </tr>
             </thead>
             <tbody>
@@ -91,18 +93,40 @@ export default async function PortalSocios({
                     <b>{pesos(s.invertido)}</b>
                   </td>
                   <td>{resumen.invertido ? `${Math.round((s.invertido / resumen.invertido) * 100)}%` : "—"}</td>
+                  <td>{pesos(s.parte)}</td>
+                  <td className="small">
+                    {s.liquidado === 0 ? "—" : s.liquidado > 0 ? `Pagó ${pesos(s.liquidado)}` : `Recibió ${pesos(-s.liquidado)}`}
+                  </td>
                   <td className="small">
                     {s.diferencia === 0
                       ? "Parejo"
                       : s.diferencia > 0
-                        ? `Ha puesto ${pesos(s.diferencia)} de más`
-                        : `Le falta ${pesos(-s.diferencia)} para igualar`}
+                        ? `Ha puesto ${pesos(s.diferencia)} más que su parte`
+                        : `Ha puesto ${pesos(-s.diferencia)} menos que su parte`}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {resumen.transferencias.length > 0 ? (
+          <div className="small" style={{ marginTop: 10 }}>
+            <b>Para quedar 50/50:</b>
+            <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+              {resumen.transferencias.map((t, i) => (
+                <li key={i}>
+                  {t.de} le transfiere <b>{pesos(t.valor)}</b> a {t.a}
+                  {resumen.porSocio.length === 2 && (
+                    <span className="muted"> — o {t.de} paga {pesos(resumen.brecha)} en gastos de Estradox</span>
+                  )}
+                  .
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          resumen.invertido > 0 && <div className="small" style={{ marginTop: 10 }}>✓ Están parejos: cada uno ha puesto su 50%.</div>
+        )}
         <p className="muted small" style={{ marginBottom: 0 }}>
           Ingresos de la plataforma (pagos aprobados en Bold): {pesos(resumen.ingresosBold)}
           {resumen.ingresosManuales ? ` · otros ingresos registrados: ${pesos(resumen.ingresosManuales)}` : ""}. Solo
@@ -153,6 +177,7 @@ export default async function PortalSocios({
                 </span>
               </div>
               <div className="small" style={{ marginTop: 4 }}>
+                {m.tipo === "liquidacion" && m.receptor && <b>Pagado a {m.receptor} · </b>}
                 {m.concepto ?? m.archivoNombre ?? "—"}
                 {m.proveedor ? ` · ${m.proveedor}` : ""}
                 {m.medio ? ` · ${m.medio}` : ""}
@@ -188,6 +213,7 @@ export default async function PortalSocios({
                       proveedor: m.proveedor ?? "",
                       medio: m.medio ?? "",
                       socioId: m.socioId,
+                      receptorId: m.receptorId,
                     }}
                     socios={listaSoc}
                     esRoot={esRoot}

@@ -13,6 +13,7 @@ const TIPOS = [
   ["gasto", "Gasto pagado por el socio"],
   ["aporte", "Aporte de dinero a Estradox"],
   ["ingreso", "Ingreso (fuera de Bold)"],
+  ["liquidacion", "Pago a otro socio (para igualar)"],
 ] as const;
 const hoy = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
 
@@ -91,6 +92,7 @@ type Datos = {
   proveedor: string;
   medio: string;
   socioId: string;
+  receptorId?: string | null;
 };
 
 /** Formulario de un movimiento: confirmar lo que leyó la IA, o agregar uno a mano. */
@@ -109,18 +111,30 @@ export function FormMovimiento({
     datos.id ? confirmarMovimientoAction : movimientoManualAction,
     {},
   );
+  const [tipo, setTipo] = useState(datos.tipo);
   return (
     <form action={action} className="small" style={{ marginTop: 8 }}>
       {datos.id && <input type="hidden" name="id" value={datos.id} />}
       <div className="row wrap" style={{ gap: 8 }}>
         <div style={{ minWidth: 150, flex: 1 }}>
           <label className="muted">Tipo</label>
-          <select name="tipo" defaultValue={datos.tipo}>
+          <select name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>
             {TIPOS.map(([v, t]) => (
               <option key={v} value={v}>{t}</option>
             ))}
           </select>
         </div>
+        {tipo === "liquidacion" && (
+          <div style={{ minWidth: 150 }}>
+            <label className="muted">Se le pagó a</label>
+            <select name="receptorId" defaultValue={datos.receptorId ?? ""} required>
+              <option value="" disabled>Elige el socio</option>
+              {socios.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div style={{ minWidth: 130 }}>
           <label className="muted">Fecha</label>
           <input name="fecha" type="date" required defaultValue={datos.fecha || hoy()} />
