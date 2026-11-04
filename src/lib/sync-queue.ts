@@ -633,7 +633,8 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     } else if (!opts.forzar && !nocheHabil()) {
       // Sábado, domingo y festivos los juzgados no publican: no se consulta la Rama.
       info.cola = "noche no hábil (fin de semana o festivo)";
-    } else if (s?.pausa && new Date(s.pausa) > new Date()) {
+    } else if (!opts.forzar && s?.pausa && new Date(s.pausa) > new Date()) {
+      // (El botón del root salta la pausa: si la Rama ya responde, la quita.)
       info.cola = `en pausa por bloqueo hasta ${new Date(s.pausa).toISOString()}`;
     } else {
       const r = await procesarCola();
@@ -653,8 +654,10 @@ export async function tick(opts: { forzar?: boolean } = {}) {
           pausaMs,
         );
         info.pausaMin = pausaMs / MIN;
-      } else if (s?.pausaMs) {
-        await prisma.$executeRawUnsafe(`UPDATE "SiteSetting" SET "syncPauseMs" = NULL WHERE id = 'site'`);
+      } else if (s?.pausaMs || s?.pausa) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "SiteSetting" SET "syncPauseMs" = NULL, "syncPausedUntil" = NULL WHERE id = 'site'`,
+        );
       }
     }
     info.fin = new Date().toISOString();
