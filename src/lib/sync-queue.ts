@@ -422,6 +422,12 @@ async function procesarCola(): Promise<ResultadoLote> {
   }
   const pendientes = [...grupos.values()];
 
+  // De 6 a 8 p.m. la Rama aún tiene tráfico y bloquea rápido: una consulta a la
+  // vez y pausas más largas. Desde las 8 p.m., el ritmo normal.
+  const temprano = minutosBogota() >= VENTANA_INICIO && minutosBogota() < 20 * 60;
+  const concurrencia = temprano ? 1 : CONCURRENCIA;
+  const pausa = () => (temprano ? 5000 + Math.random() * 3000 : jitter());
+
   const trabajador = async (n: number) => {
     await sleep(n * 700); // arranque escalonado
     while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS) {
@@ -443,10 +449,10 @@ async function procesarCola(): Promise<ResultadoLote> {
         r.fallidos += grupo.length;
         await marcarFallo(grupo, err).catch(() => {});
       }
-      await sleep(jitter());
+      await sleep(pausa());
     }
   };
-  await Promise.all(Array.from({ length: CONCURRENCIA }, (_, i) => trabajador(i)));
+  await Promise.all(Array.from({ length: concurrencia }, (_, i) => trabajador(i)));
   return r;
 }
 
