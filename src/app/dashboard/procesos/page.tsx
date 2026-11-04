@@ -286,7 +286,7 @@ export default async function ProcesosPage({
                 <div className="muted small" style={{ marginTop: 4 }}>
                   {s.revisadoAt
                     ? "No salió en el último estado del juzgado."
-                    : "Lo revisamos esta noche (de 8 p. m. a 6:45 a. m.)."}
+                    : "Lo revisamos esta noche (de 6 p. m. a 6:45 a. m.)."}
                 </div>
               )}
             </Link>

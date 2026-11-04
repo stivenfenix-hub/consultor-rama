@@ -75,7 +75,7 @@ export default async function CargasUsuario({ params }: { params: Promise<{ user
           )}
           <h2 style={{ marginTop: 16 }}>Juzgados revisados</h2>
           <p className="muted small" style={{ margin: 0 }}>
-            Se revisan solos cada noche (8 p. m. a 6:45 a. m.). El botón corre la revisión ya, para todos los usuarios en prueba.
+            Se revisan solos cada noche (6 p. m. a 6:45 a. m.). El botón corre la revisión ya, para todos los usuarios en prueba.
           </p>
           <RevisarEstadosAhora />
           <div className="table-wrap">

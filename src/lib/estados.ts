@@ -11,7 +11,7 @@ import { nocheHabil } from "./dias-habiles";
 // "2026-00894", como lo escriben los juzgados).
 //
 // El portal es lento (una búsqueda tarda ~4 min y a veces da 504). Beta: solo
-// para los usuarios que el root active, solo de noche (8 p. m. a 6:45 a. m.),
+// para los usuarios que el root active, solo de noche (6 p. m. a 6:45 a. m.),
 // cada despacho una vez por noche y solo se lee su último estado publicado.
 
 const BASE = "https://publicacionesprocesales.ramajudicial.gov.co";
@@ -20,7 +20,7 @@ const NS = `_${PORTLET}`;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
 const DIAS_ATRAS = 7; // ventana de búsqueda (de ahí solo se toma el último estado)
-const NOCHE_DESDE = 20 * 60; // 8:00 p. m. (minutos, hora de Bogotá)
+const NOCHE_DESDE = 18 * 60; // 6:00 p. m. (minutos, hora de Bogotá)
 const NOCHE_HASTA = 6 * 60 + 45; // 6:45 a. m.
 const DESPACHOS_POR_CORRIDA = 2;
 const PRESUPUESTO_MS = 15 * 60 * 1000;
@@ -259,7 +259,7 @@ async function soltarLock() {
 }
 
 /** Lo llama el cron cada 5 min: revisa los despachos que ya toca y avisa lo que encuentre. */
-/** Inicio (8 p. m. de Bogotá) de la noche en curso o de la última. */
+/** Inicio (6 p. m. de Bogotá) de la noche en curso o de la última. */
 function inicioNoche(): Date {
   const BOG = 5 * 3600_000;
   const local = new Date(Date.now() - BOG);
