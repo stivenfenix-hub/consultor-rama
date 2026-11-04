@@ -639,8 +639,13 @@ export async function tick(opts: { forzar?: boolean } = {}) {
       const r = await procesarCola();
       info.cola = r;
       if (r.frenado) {
-        // La Rama pidió frenar: pausa creciente (15 min, 30 min, ... máx. 2 h).
-        const pausaMs = Math.min(Math.max((s?.pausaMs ?? 0) * 2, 15 * MIN), 2 * HORA);
+        // La Rama pidió frenar: pausa creciente (15 min, 30 min, máx. 1 h). Si la
+        // pausa anterior terminó hace más de una hora, el freno es nuevo y vuelve a
+        // empezar en 15 min (antes la pausa de la noche anterior seguía doblando y
+        // un solo freno a las 6 p.m. dejaba la cola quieta 2 horas).
+        const reciente = s?.pausa && Date.now() - new Date(s.pausa).getTime() < HORA;
+        const previa = reciente ? (s?.pausaMs ?? 0) : 0;
+        const pausaMs = Math.min(Math.max(previa * 2, 15 * MIN), HORA);
         await prisma.$executeRawUnsafe(
           `UPDATE "SiteSetting" SET "syncPausedUntil" = now() + ($1 || ' milliseconds')::interval,
              "syncPauseMs" = $2::int WHERE id = 'site'`,
