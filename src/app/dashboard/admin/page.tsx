@@ -87,7 +87,7 @@ export default async function AdminDashboard() {
         <section className="card">
           <h2>Sincronización nocturna</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Revisa los procesos de 8:00 p.m. a 6:45 a.m. y envía el resumen a las 7:00 a.m.
+            Revisa los procesos de 6:00 p.m. a 6:45 a.m. y envía el resumen a las 7:00 a.m.
             Noche actual desde {hora(sync.desde)}.
           </p>
           <div className="stat-grid">

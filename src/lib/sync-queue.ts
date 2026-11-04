@@ -29,8 +29,8 @@ import {
  *
  * Un cron llama a tick() cada 5 minutos, todo el día; el código decide qué hacer
  * según la hora de Bogotá:
- *   - 8:00 p.m. a 6:45 a.m.: revisa procesos por lotes, a ritmo controlado.
- *     Los activos se revisan dos veces por noche (una pasada desde las 8 p.m. y
+ *   - 6:00 p.m. a 6:45 a.m.: revisa procesos por lotes, a ritmo controlado.
+ *     Los activos se revisan dos veces por noche (una pasada desde las 6 p.m. y
  *     otra desde las 3 a.m.), así lo último antes del resumen está fresco.
  *   - Desde las 7:00 a.m.: envía UN resumen por abogado (correo + push) con las
  *     actuaciones nuevas que encontró la noche.
@@ -52,11 +52,11 @@ const PRESUPUESTO_MS = num(process.env.SYNC_BUDGET_MS, 240_000); // por corrida 
 const LOCK_MS = PRESUPUESTO_MS + 120_000;
 
 // Horario (hora Bogotá, en minutos desde la medianoche).
-const VENTANA_INICIO = 20 * 60; // 8:00 p.m.
+const VENTANA_INICIO = 18 * 60; // 6:00 p.m. (cierran los juzgados)
 const VENTANA_FIN = 6 * 60 + 45; // 6:45 a.m.
 const SEGUNDA_PASADA = 3 * 60; // 3:00 a.m.
 const RESUMEN_DESDE = 7 * 60; // 7:00 a.m.
-const RESUMEN_HASTA = 20 * 60; // no se avisa de noche
+const RESUMEN_HASTA = VENTANA_INICIO; // no se avisa de noche (lo de la noche sale a las 7 a.m.)
 const REPORTE_WA = 7 * 60 + 30; // 7:30 a.m.: Excel de avisos para WhatsApp
 const REPORTE_SIN_PROCESOS = 7 * 60 + 20; // 7:20 a.m.: registrados ayer sin procesos (root)
 
@@ -122,7 +122,7 @@ function siguienteRevision(ultimaActuacion: Date | null, ahora = new Date()) {
   const dias = ultimaActuacion ? (ahora.getTime() - ultimaActuacion.getTime()) / DIA : 0;
   if (dias > 365) return proximaHora(VENTANA_INICIO, 6, ahora); // dormido: semanal
   if (dias > 90) return proximaHora(VENTANA_INICIO, 1, ahora); // tranquilo: cada 2 días
-  // Activo: dos veces por noche (8 p.m. y 3 a.m.).
+  // Activo: dos veces por noche (6 p.m. y 3 a.m.).
   const m = minutosBogota(ahora);
   // (Si se revisó poco antes de las 3 a.m., cuenta como la segunda pasada.)
   const primeraPasada = m >= VENTANA_INICIO || m < SEGUNDA_PASADA - 60;

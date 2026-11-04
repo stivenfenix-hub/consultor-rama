@@ -7,7 +7,7 @@ import { revisarEstados } from "@/lib/estados";
  *   curl -H "Authorization: Bearer <CRON_SECRET>" .../api/cron/refresh
  *
  * El código decide qué hacer según la hora de Bogotá (ver lib/sync-queue.ts):
- * de 8 p.m. a 6:45 a.m. revisa procesos por lotes y desde las 7 a.m. envía el
+ * de 6 p.m. a 6:45 a.m. revisa procesos por lotes y desde las 7 a.m. envía el
  * resumen diario. Fuera de esos horarios la corrida no consulta la Rama.
  * Recordatorios, avisos de suscripción y pagos van en /api/cron/recordatorios.
  */
