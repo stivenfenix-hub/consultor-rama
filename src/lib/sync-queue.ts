@@ -86,6 +86,13 @@ export function asegurarColumnasCola() {
     await prisma.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "Actuacion_pendingNotify_idx" ON "Actuacion" ("caseId") WHERE "pendingNotify"`,
     );
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "SyncPasada" (
+         noche DATE NOT NULL, pasada TEXT NOT NULL,
+         revisados INTEGER NOT NULL DEFAULT 0, nuevas INTEGER NOT NULL DEFAULT 0,
+         "conNovedad" INTEGER NOT NULL DEFAULT 0,
+         PRIMARY KEY (noche, pasada))`,
+    );
     await prisma.siteSetting.upsert({ where: { id: "site" }, create: { id: "site" }, update: {} });
   })().catch((e) => {
     listo = null;
@@ -153,6 +160,7 @@ type CasoCola = {
   idProceso: string;
   lastActuacionDate: Date | null;
   lastFullSyncAt: Date | null;
+  lastCheckedAt?: Date | null;
   retryCount: number;
 };
 
@@ -396,7 +404,7 @@ async function procesarCola(): Promise<ResultadoLote> {
   const conAcceso = await usuariosConAcceso().catch(() => null);
 
   const vencidos = await prisma.$queryRawUnsafe<CasoCola[]>(
-    `SELECT id, "userId", "idProceso", "lastActuacionDate", "lastFullSyncAt", "retryCount"
+    `SELECT id, "userId", "idProceso", "lastActuacionDate", "lastFullSyncAt", "lastCheckedAt", "retryCount"
      FROM "Case"
      WHERE "nextCheckAt" IS NULL OR "nextCheckAt" <= now()
      ORDER BY "nextCheckAt" ASC NULLS FIRST, "lastCheckedAt" ASC NULLS FIRST
@@ -424,13 +432,25 @@ async function procesarCola(): Promise<ResultadoLote> {
 
   // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
   // vez y 20 s entre uno y otro (~10 por corrida de 5 min, ~120 por hora).
+  const nocheDesde = inicioVentanaActual();
+  const pasadas = {
+    primera: { revisados: 0, nuevas: 0, conNovedad: 0 },
+    segunda: { revisados: 0, nuevas: 0, conNovedad: 0 },
+  };
+
   const trabajador = async () => {
     while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS - PAUSA_ENTRE_PROCESOS_MS) {
       const grupo = pendientes.shift();
       if (!grupo) return;
+      // Segunda pasada = el proceso ya se revisó antes en esta misma noche.
+      const p = grupo.some((c) => c.lastCheckedAt && c.lastCheckedAt >= nocheDesde) ? pasadas.segunda : pasadas.primera;
+      const antes = { nuevas: r.actuacionesNuevas, conNovedad: r.conNovedad };
       try {
         await procesarGrupo(grupo, r);
         r.revisados += grupo.length;
+        p.revisados += grupo.length;
+        p.nuevas += r.actuacionesNuevas - antes.nuevas;
+        p.conNovedad += r.conNovedad - antes.conNovedad;
       } catch (err) {
         if (err instanceof RamaError && err.isRateLimit) {
           r.frenado = true;
@@ -448,7 +468,32 @@ async function procesarCola(): Promise<ResultadoLote> {
     }
   };
   await trabajador();
+  await sumarPasadas(nocheDesde, pasadas).catch((e) => console.error("[cola] pasadas", e));
   return r;
+}
+
+/** Acumula, por noche, lo que encontró cada pasada (para decidir si la de las 3 a.m. sirve). */
+async function sumarPasadas(
+  nocheDesde: Date,
+  pasadas: Record<"primera" | "segunda", { revisados: number; nuevas: number; conNovedad: number }>,
+) {
+  const noche = new Date(nocheDesde.getTime() + BOGOTA_OFFSET).toISOString().slice(0, 10);
+  for (const [pasada, v] of Object.entries(pasadas)) {
+    if (v.revisados === 0) continue;
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "SyncPasada" (noche, pasada, revisados, nuevas, "conNovedad")
+       VALUES ($1::date, $2, $3, $4, $5)
+       ON CONFLICT (noche, pasada) DO UPDATE SET
+         revisados = "SyncPasada".revisados + EXCLUDED.revisados,
+         nuevas = "SyncPasada".nuevas + EXCLUDED.nuevas,
+         "conNovedad" = "SyncPasada"."conNovedad" + EXCLUDED."conNovedad"`,
+      noche,
+      pasada,
+      v.revisados,
+      v.nuevas,
+      v.conNovedad,
+    );
+  }
 }
 
 /**
@@ -714,6 +759,24 @@ export async function estadoSincronizacion() {
      FROM "Case" WHERE "syncStatus" IN ('error', 'rate_limited')
      ORDER BY "retryCount" DESC LIMIT 10`,
   );
+  const filasPasadas = await prisma.$queryRawUnsafe<
+    { noche: Date; pasada: string; revisados: number; nuevas: number; conNovedad: number }[]
+  >(
+    `SELECT noche, pasada, revisados, nuevas, "conNovedad" FROM "SyncPasada"
+     WHERE noche >= current_date - 14 ORDER BY noche DESC`,
+  );
+  const vacia = { revisados: 0, nuevas: 0, conNovedad: 0 };
+  const porNoche = new Map<string, { noche: string; primera: typeof vacia; segunda: typeof vacia }>();
+  for (const f of filasPasadas) {
+    const noche = new Date(f.noche).toISOString().slice(0, 10);
+    const n = porNoche.get(noche) ?? { noche, primera: vacia, segunda: vacia };
+    n[f.pasada === "segunda" ? "segunda" : "primera"] = {
+      revisados: Number(f.revisados),
+      nuevas: Number(f.nuevas),
+      conNovedad: Number(f.conNovedad),
+    };
+    porNoche.set(noche, n);
+  }
   let ultimaCorrida: Record<string, unknown> | null = null;
   try {
     ultimaCorrida = s?.info ? JSON.parse(s.info) : null;
@@ -731,6 +794,7 @@ export async function estadoSincronizacion() {
     ultimaCorrida,
     pausaHasta: s?.pausa && new Date(s.pausa) > new Date() ? s.pausa : null,
     fallidos,
+    pasadas: [...porNoche.values()].slice(0, 7),
   };
 }
 

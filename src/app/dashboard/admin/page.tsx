@@ -123,6 +123,52 @@ export default async function AdminDashboard() {
               La Rama Judicial pidió frenar las consultas. Se reanuda a las {hora(sync.pausaHasta)}.
             </div>
           )}
+          {sync.pasadas.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <b className="small">Qué encuentra cada pasada</b>
+              <p className="muted small" style={{ margin: "2px 0 6px" }}>
+                1.ª pasada: desde las 6 p.m. · 2.ª pasada: procesos activos otra vez desde las 3 a.m. Si la 2.ª casi
+                nunca encuentra actuaciones nuevas, se puede quitar y la noche alcanza para el doble.
+              </p>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Noche</th>
+                      <th>1.ª: revisados</th>
+                      <th>1.ª: actuaciones nuevas</th>
+                      <th>2.ª: revisados</th>
+                      <th>2.ª: actuaciones nuevas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sync.pasadas.map((n) => (
+                      <tr key={n.noche}>
+                        <td>
+                          {new Date(`${n.noche}T12:00:00Z`).toLocaleDateString("es-CO", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            timeZone: "UTC",
+                          })}
+                        </td>
+                        <td>{n.primera.revisados}</td>
+                        <td>
+                          {n.primera.nuevas}
+                          {n.primera.conNovedad > 0 && <span className="muted"> ({n.primera.conNovedad} procesos)</span>}
+                        </td>
+                        <td>{n.segunda.revisados}</td>
+                        <td>
+                          <b>{n.segunda.nuevas}</b>
+                          {n.segunda.conNovedad > 0 && <span className="muted"> ({n.segunda.conNovedad} procesos)</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {sync.fallidos.length > 0 && (
             <div className="table-wrap" style={{ marginTop: 10 }}>
               <table className="table">
