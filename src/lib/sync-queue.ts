@@ -641,7 +641,12 @@ export async function tick(opts: { forzar?: boolean } = {}) {
       info.cola = "noche no hábil (fin de semana o festivo)";
     } else if (!opts.forzar && s?.pausa && new Date(s.pausa) > new Date()) {
       // (El botón del root salta la pausa: si la Rama ya responde, la quita.)
-      info.cola = `en pausa por bloqueo hasta ${new Date(s.pausa).toISOString()}`;
+      const hasta = new Date(s.pausa).toLocaleTimeString("es-CO", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/Bogota",
+      });
+      info.cola = `en pausa por bloqueo hasta las ${hasta}`;
     } else {
       const r = await procesarCola();
       info.cola = r;
