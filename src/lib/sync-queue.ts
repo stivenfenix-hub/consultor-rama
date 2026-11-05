@@ -45,7 +45,7 @@ const num = (v: string | undefined, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : def;
 };
-const CONCURRENCIA = num(process.env.SYNC_CONCURRENCY, 2); // consultas a la vez
+const PAUSA_ENTRE_PROCESOS_MS = 20_000; // cola nocturna: un proceso cada 20 s
 const PAUSA_MIN_MS = num(process.env.SYNC_PAUSE_MIN_MS, 1500);
 const PAUSA_MAX_MS = num(process.env.SYNC_PAUSE_MAX_MS, 3000);
 const PRESUPUESTO_MS = num(process.env.SYNC_BUDGET_MS, 240_000); // por corrida de 5 min
@@ -422,15 +422,10 @@ async function procesarCola(): Promise<ResultadoLote> {
   }
   const pendientes = [...grupos.values()];
 
-  // De 6 a 8 p.m. la Rama aún tiene tráfico y bloquea rápido: una consulta a la
-  // vez y pausas más largas. Desde las 8 p.m., el ritmo normal.
-  const temprano = minutosBogota() >= VENTANA_INICIO && minutosBogota() < 20 * 60;
-  const concurrencia = temprano ? 1 : CONCURRENCIA;
-  const pausa = () => (temprano ? 5000 + Math.random() * 3000 : jitter());
-
-  const trabajador = async (n: number) => {
-    await sleep(n * 700); // arranque escalonado
-    while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS) {
+  // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
+  // vez y 20 s entre uno y otro (~10 por corrida de 5 min, ~120 por hora).
+  const trabajador = async () => {
+    while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS - PAUSA_ENTRE_PROCESOS_MS) {
       const grupo = pendientes.shift();
       if (!grupo) return;
       try {
@@ -449,10 +444,10 @@ async function procesarCola(): Promise<ResultadoLote> {
         r.fallidos += grupo.length;
         await marcarFallo(grupo, err).catch(() => {});
       }
-      await sleep(pausa());
+      await sleep(PAUSA_ENTRE_PROCESOS_MS);
     }
   };
-  await Promise.all(Array.from({ length: concurrencia }, (_, i) => trabajador(i)));
+  await trabajador();
   return r;
 }
 
