@@ -30,8 +30,7 @@ import {
  * Un cron llama a tick() cada 5 minutos, todo el día; el código decide qué hacer
  * según la hora de Bogotá:
  *   - 6:00 p.m. a 6:45 a.m.: revisa procesos por lotes, a ritmo controlado.
- *     Los activos se revisan dos veces por noche (una pasada desde las 6 p.m. y
- *     otra desde las 3 a.m.), así lo último antes del resumen está fresco.
+ *     Cada proceso se revisa una sola vez por noche (los tranquilos y dormidos, menos).
  *   - Desde las 7:00 a.m.: envía UN resumen por abogado (correo + push) con las
  *     actuaciones nuevas que encontró la noche.
  *
@@ -54,7 +53,6 @@ const LOCK_MS = PRESUPUESTO_MS + 120_000;
 // Horario (hora Bogotá, en minutos desde la medianoche).
 const VENTANA_INICIO = 18 * 60; // 6:00 p.m. (cierran los juzgados)
 const VENTANA_FIN = 6 * 60 + 45; // 6:45 a.m.
-const SEGUNDA_PASADA = 3 * 60; // 3:00 a.m.
 const RESUMEN_DESDE = 7 * 60; // 7:00 a.m.
 const RESUMEN_HASTA = VENTANA_INICIO; // no se avisa de noche (lo de la noche sale a las 7 a.m.)
 const REPORTE_WA = 7 * 60 + 30; // 7:30 a.m.: Excel de avisos para WhatsApp
@@ -85,13 +83,6 @@ export function asegurarColumnasCola() {
     );
     await prisma.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "Actuacion_pendingNotify_idx" ON "Actuacion" ("caseId") WHERE "pendingNotify"`,
-    );
-    await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "SyncPasada" (
-         noche DATE NOT NULL, pasada TEXT NOT NULL,
-         revisados INTEGER NOT NULL DEFAULT 0, nuevas INTEGER NOT NULL DEFAULT 0,
-         "conNovedad" INTEGER NOT NULL DEFAULT 0,
-         PRIMARY KEY (noche, pasada))`,
     );
     await prisma.siteSetting.upsert({ where: { id: "site" }, create: { id: "site" }, update: {} });
   })().catch((e) => {
@@ -129,11 +120,8 @@ function siguienteRevision(ultimaActuacion: Date | null, ahora = new Date()) {
   const dias = ultimaActuacion ? (ahora.getTime() - ultimaActuacion.getTime()) / DIA : 0;
   if (dias > 365) return proximaHora(VENTANA_INICIO, 6, ahora); // dormido: semanal
   if (dias > 90) return proximaHora(VENTANA_INICIO, 1, ahora); // tranquilo: cada 2 días
-  // Activo: dos veces por noche (6 p.m. y 3 a.m.).
-  const m = minutosBogota(ahora);
-  // (Si se revisó poco antes de las 3 a.m., cuenta como la segunda pasada.)
-  const primeraPasada = m >= VENTANA_INICIO || m < SEGUNDA_PASADA - 60;
-  return primeraPasada ? proximaHora(SEGUNDA_PASADA, 0, ahora) : proximaHora(VENTANA_INICIO, 0, ahora);
+  // Activo: una vez por noche (la próxima ventana de las 6 p.m.).
+  return proximaHora(VENTANA_INICIO, 0, ahora);
 }
 
 const esperaPorFallo = [15 * MIN, 30 * MIN, HORA, 2 * HORA, 4 * HORA];
@@ -160,7 +148,6 @@ type CasoCola = {
   idProceso: string;
   lastActuacionDate: Date | null;
   lastFullSyncAt: Date | null;
-  lastCheckedAt?: Date | null;
   retryCount: number;
 };
 
@@ -404,7 +391,7 @@ async function procesarCola(): Promise<ResultadoLote> {
   const conAcceso = await usuariosConAcceso().catch(() => null);
 
   const vencidos = await prisma.$queryRawUnsafe<CasoCola[]>(
-    `SELECT id, "userId", "idProceso", "lastActuacionDate", "lastFullSyncAt", "lastCheckedAt", "retryCount"
+    `SELECT id, "userId", "idProceso", "lastActuacionDate", "lastFullSyncAt", "retryCount"
      FROM "Case"
      WHERE "nextCheckAt" IS NULL OR "nextCheckAt" <= now()
      ORDER BY "nextCheckAt" ASC NULLS FIRST, "lastCheckedAt" ASC NULLS FIRST
@@ -432,25 +419,13 @@ async function procesarCola(): Promise<ResultadoLote> {
 
   // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
   // vez y 20 s entre uno y otro (~10 por corrida de 5 min, ~120 por hora).
-  const nocheDesde = inicioVentanaActual();
-  const pasadas = {
-    primera: { revisados: 0, nuevas: 0, conNovedad: 0 },
-    segunda: { revisados: 0, nuevas: 0, conNovedad: 0 },
-  };
-
   const trabajador = async () => {
     while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS - PAUSA_ENTRE_PROCESOS_MS) {
       const grupo = pendientes.shift();
       if (!grupo) return;
-      // Segunda pasada = el proceso ya se revisó antes en esta misma noche.
-      const p = grupo.some((c) => c.lastCheckedAt && c.lastCheckedAt >= nocheDesde) ? pasadas.segunda : pasadas.primera;
-      const antes = { nuevas: r.actuacionesNuevas, conNovedad: r.conNovedad };
       try {
         await procesarGrupo(grupo, r);
         r.revisados += grupo.length;
-        p.revisados += grupo.length;
-        p.nuevas += r.actuacionesNuevas - antes.nuevas;
-        p.conNovedad += r.conNovedad - antes.conNovedad;
       } catch (err) {
         if (err instanceof RamaError && err.isRateLimit) {
           r.frenado = true;
@@ -468,32 +443,7 @@ async function procesarCola(): Promise<ResultadoLote> {
     }
   };
   await trabajador();
-  await sumarPasadas(nocheDesde, pasadas).catch((e) => console.error("[cola] pasadas", e));
   return r;
-}
-
-/** Acumula, por noche, lo que encontró cada pasada (para decidir si la de las 3 a.m. sirve). */
-async function sumarPasadas(
-  nocheDesde: Date,
-  pasadas: Record<"primera" | "segunda", { revisados: number; nuevas: number; conNovedad: number }>,
-) {
-  const noche = new Date(nocheDesde.getTime() + BOGOTA_OFFSET).toISOString().slice(0, 10);
-  for (const [pasada, v] of Object.entries(pasadas)) {
-    if (v.revisados === 0) continue;
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "SyncPasada" (noche, pasada, revisados, nuevas, "conNovedad")
-       VALUES ($1::date, $2, $3, $4, $5)
-       ON CONFLICT (noche, pasada) DO UPDATE SET
-         revisados = "SyncPasada".revisados + EXCLUDED.revisados,
-         nuevas = "SyncPasada".nuevas + EXCLUDED.nuevas,
-         "conNovedad" = "SyncPasada"."conNovedad" + EXCLUDED."conNovedad"`,
-      noche,
-      pasada,
-      v.revisados,
-      v.nuevas,
-      v.conNovedad,
-    );
-  }
 }
 
 /**
@@ -759,24 +709,6 @@ export async function estadoSincronizacion() {
      FROM "Case" WHERE "syncStatus" IN ('error', 'rate_limited')
      ORDER BY "retryCount" DESC LIMIT 10`,
   );
-  const filasPasadas = await prisma.$queryRawUnsafe<
-    { noche: Date; pasada: string; revisados: number; nuevas: number; conNovedad: number }[]
-  >(
-    `SELECT noche, pasada, revisados, nuevas, "conNovedad" FROM "SyncPasada"
-     WHERE noche >= current_date - 14 ORDER BY noche DESC`,
-  );
-  const vacia = { revisados: 0, nuevas: 0, conNovedad: 0 };
-  const porNoche = new Map<string, { noche: string; primera: typeof vacia; segunda: typeof vacia }>();
-  for (const f of filasPasadas) {
-    const noche = new Date(f.noche).toISOString().slice(0, 10);
-    const n = porNoche.get(noche) ?? { noche, primera: vacia, segunda: vacia };
-    n[f.pasada === "segunda" ? "segunda" : "primera"] = {
-      revisados: Number(f.revisados),
-      nuevas: Number(f.nuevas),
-      conNovedad: Number(f.conNovedad),
-    };
-    porNoche.set(noche, n);
-  }
   let ultimaCorrida: Record<string, unknown> | null = null;
   try {
     ultimaCorrida = s?.info ? JSON.parse(s.info) : null;
@@ -794,7 +726,6 @@ export async function estadoSincronizacion() {
     ultimaCorrida,
     pausaHasta: s?.pausa && new Date(s.pausa) > new Date() ? s.pausa : null,
     fallidos,
-    pasadas: [...porNoche.values()].slice(0, 7),
   };
 }
 
