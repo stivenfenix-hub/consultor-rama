@@ -5,6 +5,13 @@ import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
 import { OpenInChrome } from "./open-in-chrome";
+import {
+  estadosActivo,
+  hallazgosDelUsuario,
+  hallazgosSinVer,
+  soloEnEstados,
+  vigiladosDelUsuario,
+} from "@/lib/estados";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -26,6 +33,22 @@ export default async function DashboardPage({
   const { verificado } = await searchParams;
 
   const stats = await getDashboardStats(user.id);
+
+  // Estados electrónicos (solo usuarios en la prueba).
+  const estados = (await estadosActivo(user.id))
+    ? await Promise.all([
+        vigiladosDelUsuario(user.id),
+        soloEnEstados(user.id),
+        hallazgosDelUsuario(user.id, 5),
+        hallazgosSinVer(user.id),
+      ]).then(([vigilados, solo, ultimos, sinVer]) => ({
+        vigilados: vigilados.length,
+        soloEstados: solo.filter((s) => !s.caseId).length,
+        conHallazgo: solo.filter((s) => s.ultimo).length,
+        ultimos,
+        sinVer,
+      }))
+    : null;
 
   // Una fila por radicado: de sus registros (uno por sistema de la Rama) se
   // muestra el de la actuación más reciente.
@@ -72,6 +95,68 @@ export default async function DashboardPage({
           accent={stats.sinVer > 0 ? "var(--green)" : undefined}
         />
       </section>
+
+      {/* Estados electrónicos */}
+      {estados && (
+        <section className="card">
+          <div className="row">
+            <h2 style={{ margin: 0 }}>Estados electrónicos</h2>
+            <div className="spacer" />
+            <Link href="/dashboard/estados" className="small">
+              Ver todo
+            </Link>
+          </div>
+          <p className="muted small" style={{ marginTop: 4 }}>
+            Cada noche buscamos tus radicados en el último estado que publica su juzgado.
+          </p>
+          <div className="stat-grid">
+            <StatTile label="Radicados vigilados" value={estados.vigilados} />
+            <StatTile label="Solo en estados (no en la Rama)" value={estados.soloEstados} />
+            <StatTile label="Salieron en un estado" value={estados.conHallazgo} accent="var(--accent)" />
+            <StatTile
+              label="Estados sin ver"
+              value={estados.sinVer}
+              accent={estados.sinVer > 0 ? "var(--green)" : undefined}
+            />
+          </div>
+          {estados.ultimos.length > 0 && (
+            <div className="table-wrap" style={{ marginTop: 10 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Radicado</th>
+                    <th>Fecha</th>
+                    <th>Publicación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {estados.ultimos.map((h) => (
+                    <tr key={h.id}>
+                      <td>
+                        <Link href="/dashboard/estados" className="radicado">
+                          {h.radicado}
+                        </Link>
+                        {!h.visto && <span className="badge new" style={{ marginLeft: 6 }}>nuevo</span>}
+                      </td>
+                      <td className="muted">
+                        {h.fecha
+                          ? new Date(h.fecha).toLocaleDateString("es-CO", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              timeZone: "UTC",
+                            })
+                          : "—"}
+                      </td>
+                      <td>{h.titulo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Antigüedad de la última actuación */}
       <section className="card">
