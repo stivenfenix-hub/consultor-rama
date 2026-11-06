@@ -90,8 +90,9 @@ export default async function ProcesosPage({
         b.icon === "scale"
           ? {
               ...b,
-              titulo: `Hasta ${uso.incluidos} procesos incluidos`,
-              texto: `Pega varios radicados a la vez. Desde el ${uso.incluidos + 1}, cada uno vale ${pesos(uso.precioAdicional)} al mes.`,
+              // Sin cifras ni precio: solo se avisa cuando pasa de los incluidos.
+              titulo: "Agrega tus procesos",
+              texto: "Pega varios radicados a la vez y listo.",
             }
           : b,
       )
@@ -149,17 +150,12 @@ export default async function ProcesosPage({
         <h2>Agregar proceso por radicado</h2>
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
         {/* Plan con procesos incluidos (usuarios desde el 3 nov 2026). */}
-        {uso?.limitado && (
+        {/* Solo se avisa cuando ya pasó de los incluidos. */}
+        {uso?.limitado && uso.adicionales > 0 && (
           <div className="muted small" style={{ marginTop: 10 }}>
-            📋 Tu plan incluye <b>{uso.incluidos} procesos</b> · llevas <b>{uso.total}</b>.{" "}
-            {uso.adicionales > 0 ? (
-              <>
-                Tienes <b>{uso.adicionales} adicional(es)</b>: +{pesos(uso.valorMes)} al mes que se suman a tu
-                próximo pago. <Link href="/dashboard/suscripcion">Ver detalle</Link>
-              </>
-            ) : (
-              <>Desde el {uso.incluidos + 1}, cada proceso adicional vale {pesos(uso.precioAdicional)} al mes.</>
-            )}
+            📋 Tu plan incluye <b>{uso.incluidos} procesos</b> · llevas <b>{uso.total}</b>. Tienes{" "}
+            <b>{uso.adicionales} adicional(es)</b>: +{pesos(uso.valorMes)} al mes que se suman a tu próximo pago.{" "}
+            <Link href="/dashboard/suscripcion">Ver detalle</Link>
           </div>
         )}
       </div>
