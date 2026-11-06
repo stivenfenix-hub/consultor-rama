@@ -768,6 +768,17 @@ export async function movimientoManualAction(_prev: ActionState, formData: FormD
 }
 
 /** Socio: borra un movimiento suyo (el root, cualquiera). El archivo en Drive se conserva. */
+/** El abogado quita un radicado de estados electrónicos (deja de vigilarse). */
+export async function quitarDeEstadosAction(radicado: string): Promise<ActionState> {
+  const user = await requireUser();
+  if (!/^\d{23}$/.test(radicado)) return { error: "Radicado no válido." };
+  const { dejarDeVigilar } = await import("@/lib/estados");
+  await dejarDeVigilar(user.id, radicado);
+  revalidatePath("/dashboard/procesos");
+  revalidatePath("/dashboard/estados");
+  return { ok: "Quitado de estados electrónicos." };
+}
+
 export async function borrarMovimientoAction(id: number): Promise<ActionState> {
   const user = await socioDelPortal();
   const { borrarMovimiento, movimiento } = await import("@/lib/socios");

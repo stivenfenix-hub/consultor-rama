@@ -66,6 +66,14 @@ async function asegurarTablas() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE ("userId", radicado, "publicacionId")
     )`);
+  // Radicados que el abogado quitó de estados (no se vigilan hasta que lo vuelva a agregar).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "EstadoQuitado" (
+      "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      radicado TEXT NOT NULL,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY ("userId", radicado)
+    )`);
   tablasListas = true;
 }
 
@@ -82,9 +90,24 @@ async function seguimientos(despacho?: string) {
        SELECT cp."userId", (regexp_matches(
          coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1]
        FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId" WHERE u."estadosActivo"
-     ) r`,
+     ) r
+     WHERE NOT EXISTS (SELECT 1 FROM "EstadoQuitado" q WHERE q."userId" = r."userId" AND q.radicado = r.radicado)`,
   );
   return despacho ? filas.filter((f) => despachoDe(f.radicado) === despacho) : filas;
+}
+
+/**
+ * El abogado quita un radicado de estados: deja de vigilarse y se borran sus
+ * hallazgos. Si es un proceso de la Rama, el proceso sigue igual en su lista.
+ */
+export async function dejarDeVigilar(userId: string, radicado: string) {
+  await asegurarTablas();
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "EstadoQuitado" ("userId", radicado) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+    userId,
+    radicado,
+  );
+  await prisma.$executeRawUnsafe(`DELETE FROM "EstadoHallazgo" WHERE "userId" = $1 AND radicado = $2`, userId, radicado);
 }
 
 export async function estadosActivo(userId: string): Promise<boolean> {
@@ -449,6 +472,12 @@ async function cruzarDespacho(despacho: string) {
 export async function buscarEstadosDeNuevos(userId: string, radicados: string[]) {
   try {
     if (radicados.length === 0 || !(await estadosActivo(userId))) return;
+    // Si lo había quitado de estados y lo vuelve a agregar, se vigila otra vez.
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM "EstadoQuitado" WHERE "userId" = $1 AND radicado = ANY($2::text[])`,
+      userId,
+      radicados,
+    );
     for (const despacho of [...new Set(radicados.map(despachoDe))]) {
       const [d] = await prisma.$queryRawUnsafe<{ reciente: boolean }[]>(
         `SELECT "revisadoAt" > now() - interval '24 hours' AS reciente FROM "EstadoDespacho" WHERE despacho = $1`,

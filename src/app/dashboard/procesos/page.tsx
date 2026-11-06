@@ -10,6 +10,7 @@ import { CargaAviso } from "./carga-aviso";
 import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
 import { ramaCaida } from "@/lib/monitor-rama";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
+import { QuitarDeEstados } from "../estados/quitar-estado";
 import { usoProcesos } from "@/lib/subscription";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 
@@ -261,10 +262,10 @@ export default async function ProcesosPage({
             Consulta Nacional no tiene y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).
           </p>
           {estados.solo.map((s) => (
+            <div key={s.radicado} className="case">
             <Link
-              key={s.radicado}
               href={s.caseId ? `/dashboard/procesos/${s.caseId}` : "/dashboard/estados"}
-              className="case"
+              style={{ display: "block", color: "inherit", textDecoration: "none" }}
             >
               <div className="row wrap">
                 <span className="radicado">{s.radicado}</span>
@@ -290,6 +291,10 @@ export default async function ProcesosPage({
                 </div>
               )}
             </Link>
+            <div style={{ marginTop: 8 }}>
+              <QuitarDeEstados radicado={s.radicado} enRama={!!s.caseId} />
+            </div>
+            </div>
           ))}
         </>
       )}

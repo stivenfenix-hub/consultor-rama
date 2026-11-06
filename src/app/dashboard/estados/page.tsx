@@ -11,6 +11,7 @@ import {
   vigiladosDelUsuario,
 } from "@/lib/estados";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
+import { QuitarDeEstados } from "./quitar-estado";
 
 const TZ = "America/Bogota";
 const fecha = (d: Date | null) =>
@@ -106,7 +107,8 @@ export default async function EstadosPage({
       <div className="card">
         <h2>Radicados vigilados ({todosVigilados.length})</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Buscamos cada radicado como lo escriben los juzgados (completo o año-número, p. ej. 2026-00894).
+          Buscamos cada radicado como lo escriben los juzgados (completo o año-número, p. ej. 2026-00894). Si ya
+          no quieres seguir uno, quítalo; si lo vuelves a agregar en Procesos, se vigila otra vez.
         </p>
         <div className="table-wrap">
           <table className="table">
@@ -115,6 +117,7 @@ export default async function EstadosPage({
                 <th>Radicado</th>
                 <th>Juzgado</th>
                 <th>Última revisión</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -127,6 +130,9 @@ export default async function EstadosPage({
                   <td className="small">
                     {hora(v.revisadoAt)}
                     {v.ultimoError && <div className="muted">El portal no respondió; lo reintentamos.</div>}
+                  </td>
+                  <td>
+                    <QuitarDeEstados radicado={v.radicado} enRama={casoDe.has(v.radicado)} />
                   </td>
                 </tr>
               ))}
