@@ -411,6 +411,64 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   }
 }
 
+/** Resumen para el Panel admin (sincronización nocturna): cómo va la revisión de estados de esta noche. */
+export async function estadoEstadosNoche() {
+  await asegurarTablas();
+  const desde = inicioNoche();
+  const segs = await seguimientos();
+  const despachos = [...new Set(segs.map((s) => despachoDe(s.radicado)))];
+  const [d] = await prisma.$queryRawUnsafe<
+    { revisados: bigint; pedidos: bigint; conError: bigint; ultima: Date | null; ultimoError: Date | null }[]
+  >(
+    `SELECT count(*) FILTER (WHERE "revisadoAt" >= $2) AS revisados,
+            count(*) FILTER (WHERE "pedidoAt" IS NOT NULL) AS pedidos,
+            count(*) FILTER (WHERE "errorAt" IS NOT NULL AND ("revisadoAt" IS NULL OR "revisadoAt" < "errorAt")) AS "conError",
+            max("revisadoAt") AS ultima, max("errorAt") AS "ultimoError"
+     FROM "EstadoDespacho" WHERE despacho = ANY($1::text[])`,
+    despachos,
+    desde,
+  );
+  const [h] = await prisma.$queryRawUnsafe<{ noche: bigint; porAvisar: bigint }[]>(
+    `SELECT count(*) FILTER (WHERE "createdAt" >= $1) AS noche,
+            count(*) FILTER (WHERE "porAvisar" AND NOT visto) AS "porAvisar"
+     FROM "EstadoHallazgo"`,
+    desde,
+  );
+  const [u] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(*) AS n FROM "User" WHERE "estadosActivo"`,
+  );
+  const errores = await prisma.$queryRawUnsafe<{ despacho: string; error: string | null; errorAt: Date }[]>(
+    `SELECT despacho, "ultimoError" AS error, "errorAt" FROM "EstadoDespacho"
+     WHERE despacho = ANY($1::text[]) AND "errorAt" IS NOT NULL AND ("revisadoAt" IS NULL OR "revisadoAt" < "errorAt")
+     ORDER BY "errorAt" DESC LIMIT 10`,
+    despachos,
+  );
+  const ultimaActividad = [d?.ultima, d?.ultimoError]
+    .filter((x): x is Date => !!x)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+  // ¿El VPS se detuvo? Hay trabajo (pedidos, o noche hábil sin terminar) y nada
+  // se ha revisado ni fallado en 20 minutos.
+  const bog = new Date(Date.now() - 5 * 3600_000);
+  const m = bog.getUTCHours() * 60 + bog.getUTCMinutes();
+  const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA) && nocheHabil();
+  const hayTrabajo = Number(d?.pedidos ?? 0) > 0 || (deNoche && Number(d?.revisados ?? 0) < despachos.length);
+  const quieto = !ultimaActividad || Date.now() - new Date(ultimaActividad).getTime() > 20 * 60_000;
+  return {
+    desde,
+    detenido: hayTrabajo && quieto,
+    usuarios: Number(u?.n ?? 0),
+    radicados: segs.length,
+    despachos: despachos.length,
+    revisados: Number(d?.revisados ?? 0),
+    pedidos: Number(d?.pedidos ?? 0),
+    conError: Number(d?.conError ?? 0),
+    hallazgosNoche: Number(h?.noche ?? 0),
+    porAvisar: Number(h?.porAvisar ?? 0),
+    ultimaActividad,
+    errores,
+  };
+}
+
 /**
  * "Revisar ahora" del root: deja pedidos todos los despachos vigilados y el
  * VPS los revisa en sus próximas vueltas (Hostinger ya no va al portal).

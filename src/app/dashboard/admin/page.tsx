@@ -4,6 +4,7 @@ import { StatTile } from "@/components/charts";
 import { Icon } from "@/components/icon";
 import { estadoSincronizacion } from "@/lib/sync-queue";
 import { estadoRama } from "@/lib/monitor-rama";
+import { estadoEstadosNoche } from "@/lib/estados";
 import { RunSyncButton } from "./run-sync-button";
 
 const TZ = "America/Bogota";
@@ -13,10 +14,11 @@ const hora = (d: Date | string | null) =>
     : "—";
 
 export default async function AdminDashboard() {
-  const [s, sync, rama] = await Promise.all([
+  const [s, sync, rama, estados] = await Promise.all([
     getAdminStats(),
     estadoSincronizacion().catch(() => null),
     estadoRama().catch(() => null),
+    estadoEstadosNoche().catch(() => null),
   ]);
   const ramaCaida = !!rama && rama.fallas > 0;
   // El cron corre cada 5 minutos: si lleva más de 20 sin correr, nada se está revisando.
@@ -141,6 +143,67 @@ export default async function AdminDashboard() {
                       <td>{f.intentos}</td>
                       <td className="muted">{hora(f.proxima)}</td>
                       <td className="muted small">{f.error ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {estados && (
+        <section className="card">
+          <h2>Estados electrónicos</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Los revisa el servidor VPS (no Hostinger): de 6:00 p.m. a 6:45 a.m. cada juzgado una vez y solo su
+            último estado; de día, los juzgados pedidos. Lo que encuentra sale en el resumen de las 7:00 a.m.{" "}
+            {estados.usuarios} usuario(s) con estados · {estados.radicados} radicado(s) vigilado(s).
+          </p>
+          <div className="stat-grid">
+            <StatTile
+              label="Juzgados revisados esta noche"
+              value={`${estados.revisados} / ${estados.despachos}`}
+              accent="var(--green)"
+            />
+            <StatTile label="Pedidos por revisar" value={estados.pedidos} />
+            <StatTile
+              label="Con error del portal"
+              value={estados.conError}
+              accent={estados.conError > 0 ? "var(--amber)" : undefined}
+            />
+            <StatTile
+              label="Encontrados esta noche"
+              value={estados.hallazgosNoche}
+              accent="var(--accent)"
+            />
+          </div>
+          <p className="small" style={{ marginBottom: 0 }}>
+            Última actividad del VPS: <b>{hora(estados.ultimaActividad)}</b>
+            <span className="muted"> · {estados.porAvisar} hallazgo(s) por avisar en el próximo resumen</span>
+          </p>
+          {estados.detenido && (
+            <div className="error small">
+              ⚠️ El servicio de estados del VPS no revisa nada hace más de 20 minutos y hay juzgados pendientes.
+              Revisa el VPS (pm2 status estradox-estados).
+            </div>
+          )}
+          {estados.errores.length > 0 && (
+            <div className="table-wrap" style={{ marginTop: 10 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Juzgado</th>
+                    <th>Cuándo</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {estados.errores.map((e) => (
+                    <tr key={e.despacho}>
+                      <td style={{ fontFamily: "monospace" }}>{e.despacho}</td>
+                      <td className="muted">{hora(e.errorAt)}</td>
+                      <td className="muted small">{e.error ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
