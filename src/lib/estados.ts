@@ -110,6 +110,25 @@ export async function dejarDeVigilar(userId: string, radicado: string) {
   await prisma.$executeRawUnsafe(`DELETE FROM "EstadoHallazgo" WHERE "userId" = $1 AND radicado = $2`, userId, radicado);
 }
 
+/**
+ * Cuántos radicados vigila el abogado SOLO en estados (no están en su lista de
+ * la Rama). Cuentan para los procesos incluidos del plan y los adicionales.
+ */
+export async function contarSoloEstados(userId: string): Promise<number> {
+  if (!(await estadosActivo(userId))) return 0;
+  const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(DISTINCT x.rad) AS n FROM (
+       SELECT (regexp_matches(
+         coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1] AS rad
+       FROM "CargaProcesos" cp WHERE cp."userId" = $1
+     ) x
+     WHERE NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = $1 AND c.radicado = x.rad)
+       AND NOT EXISTS (SELECT 1 FROM "EstadoQuitado" q WHERE q."userId" = $1 AND q.radicado = x.rad)`,
+    userId,
+  );
+  return Number(r?.n ?? 0);
+}
+
 export async function estadosActivo(userId: string): Promise<boolean> {
   try {
     await asegurarTablas();

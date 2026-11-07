@@ -210,7 +210,7 @@ export type UsoProcesos = {
   /** false: usuario anterior al cambio (o admin), sin límite. */
   limitado: boolean;
   incluidos: number;
-  /** Radicados distintos en su lista (un radicado en 2 sistemas cuenta 1). */
+  /** Radicados distintos en su lista (un radicado en 2 sistemas cuenta 1) más los que solo están en estados electrónicos. */
   total: number;
   adicionales: number;
   precioAdicional: number;
@@ -226,7 +226,13 @@ export async function usoProcesos(userId: string): Promise<UsoProcesos> {
     userId,
   );
   const limitado = !!u && u.role !== "admin" && !(await esSocio(userId)) && new Date(u.createdAt) >= LIMITE_DESDE;
-  const total = Number(u?.total ?? 0);
+  // Los radicados que solo están en estados electrónicos también cuentan.
+  let soloEstados = 0;
+  if (limitado) {
+    const { contarSoloEstados } = await import("./estados");
+    soloEstados = await contarSoloEstados(userId).catch(() => 0);
+  }
+  const total = Number(u?.total ?? 0) + soloEstados;
   const adicionales = limitado ? Math.max(0, total - plan.procesosIncluidos) : 0;
   return {
     limitado,
