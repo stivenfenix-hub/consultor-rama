@@ -1,6 +1,5 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { tick } from "@/lib/sync-queue";
-import { revisarEstados } from "@/lib/estados";
 
 /**
  * Cron de sincronización: se llama cada 5 minutos, todo el día.
@@ -42,15 +41,7 @@ async function handle(req: NextRequest) {
       console.error("[socios] drive", e);
     }
   });
-  // Estados electrónicos: aparte, con su propio candado (el portal tarda minutos).
-  after(async () => {
-    try {
-      const info = await revisarEstados();
-      if (!("omitido" in info)) console.log("[estados]", JSON.stringify(info));
-    } catch (e) {
-      console.error("[estados] error", e);
-    }
-  });
+  // Estados electrónicos: los revisa el VPS (estados-worker), no Hostinger.
   return NextResponse.json({ ok: true, mensaje: "Corrida iniciada en segundo plano." }, { status: 202 });
 }
 

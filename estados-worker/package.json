@@ -1,0 +1,17 @@
+{
+  "name": "estradox-estados-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Revisa los estados electrónicos (Publicaciones Procesales) desde el VPS. Se copia como package.json en la carpeta raíz del VPS (ver README).",
+  "type": "module",
+  "scripts": {
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "prisma": "6.19.3",
+    "server-only": "0.0.1",
+    "tsx": "4.23.15",
+    "unpdf": "0.12.1"
+  }
+}

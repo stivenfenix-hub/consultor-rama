@@ -805,15 +805,12 @@ export async function socioAction(userId: string, valor: boolean): Promise<Actio
 /** Root: corre ya la revisión de estados (sin esperar la noche). */
 export async function revisarEstadosAhoraAction(): Promise<ActionState> {
   await requireAdmin();
-  const { revisarEstados } = await import("@/lib/estados");
-  after(async () => {
-    try {
-      console.log("[estados] manual", JSON.stringify(await revisarEstados({ forzar: true })));
-    } catch (e) {
-      console.error("[estados] manual error", e);
-    }
-  });
-  return { ok: "Revisión iniciada. Tarda unos minutos por juzgado; recarga esta página para ver el avance." };
+  // La revisión la hace el VPS: aquí solo se dejan pedidos todos los juzgados.
+  const { pedirRevisionDeTodos } = await import("@/lib/estados");
+  const n = await pedirRevisionDeTodos();
+  return {
+    ok: `Pedida la revisión de ${n} juzgado(s). El servidor los revisa de a uno (unos segundos a minutos cada uno); recarga esta página para ver el avance.`,
+  };
 }
 
 // ---------- Campana de notificaciones ----------

@@ -10,9 +10,11 @@ import { nocheHabil } from "./dias-habiles";
 // radicado vigilado, se leen los PDF y se busca el radicado (completo o
 // "2026-00894", como lo escriben los juzgados).
 //
-// El portal es lento (una búsqueda tarda ~4 min y a veces da 504). Beta: solo
-// para los usuarios que el root active, solo de noche (6 p. m. a 6:45 a. m.),
-// cada despacho una vez por noche y solo se lee su último estado publicado.
+// El portal es lento (una búsqueda tarda ~4 min y a veces da 504). Desde el
+// 7 nov 2026 es para TODOS los usuarios (el root puede apagarlo a alguno) y lo
+// corre el VPS (estados-worker), con su propia IP, no Hostinger: de noche
+// (6 p. m. a 6:45 a. m.) cada despacho una vez y solo su último estado; de día
+// solo los despachos pedidos (radicados recién agregados o "Revisar ahora").
 
 const BASE = "https://publicacionesprocesales.ramajudicial.gov.co";
 const PORTLET = "co_com_avanti_efectosProcesales_PublicacionesEfectosProcesalesPortletV2_INSTANCE_BIyXQFHVaYaq";
@@ -22,7 +24,10 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const DIAS_ATRAS = 7; // ventana de búsqueda (de ahí solo se toma el último estado)
 const NOCHE_DESDE = 18 * 60; // 6:00 p. m. (minutos, hora de Bogotá)
 const NOCHE_HASTA = 6 * 60 + 45; // 6:45 a. m.
-const DESPACHOS_POR_CORRIDA = 2;
+// En el VPS se ajustan con variables de entorno (ver estados-worker).
+const DESPACHOS_POR_CORRIDA = Number(process.env.ESTADOS_DESPACHOS_POR_CORRIDA) || 2;
+/** Pausa entre un despacho y otro, para no cargar el portal. */
+const PAUSA_DESPACHOS_MS = Number(process.env.ESTADOS_PAUSA_MS) || 0;
 const PRESUPUESTO_MS = 15 * 60 * 1000;
 const MAX_ARCHIVOS = 60; // por publicación
 const MAX_TEXTO_ARCHIVO = 60_000;
@@ -30,7 +35,15 @@ const MAX_TEXTO_ARCHIVO = 60_000;
 let tablasListas = false;
 async function asegurarTablas() {
   if (tablasListas) return;
-  await ensureColumn("User", "estadosActivo", "BOOLEAN NOT NULL DEFAULT false");
+  await ensureColumn("User", "estadosActivo", "BOOLEAN NOT NULL DEFAULT true");
+  // Estados para todos (7 nov 2026): los nuevos usuarios lo tienen activo y,
+  // una sola vez, se activa a todos los que ya existían.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ALTER COLUMN "estadosActivo" SET DEFAULT true`);
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EstadoMigracion" (id TEXT PRIMARY KEY, "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  const [primera] = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `INSERT INTO "EstadoMigracion" (id) VALUES ('todos-activos') ON CONFLICT DO NOTHING RETURNING id`,
+  );
+  if (primera) await prisma.$executeRawUnsafe(`UPDATE "User" SET "estadosActivo" = true WHERE NOT "estadosActivo"`);
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "EstadoDespacho" (
       despacho TEXT PRIMARY KEY,
@@ -388,6 +401,7 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
       for (let p = cola.shift(); p; p = cola.shift()) {
         if (Date.now() - inicio > presupuesto) break;
         info.push(await revisarDespacho(p.despacho));
+        if (PAUSA_DESPACHOS_MS && cola.length) await new Promise((r) => setTimeout(r, PAUSA_DESPACHOS_MS));
       }
     };
     await Promise.all(opts.forzar ? [trabajador(), trabajador()] : [trabajador()]);
@@ -395,6 +409,22 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   } finally {
     await soltarLock();
   }
+}
+
+/**
+ * "Revisar ahora" del root: deja pedidos todos los despachos vigilados y el
+ * VPS los revisa en sus próximas vueltas (Hostinger ya no va al portal).
+ */
+export async function pedirRevisionDeTodos(): Promise<number> {
+  await asegurarTablas();
+  const despachos = [...new Set((await seguimientos()).map((s) => despachoDe(s.radicado)))];
+  if (despachos.length === 0) return 0;
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "EstadoDespacho" (despacho, "pedidoAt") SELECT d, now() FROM unnest($1::text[]) AS d
+     ON CONFLICT (despacho) DO UPDATE SET "pedidoAt" = coalesce("EstadoDespacho"."pedidoAt", now())`,
+    despachos,
+  );
+  return despachos.length;
 }
 
 async function revisarDespacho(despacho: string) {
