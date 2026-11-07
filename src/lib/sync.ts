@@ -988,9 +988,37 @@ export async function enviarResumen(
   email: string,
   name: string | null,
   casos: { radicado: string; caseId: string; nuevas: RamaActuacion[] }[],
+  /** Publicaciones de estados electrónicos donde salieron sus radicados. */
+  estados: { radicado: string; titulo: string; fecha: Date | null; extracto: string | null }[] = [],
 ) {
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const totalNuevas = casos.reduce((n, c) => n + c.nuevas.length, 0);
+  const fechaEstado = (d: Date | null) =>
+    d ? new Date(d).toLocaleDateString("es-CO", { timeZone: "UTC" }) : "";
+  const bloqueEstados = estados.length
+    ? `
+      <h3 style="margin-top:24px">📋 Estados electrónicos (${estados.length})</h3>
+      <p>Tus radicados salieron en estas publicaciones de los juzgados:</p>
+      ${estados
+        .slice(0, 20)
+        .map(
+          (e) => `
+        <div style="margin:12px 0;padding:12px;border:1px solid #e5e7eb;border-radius:8px">
+          <div style="font-family:monospace">${escapeHtml(e.radicado)}</div>
+          <div><strong>${escapeHtml(e.titulo)}</strong> — ${fechaEstado(e.fecha)}</div>
+          ${e.extracto ? `<div style="color:#555;font-size:13px">…${escapeHtml(e.extracto)}…</div>` : ""}
+        </div>`,
+        )
+        .join("")}
+      ${estados.length > 20 ? `<p>…y ${estados.length - 20} más.</p>` : ""}
+      <a href="${appUrl}/dashboard/estados">Ver estados electrónicos</a>`
+    : "";
+  const titulo = [
+    totalNuevas ? `${totalNuevas} actuacion(es) nueva(s)` : "",
+    estados.length ? `${estados.length} estado(s) electrónico(s)` : "",
+  ]
+    .filter(Boolean)
+    .join(" y ");
 
   const bloques = casos
     .map((c) => {
@@ -1020,24 +1048,30 @@ export async function enviarResumen(
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto">
       <img src="${urlAbsoluta(LOGOS.correo)}" alt="Estradox" height="26" style="margin-bottom:12px" />
-      <h2>Tienes ${totalNuevas} actuacion(es) nueva(s)</h2>
-      <p>Hola ${escapeHtml(name ?? "")}, se detectaron novedades en ${casos.length} de tus procesos:</p>
+      <h2>Tienes ${titulo}</h2>
+      <p>Hola ${escapeHtml(name ?? "")}${casos.length ? `, se detectaron novedades en ${casos.length} de tus procesos:` : ","}</p>
       ${bloques}
+      ${bloqueEstados}
       <p style="color:#777;font-size:12px">Estradox — actualización automática.</p>
     </div>`;
 
   const text =
-    `Tienes ${totalNuevas} actuacion(es) nueva(s) en ${casos.length} proceso(s):\n\n` +
+    `Tienes ${titulo}.\n\n` +
     casos
       .map(
         (c) =>
           `${c.radicado}: ${c.nuevas.length} nuevas\n  ${appUrl}/dashboard/procesos/${c.caseId}`,
       )
-      .join("\n\n");
+      .join("\n\n") +
+    (estados.length
+      ? `\n\nEstados electrónicos:\n` +
+        estados.map((e) => `${e.radicado}: ${e.titulo} ${fechaEstado(e.fecha)}`).join("\n") +
+        `\n  ${appUrl}/dashboard/estados`
+      : "");
 
   await sendMail({
     to: email,
-    subject: `${totalNuevas} actuacion(es) nueva(s) en tus procesos`,
+    subject: `${titulo.charAt(0).toUpperCase()}${titulo.slice(1)} en tus procesos`,
     html,
     text,
   });

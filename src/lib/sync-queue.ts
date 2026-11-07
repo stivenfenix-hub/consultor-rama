@@ -484,7 +484,7 @@ type FilaAviso = {
   seenAt: Date | null;
 };
 
-/** Envía un resumen por abogado con las actuaciones pendientes de avisar. */
+/** Envía un resumen por abogado con las actuaciones (y estados electrónicos) pendientes de avisar. */
 export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
   const inicio = Date.now();
   const filas = await prisma.$queryRawUnsafe<FilaAviso[]>(
@@ -502,43 +502,70 @@ export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
     l.push(f);
     porUsuario.set(f.userId, l);
   }
+  // Estados electrónicos por avisar: van en el mismo mensaje que las actuaciones.
+  const { estadosPorAvisar, marcarEstadosAvisados } = await import("./estados");
+  const estadosPend = await estadosPorAvisar().catch((e) => {
+    console.error("[resumen] estados", e);
+    return [];
+  });
+  const estadosDe = new Map<string, typeof estadosPend>();
+  for (const e of estadosPend) estadosDe.set(e.userId, [...(estadosDe.get(e.userId) ?? []), e]);
+  const usuarios = [...new Set([...porUsuario.keys(), ...estadosDe.keys()])];
+  const soloEstados = usuarios.filter((u) => !porUsuario.has(u));
+  const contacto = new Map<string, { email: string; name: string | null }>();
+  for (const [u, l] of porUsuario) contacto.set(u, { email: l[0].email, name: l[0].name });
+  if (soloEstados.length) {
+    const us = await prisma.user.findMany({ where: { id: { in: soloEstados } }, select: { id: true, email: true, name: true } });
+    for (const u of us) contacto.set(u.id, { email: u.email, name: u.name });
+  }
 
   let enviados = 0;
-  for (const [userId, lista] of porUsuario) {
+  for (const userId of usuarios) {
     if (Date.now() - inicio > presupuestoMs) break; // sigue en la próxima corrida
+    const lista = porUsuario.get(userId) ?? [];
+    const estados = estadosDe.get(userId) ?? [];
+    const c = contacto.get(userId);
+    if (!c) continue;
     // Lo que el abogado ya vio en la app no se le vuelve a avisar.
     const sinVer = lista.filter((f) => !f.seenAt);
     try {
-      if (sinVer.length > 0) {
+      if (sinVer.length > 0 || estados.length > 0) {
         const porCaso = new Map<string, { radicado: string; caseId: string; nuevas: RamaActuacion[] }>();
         for (const f of sinVer) {
-          const c = porCaso.get(f.caseId) ?? { radicado: f.radicado, caseId: f.caseId, nuevas: [] };
-          c.nuevas.push({
+          const caso = porCaso.get(f.caseId) ?? { radicado: f.radicado, caseId: f.caseId, nuevas: [] };
+          caso.nuevas.push({
             idRegActuacion: 0,
             actuacion: f.actuacion ?? undefined,
             anotacion: f.anotacion ?? undefined,
             fechaActuacion: f.fechaActuacion ? new Date(f.fechaActuacion).toISOString() : undefined,
           });
-          porCaso.set(f.caseId, c);
+          porCaso.set(f.caseId, caso);
         }
         const casos = [...porCaso.values()];
-        await enviarResumen(lista[0].email, lista[0].name, casos);
-        await registrarAvisoWhatsapp(userId, "actuaciones", textoActuaciones(casos));
+        await enviarResumen(c.email, c.name, casos, estados);
+        await registrarAvisoWhatsapp(userId, "actuaciones", textoActuaciones(casos, estados));
+        const partes = [
+          sinVer.length ? `${sinVer.length} actuación(es) nueva(s) en ${casos.length} de tus procesos` : "",
+          estados.length ? `${estados.length} estado(s) electrónico(s) con tus radicados` : "",
+        ].filter(Boolean);
         await sendPushToUser(userId, {
-          title: "Actuaciones nuevas",
-          body: `Tienes ${sinVer.length} actuación(es) nueva(s) en ${casos.length} de tus procesos.`,
-          url: "/dashboard",
+          title: sinVer.length ? "Actuaciones nuevas" : "📋 Tus procesos salieron en estado",
+          body: `Tienes ${partes.join(" y ")}.`,
+          url: sinVer.length ? "/dashboard" : "/dashboard/estados",
           tag: "actuaciones",
         }).catch(() => {});
         enviados++;
       }
-      await prisma.$executeRawUnsafe(
-        `UPDATE "Actuacion" SET "pendingNotify" = false WHERE id = ANY($1::text[])`,
-        lista.map((f) => f.id),
-      );
+      if (lista.length) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Actuacion" SET "pendingNotify" = false WHERE id = ANY($1::text[])`,
+          lista.map((f) => f.id),
+        );
+      }
+      if (estados.length) await marcarEstadosAvisados(userId);
     } catch (err) {
       // Se reintenta en la siguiente corrida (las filas siguen pendientes).
-      console.error(`[resumen] fallo con ${lista[0].email}:`, err);
+      console.error(`[resumen] fallo con ${c.email}:`, err);
     }
     await sleep(300);
   }

@@ -74,7 +74,38 @@ async function asegurarTablas() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY ("userId", radicado)
     )`);
+  // Hallazgos por avisar: salen en el mismo resumen de las actuaciones
+  // (correo, WhatsApp y notificación), no en un aviso aparte de noche.
+  await ensureColumn("EstadoHallazgo", "porAvisar", "BOOLEAN NOT NULL DEFAULT false");
   tablasListas = true;
+}
+
+export type EstadoPorAvisar = {
+  id: number;
+  userId: string;
+  radicado: string;
+  titulo: string;
+  fecha: Date | null;
+  extracto: string | null;
+};
+
+/** Hallazgos de estados que aún no se han avisado en el resumen (y no ha visto). */
+export async function estadosPorAvisar(): Promise<EstadoPorAvisar[]> {
+  await asegurarTablas();
+  return prisma.$queryRawUnsafe<EstadoPorAvisar[]>(
+    `SELECT h.id, h."userId", h.radicado, p.titulo, p.fecha, h.extracto
+     FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
+     WHERE h."porAvisar" AND NOT h.visto
+     ORDER BY h."userId", h.radicado, p.fecha DESC NULLS LAST`,
+  );
+}
+
+/** Marca como avisados (todos los del usuario, incluidos los ya vistos). */
+export async function marcarEstadosAvisados(userId: string) {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "EstadoHallazgo" SET "porAvisar" = false WHERE "userId" = $1 AND "porAvisar"`,
+    userId,
+  );
 }
 
 const despachoDe = (radicado: string) => radicado.slice(0, 12);
@@ -446,8 +477,8 @@ async function cruzarDespacho(despacho: string) {
         if (i < 0) continue;
         const ext = extracto(a.texto, i);
         const [r] = await prisma.$queryRawUnsafe<{ id: number }[]>(
-          `INSERT INTO "EstadoHallazgo" ("userId", radicado, "publicacionId", archivo, url, extracto)
-           VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`,
+          `INSERT INTO "EstadoHallazgo" ("userId", radicado, "publicacionId", archivo, url, extracto, "porAvisar")
+           VALUES ($1, $2, $3, $4, $5, $6, true) ON CONFLICT DO NOTHING RETURNING id`,
           s.userId,
           s.radicado,
           pub.id,
@@ -464,21 +495,10 @@ async function cruzarDespacho(despacho: string) {
       }
     }
   }
-  const { sendPushToUser } = await import("./push");
+  // El aviso sale en el resumen de actuaciones (enviarResumenesPendientes):
+  // mismo correo, WhatsApp y notificación, de 7 a. m. a 6 p. m.
   let total = 0;
-  for (const [userId, l] of nuevosPorUsuario) {
-    total += l.length;
-    const corto = (r: string) => `${r.slice(12, 16)}-${r.slice(16, 21)}`;
-    await sendPushToUser(userId, {
-      title: l.length === 1 ? "📋 Tu proceso salió en estado" : `📋 ${l.length} publicaciones de tus procesos`,
-      body:
-        l.length === 1
-          ? `${corto(l[0].radicado)} · ${l[0].titulo}`
-          : `${[...new Set(l.map((x) => corto(x.radicado)))].join(", ")} aparecen en estados del juzgado.`,
-      url: "/dashboard/estados",
-      tag: `estados-${despacho}`,
-    }).catch(() => {});
-  }
+  for (const l of nuevosPorUsuario.values()) total += l.length;
   return total;
 }
 

@@ -76,8 +76,23 @@ type CasoAviso = {
 };
 
 /** El mismo contenido del correo-resumen de actuaciones, en texto para WhatsApp. */
-export function textoActuaciones(casos: CasoAviso[]) {
+export function textoActuaciones(
+  casos: CasoAviso[],
+  estados: { radicado: string; titulo: string; fecha: Date | null }[] = [],
+) {
   const total = casos.reduce((n, c) => n + c.nuevas.length, 0);
+  // Estados electrónicos: la fecha es del estado (sin hora), se muestra en UTC.
+  const fEstado = (d: Date | null) => (d ? new Date(d).toLocaleDateString("es-CO", { timeZone: "UTC" }) : "");
+  const textoEstados = estados.length
+    ? `📋 Estados electrónicos: tus radicados salieron en ${estados.length} publicación(es):\n` +
+      estados
+        .slice(0, 15)
+        .map((e) => `• ${e.radicado}: ${e.titulo}${e.fecha ? ` (${fEstado(e.fecha)})` : ""}`)
+        .join("\n") +
+      (estados.length > 15 ? `\n• …y ${estados.length - 15} más` : "") +
+      `\nVer: ${APP_URL}/dashboard/estados`
+    : "";
+  if (casos.length === 0) return textoEstados;
   const bloques = casos.map((c) => {
     const items = c.nuevas.slice(0, 10).map((a) => {
       const fecha = fechaCorta(a.fechaActuacion);
@@ -91,7 +106,8 @@ export function textoActuaciones(casos: CasoAviso[]) {
   });
   return (
     `Tienes ${total} actuación(es) nueva(s) en ${casos.length} de tus procesos:\n\n` +
-    `${bloques.join("\n\n")}\n\nVer en Estradox: ${APP_URL}/dashboard`
+    `${bloques.join("\n\n")}\n\nVer en Estradox: ${APP_URL}/dashboard` +
+    (textoEstados ? `\n\n${textoEstados}` : "")
   );
 }
 
