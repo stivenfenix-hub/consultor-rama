@@ -4,7 +4,7 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cerrarCargaAction } from "@/app/actions";
 import { Icon } from "@/components/icon";
-import { separarEstados } from "@/lib/textos-estados";
+import { separarEstados, separarSegundoPlano, textoSegundoPlano } from "@/lib/textos-estados";
 
 type Carga = {
   id: number;
@@ -48,12 +48,8 @@ export function CargaAviso({
         <div className="carga-aviso cargando">
           <div className="carga-spin" aria-hidden />
           <div style={{ flex: 1 }}>
-            <b>Reintentando automáticamente</b>
-            <div className="small muted">
-              La Rama Judicial no respondió para{" "}
-              {reintentos.map((r) => r.radicado).join(", ")}. Lo seguimos intentando solos y te
-              avisamos cuando quede cargado; no tienes que volver a agregarlo.
-            </div>
+            <b>Terminando de cargar en segundo plano</b>
+            <div className="small muted">{textoSegundoPlano(reintentos.map((r) => r.radicado))}</div>
           </div>
         </div>
       )}
@@ -63,7 +59,7 @@ export function CargaAviso({
             <div key={c.id} className="carga-aviso cargando">
               <div className="carga-spin" aria-hidden />
               <div style={{ flex: 1 }}>
-                <b>Cargando tus procesos desde la Rama Judicial…</b>
+                <b>Cargando tus procesos…</b>
                 <div className="small muted">
                   {c.listos} de {c.total} listo(s). Puedes seguir usando Estradox: te avisamos al terminar.
                 </div>
@@ -77,28 +73,37 @@ export function CargaAviso({
 
         // Los radicados que la Consulta Nacional no tiene no son una falla: se
         // explican aparte (y a los abogados en prueba se les dice que se buscan en estados).
-        const { radicados: noExisten, resto } = separarEstados(c.error);
-        const fallaRama = /no respondi|interrumpi/i.test(resto);
+        // Las fallas de la Rama NUNCA se muestran: esos radicados se siguen
+        // cargando solos y se le notifica. Solo se muestra como error lo del
+        // abogado (radicados sin 23 dígitos).
+        const { radicados: noExisten, resto: sinEstados } = separarEstados(c.error);
+        const { radicados: enProceso, resto } = separarSegundoPlano(sinEstados);
 
-        const clase = c.ok ? "listo" : resto ? "falla" : estados ? "estados" : "falla";
+        const clase = c.ok ? "listo" : resto ? "falla" : enProceso.length ? "cargando" : estados ? "estados" : "falla";
         const titulo = c.ok
           ? "¡Tus procesos ya están cargados! Ya puedes revisarlos."
           : resto
-            ? "La Rama Judicial no respondió todavía"
-            : estados
-              ? "Lo vigilamos con Estados electrónicos"
-              : "No encontramos este radicado en la Rama Judicial";
+            ? "Revisa estos radicados"
+            : enProceso.length
+              ? "Estamos terminando de cargar tus procesos"
+              : estados
+                ? "Lo vigilamos con Estados electrónicos"
+                : "No encontramos este radicado en la Rama Judicial";
 
         return (
           <div key={c.id} className={`carga-aviso ${clase}`}>
-            <Icon name={c.ok ? "check" : clase === "estados" ? "bell" : "alert"} size={22} />
+            <Icon name={c.ok ? "check" : clase === "estados" || clase === "cargando" ? "bell" : "alert"} size={22} />
             <div style={{ flex: 1 }}>
               <b>{titulo}</b>
               {c.ok && <div className="small">{c.ok}</div>}
+              {enProceso.length > 0 && (
+                <div className="small" style={{ marginTop: 6 }}>
+                  ⏳ {textoSegundoPlano(enProceso)}
+                </div>
+              )}
               {resto && (
-                <div className="small aviso-rama" style={{ margin: "6px 0 0" }}>
-                  ℹ️ {resto}
-                  {fallaRama && " Es una falla temporal de la plataforma de la Rama, no de Estradox."}
+                <div className="small error" style={{ margin: "6px 0 0" }}>
+                  {resto}
                 </div>
               )}
               {noExisten.length > 0 && (

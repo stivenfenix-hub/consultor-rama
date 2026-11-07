@@ -129,7 +129,6 @@ export default async function EstadosPage({
                   <td className="muted">{v.juzgado ?? v.despacho}</td>
                   <td className="small">
                     {hora(v.revisadoAt)}
-                    {v.ultimoError && <div className="muted">El portal no respondió; lo reintentamos.</div>}
                   </td>
                   <td>
                     <QuitarDeEstados radicado={v.radicado} enRama={casoDe.has(v.radicado)} />

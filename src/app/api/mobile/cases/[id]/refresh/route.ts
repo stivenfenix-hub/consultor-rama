@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { MSG_RAMA_ACTUALIZAR } from "@/lib/aviso-rama";
+import { reintentarActualizacion } from "@/lib/reintentar-actualizacion";
 import { prisma } from "@/lib/db";
 import { marcarActualizacionProceso, proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
 import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual } from "@/lib/sync-queue";
@@ -23,7 +25,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } catch (err) {
       // el error queda guardado en caso.lastError; no se gasta el intento del día
       if (esProcesoPrivado(err)) return jsonError(MSG_PRIVADO, 422);
-      return jsonError("La Rama Judicial no respondió. Intenta de nuevo en un rato.", 502);
+      // Sin error para el abogado: se reintenta solo y se le notifica al quedar listo.
+      after(() => reintentarActualizacion(id, user.id, caso.radicado));
+      return NextResponse.json({ ok: MSG_RAMA_ACTUALIZAR, nuevas: 0 });
     }
   });
 }

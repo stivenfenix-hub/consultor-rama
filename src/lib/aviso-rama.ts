@@ -1,28 +1,35 @@
 // Textos para cuando la Rama Judicial (la fuente de la información) falla.
-// Se muestran como explicación tranquila, no como error rojo: el problema es
-// de la plataforma de la Rama, no del abogado ni de Estradox.
+// Regla del dueño (7 nov 2026): al abogado NUNCA se le muestra un error de la
+// Rama. Todo se reintenta en segundo plano y se le dice que en unos momentos le
+// notificamos. Los únicos errores que ve son los suyos: radicado sin 23 dígitos
+// o que no existe. Las caídas de la Rama solo las ve el root (Panel admin).
 
+/** Ya no se muestra a los abogados (se conserva para el panel del root). */
 export const MSG_RAMA_CAIDA =
-  "La Rama Judicial —la plataforma oficial de donde Estradox toma la información— no está respondiendo en este momento. No es un problema de tu cuenta ni de Estradox: tus datos están seguros y lo intentamos de nuevo automáticamente en cuanto vuelva.";
+  "La Rama Judicial —la plataforma oficial de donde Estradox toma la información— no está respondiendo en este momento.";
 
+/** Al actualizar un proceso a mano y la Rama no responde: se sigue intentando en segundo plano. */
 export const MSG_RAMA_ACTUALIZAR =
-  "La Rama Judicial no respondió en este momento (es una falla temporal de su plataforma, no de Estradox). Tu proceso sigue guardado; esta noche lo revisamos de nuevo automáticamente, o puedes intentarlo en un rato.";
+  "Estamos actualizando tu proceso en segundo plano. En unos momentos te notificamos cuando esté listo.";
 
 export const MSG_RAMA_DOCUMENTO =
-  "La Rama Judicial no está entregando este documento en este momento (es una falla temporal de su plataforma, no de Estradox). Intenta de nuevo en unos minutos.";
+  "Estamos preparando este documento. Intenta abrirlo de nuevo en unos minutos.";
 
-export const MSG_RAMA_REVISION =
-  "La Rama Judicial no respondió en la última revisión. Lo intentamos de nuevo automáticamente; no tienes que hacer nada.";
+/** Ya no se muestra a los abogados. */
+export const MSG_RAMA_REVISION = "";
 
 /** ¿El mensaje es de una falla de la Rama (para mostrarlo con estilo tranquilo)? */
-export const esMensajeRama = (m?: string | null) => !!m && m.startsWith("La Rama Judicial");
-export const MSG_RAMA_DOC_RESTRINGIDO = "La Rama Judicial no permite descargar este documento: el juzgado lo dejó restringido en su plataforma. No es una falla de Estradox; si lo necesitas, solicítalo directamente al despacho.";
+export const esMensajeRama = (m?: string | null) =>
+  !!m && (m.startsWith("La Rama Judicial") || m === MSG_RAMA_ACTUALIZAR || m === MSG_RAMA_DOCUMENTO);
+export const MSG_RAMA_DOC_RESTRINGIDO =
+  "El juzgado dejó este documento restringido: no se puede descargar desde la consulta pública. Si lo necesitas, solicítalo directamente al despacho.";
 
 /**
  * Qué decirle al abogado según el último error guardado del proceso. No todo
  * error es una caída: privado y "sin actuaciones" son respuestas normales.
+ * Las fallas de la Rama no se le muestran (se reintentan solas).
  */
-export function avisoProceso(lastError?: string | null): { tipo: "privado" | "sinActuaciones" | "rama"; texto: string } | null {
+export function avisoProceso(lastError?: string | null): { tipo: "privado" | "sinActuaciones"; texto: string } | null {
   if (!lastError) return null;
   if (/privad/i.test(lastError)) {
     return { tipo: "privado", texto: "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones." };
@@ -30,5 +37,5 @@ export function avisoProceso(lastError?: string | null): { tipo: "privado" | "si
   if (/no se encontraron actuaciones/i.test(lastError)) {
     return { tipo: "sinActuaciones", texto: "Este proceso aún no tiene actuaciones publicadas en la Rama Judicial. Te avisamos cuando aparezca la primera." };
   }
-  return { tipo: "rama", texto: MSG_RAMA_REVISION };
+  return null;
 }

@@ -189,7 +189,9 @@ export default async function CaseDetail({
         .catch(() => undefined)
     : undefined;
 
-  const syncLogs = caso.syncLogs.map((l) => ({
+  // Al abogado nunca se le muestran fallas de la Rama (se reintentan solas):
+  // ve solo las sincronizaciones exitosas. El root ve todo, con el error.
+  const syncLogs = caso.syncLogs.filter((l) => user.role === "admin" || l.resultado === "exito").map((l) => ({
     inicio: fmtHora(l.createdAt),
     origen: l.origen,
     operacion: l.operacion,
@@ -221,10 +223,7 @@ export default async function CaseDetail({
         Sincronizado: {fmtHora(caso.lastSyncedAt)}
         {(() => {
           const a = avisoProceso(caso.lastError);
-          if (!a) return "";
-          return a.tipo === "rama"
-            ? " · la Rama Judicial no respondió en la última revisión (lo reintentamos solos)"
-            : ` · ${a.texto}`;
+          return a ? ` · ${a.texto}` : "";
         })()}
       </p>
 

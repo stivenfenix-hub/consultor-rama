@@ -17,7 +17,7 @@ import {
 } from "./rama";
 import { sendMail } from "./mailer";
 import { after } from "next/server";
-import { explicacionCorta, PREFIJO_ESTADOS } from "./textos-estados";
+import { explicacionCorta, PREFIJO_ESTADOS, PREFIJO_SEGUNDO_PLANO } from "./textos-estados";
 
 const parseFecha = fechaRama;
 
@@ -198,9 +198,9 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
       listos > 0
         ? "✅ Tus procesos ya están cargados"
         : r.fallidos.length + r.sinIntentar.length
-          ? "⏳ La Rama Judicial no respondió todavía"
+          ? "⏳ Estamos terminando de cargar tus procesos"
           : enEstados
-            ? "🔎 Lo buscaremos en los estados electrónicos"
+            ? "🔎 Lo vigilamos con Estados electrónicos"
             : "⚠️ No pudimos cargar tus procesos",
     body:
       (listos > 0 ? `Cargamos ${listos} proceso(s) de la Rama Judicial. Ya puedes revisarlos.` : "") +
@@ -211,7 +211,7 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
           : ` La Consulta Nacional no tiene: ${r.noEncontrados.join(", ")}. Revisa el número.`
         : "") +
       (r.fallidos.length + r.sinIntentar.length
-        ? ` La Rama no respondió para: ${[...r.fallidos, ...r.sinIntentar].join(", ")}; lo seguimos intentando solos y te avisamos.`
+        ? ` ${[...r.fallidos, ...r.sinIntentar].join(", ")}: lo estamos terminando de cargar en segundo plano; en unos momentos te notificamos cuando esté listo.`
         : ""),
     url: "/dashboard/procesos",
     tag: `agregados-${Date.now()}`,
@@ -423,7 +423,7 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
         .catch(() => {});
       await sendPushToUser(f.userId, {
         title: "✅ Ya cargamos tu proceso",
-        body: `La Rama Judicial respondió y el radicado ${f.radicado} ya está en tu lista. Ya puedes revisarlo.`,
+        body: `El radicado ${f.radicado} ya está en tu lista. Ya puedes revisarlo.`,
         url: "/dashboard/procesos",
         tag: `reintento-${f.radicado}`,
       }).catch(() => {});
@@ -439,19 +439,21 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
           f.userId,
           f.radicado,
         );
+        // Sigue vigilado en estados electrónicos (está en sus cargas). Si la Rama
+        // nunca respondió, no se le avisa una falla: la vigilancia sigue sola.
         const { estadosActivo, buscarEstadosDeNuevos } = await import("./estados");
-        const enEstados = noExiste && (await estadosActivo(f.userId));
+        const enEstados = await estadosActivo(f.userId);
         if (enEstados) await buscarEstadosDeNuevos(f.userId, [f.radicado]);
-        await sendPushToUser(f.userId, {
-          title: enEstados ? "🔎 Lo buscaremos en los estados electrónicos" : "⚠️ No pudimos cargar un proceso",
-          body: enEstados
-            ? explicacionCorta([f.radicado])
-            : noExiste
-              ? `El radicado ${f.radicado} no está en la Consulta Nacional de la Rama Judicial. Revisa el número.`
-              : `La Rama Judicial no respondió por más de un día para ${f.radicado}. Intenta agregarlo de nuevo más tarde.`,
-          url: "/dashboard/procesos",
-          tag: `reintento-${f.radicado}`,
-        }).catch(() => {});
+        if (noExiste) {
+          await sendPushToUser(f.userId, {
+            title: enEstados ? "🔎 Lo vigilamos con Estados electrónicos" : "⚠️ No encontramos un radicado",
+            body: enEstados
+              ? explicacionCorta([f.radicado])
+              : `El radicado ${f.radicado} no está en la Consulta Nacional de la Rama Judicial. Revisa el número.`,
+            url: "/dashboard/procesos",
+            tag: `reintento-${f.radicado}`,
+          }).catch(() => {});
+        }
       } else {
         await prisma.$executeRawUnsafe(
           `UPDATE "RadicadoReintento" SET intentos = $3, "ultimoError" = $4,
@@ -478,16 +480,14 @@ export function mensajeAgregar(
   const ok: string[] = [];
   if (r.agregados) ok.push(`${r.agregados} proceso(s) agregado(s).`);
   if (r.pendientes) {
-    ok.push(
-      `${r.pendientes} agregado(s); la Rama no entregó sus actuaciones a tiempo y se cargarán en la próxima actualización.`,
-    );
+    ok.push(`${r.pendientes} agregado(s); sus actuaciones se terminan de cargar en segundo plano.`);
   }
   if (r.privados) {
     ok.push(`${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones.`);
   }
   if (r.enFondo) {
     ok.push(
-      `${r.enFondo} se está(n) cargando en segundo plano porque la Rama Judicial está lenta: aparecerán en tu lista en unos minutos y te avisamos al terminar.`,
+      `${r.enFondo} se está(n) cargando en segundo plano: en unos momentos te notificamos cuando esté(n) listo(s).`,
     );
   }
   if (r.yaEstaban) ok.push(`${r.yaEstaban} ya estaba(n) en tu lista.`);
@@ -503,9 +503,8 @@ export function mensajeAgregar(
   }
   const reintentar = [...r.fallidos, ...r.sinIntentar];
   if (reintentar.length) {
-    err.push(
-      `La Rama Judicial no respondió para: ${reintentar.join(", ")}. Lo seguiremos intentando automáticamente y te avisamos cuando quede cargado; no tienes que volver a agregarlo.`,
-    );
+    // No es un error del abogado: se sigue cargando solo (ver procesarReintentos).
+    err.push(`${PREFIJO_SEGUNDO_PLANO} ${reintentar.join(", ")}.`);
   }
   return {
     ok: ok.length ? ok.join(" ") : undefined,

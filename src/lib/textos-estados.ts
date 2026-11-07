@@ -15,6 +15,35 @@ export function separarEstados(texto: string | null): { radicados: string[]; res
   return { radicados: m[1].split(/,\s*/).filter(Boolean), resto: t.replace(m[0], "").trim() };
 }
 
+/** Marca guardada para los que la Rama no entregó a tiempo (se reintentan solos). */
+export const PREFIJO_SEGUNDO_PLANO = "Terminando de cargar en segundo plano:";
+
+/**
+ * Radicados que se siguen cargando en segundo plano (formato nuevo, o el viejo
+ * "La Rama Judicial no respondió para: …") y el resto del texto. Al abogado
+ * nunca se le muestra la falla de la Rama: solo que en unos momentos le avisamos.
+ */
+export function separarSegundoPlano(texto: string): { radicados: string[]; resto: string } {
+  const re = /(?:Terminando de cargar en segundo plano|La Rama Judicial no respondió para): ([^.]*)\.(?:[^.]*(?:automáticamente|agregarlo)[^.]*\.)*/;
+  const m = texto.match(re);
+  if (m) {
+    return { radicados: m[1].split(/,\s*/).filter(Boolean), resto: texto.replace(m[0], "").trim() };
+  }
+  // Otras fallas de la Rama ("se interrumpió", etc.): no se muestran.
+  if (/rama|no respondi|interrumpi/i.test(texto)) return { radicados: [], resto: "" };
+  return { radicados: [], resto: texto.trim() };
+}
+
+/** Texto para el abogado sobre los que se siguen cargando solos. */
+export function textoSegundoPlano(radicados: string[]) {
+  const uno = radicados.length === 1;
+  return (
+    `${uno ? "El radicado" : "Los radicados"} ${radicados.join(", ")} se ${uno ? "está" : "están"} terminando de ` +
+    `cargar en segundo plano. En unos momentos te notificamos cuando ${uno ? "esté listo" : "estén listos"}; ` +
+    `no tienes que volver a ${uno ? "agregarlo" : "agregarlos"}.`
+  );
+}
+
 /** Explicación corta (notificaciones). */
 export function explicacionCorta(radicados: string[]) {
   const uno = radicados.length === 1;

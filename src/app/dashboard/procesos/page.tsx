@@ -7,8 +7,7 @@ import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
-import { avisoProceso, MSG_RAMA_CAIDA } from "@/lib/aviso-rama";
-import { ramaCaida } from "@/lib/monitor-rama";
+import { avisoProceso } from "@/lib/aviso-rama";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
 import { QuitarDeEstados } from "../estados/quitar-estado";
 import { usoProcesos } from "@/lib/subscription";
@@ -59,7 +58,7 @@ export default async function ProcesosPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [todos, cargas, reintentos, caidaRama, estados, uso] = await Promise.all([
+  const [todos, cargas, reintentos, estados, uso] = await Promise.all([
     // Solo los campos de la tarjeta (sin partes, sujetos, etc.); se muestran de a 20.
     prisma.case.findMany({
       where: { userId: user.id },
@@ -77,7 +76,6 @@ export default async function ProcesosPage({
     }),
     cargasPendientesDeVer(user.id).catch(() => []),
     reintentosDelUsuario(user.id).catch(() => []),
-    ramaCaida().catch(() => false),
     estadosActivo(user.id)
       .then(async (a) =>
         a ? { sinVer: await hallazgosSinVer(user.id), solo: await soloEnEstados(user.id) } : null,
@@ -140,13 +138,7 @@ export default async function ProcesosPage({
         <h1>Procesos</h1>
       </div>
 
-      {/* Solo aquí: es donde el abogado sube procesos y le afecta la caída. */}
-      {caidaRama && (
-        <div className="aviso-rama" role="status" style={{ marginBottom: 12 }}>
-          <span aria-hidden>ℹ️</span>
-          <span>{MSG_RAMA_CAIDA}</span>
-        </div>
-      )}
+      {/* Las caídas de la Rama no se le muestran al abogado (solo al root, en Panel admin). */}
 
       <div className="card">
         <h2>Agregar proceso por radicado</h2>
@@ -238,13 +230,9 @@ export default async function ProcesosPage({
             {c.departamento ? ` · ${c.departamento}` : ""}
           </div>
           {(() => {
+            // Las fallas de la Rama no se muestran (se reintentan solas).
             const a = avisoProceso(c.lastError);
-            if (!a || (a.tipo === "rama" && caidaRama)) return null;
-            return a.tipo === "rama" ? (
-              <div className="aviso-rama small" style={{ marginTop: 6 }}>ℹ️ {a.texto}</div>
-            ) : (
-              <div className="muted small" style={{ marginTop: 4 }}>{a.texto}</div>
-            );
+            return a ? <div className="muted small" style={{ marginTop: 4 }}>{a.texto}</div> : null;
           })()}
         </Link>
       ))}

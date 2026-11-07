@@ -472,12 +472,18 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
     await marcarActualizacionProceso(caseId); // solo cuenta si funcionó
     resultado = { ok: "Proceso actualizado." };
   } catch (err) {
-    // el error queda guardado en caso.lastError; no se gasta el intento del día
-    resultado = {
-      error: esProcesoPrivado(err)
-        ? MSG_PRIVADO
-        : MSG_RAMA_ACTUALIZAR,
-    };
+    // No se gasta el intento del día. Si es privado se le dice; si la Rama no
+    // respondió, NO se le muestra error: se reintenta en segundo plano y se le
+    // notifica al quedar listo (regla del dueño, 7 nov 2026).
+    if (esProcesoPrivado(err)) {
+      resultado = { error: MSG_PRIVADO };
+    } else {
+      resultado = { ok: MSG_RAMA_ACTUALIZAR };
+      after(async () => {
+        const { reintentarActualizacion } = await import("@/lib/reintentar-actualizacion");
+        await reintentarActualizacion(caseId, user.id, caso.radicado);
+      });
+    }
   }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
