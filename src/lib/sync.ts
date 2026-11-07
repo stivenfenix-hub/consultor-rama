@@ -17,6 +17,7 @@ import {
 } from "./rama";
 import { sendMail } from "./mailer";
 import { after } from "next/server";
+import { explicacionCorta, PREFIJO_ESTADOS } from "./textos-estados";
 
 const parseFecha = fechaRama;
 
@@ -206,8 +207,8 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
       (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
       (r.noEncontrados.length
         ? enEstados
-          ? ` ${r.noEncontrados.join(", ")} no aparece(n) en la Consulta Nacional. Quedó en tu lista de estados electrónicos y lo revisamos cada noche; te avisamos si aparece.`
-          : ` No existen en la Rama: ${r.noEncontrados.join(", ")}.`
+          ? ` ${explicacionCorta(r.noEncontrados)}`
+          : ` La Consulta Nacional no tiene: ${r.noEncontrados.join(", ")}. Revisa el número.`
         : "") +
       (r.fallidos.length + r.sinIntentar.length
         ? ` La Rama no respondió para: ${[...r.fallidos, ...r.sinIntentar].join(", ")}; lo seguimos intentando solos y te avisamos.`
@@ -444,9 +445,9 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
         await sendPushToUser(f.userId, {
           title: enEstados ? "🔎 Lo buscaremos en los estados electrónicos" : "⚠️ No pudimos cargar un proceso",
           body: enEstados
-            ? `El radicado ${f.radicado} no aparece en la Consulta Nacional. Quedó en tu lista de estados electrónicos y lo revisamos cada noche; te avisamos si aparece.`
+            ? explicacionCorta([f.radicado])
             : noExiste
-              ? `El radicado ${f.radicado} no existe en la Rama Judicial. Revisa el número.`
+              ? `El radicado ${f.radicado} no está en la Consulta Nacional de la Rama Judicial. Revisa el número.`
               : `La Rama Judicial no respondió por más de un día para ${f.radicado}. Intenta agregarlo de nuevo más tarde.`,
           url: "/dashboard/procesos",
           tag: `reintento-${f.radicado}`,
@@ -496,7 +497,9 @@ export function mensajeAgregar(
     err.push(`No tienen 23 dígitos: ${invalidos.join(", ")}.`);
   }
   if (r.noEncontrados.length) {
-    err.push(`No existen en la Rama Judicial: ${r.noEncontrados.join(", ")}.`);
+    // No es que no existan: el juzgado no los sube a la Rama. Se vigilan en estados
+    // (el aviso al abogado arma la explicación; ver textos-estados.ts).
+    err.push(`${PREFIJO_ESTADOS} ${r.noEncontrados.join(", ")}.`);
   }
   const reintentar = [...r.fallidos, ...r.sinIntentar];
   if (reintentar.length) {

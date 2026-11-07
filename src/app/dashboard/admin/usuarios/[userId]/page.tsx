@@ -9,6 +9,7 @@ import { Interruptor } from "./sin-limite";
 import { RevisarEstadosAhora } from "./revisar-estados";
 import { estadosActivo, hallazgosDelUsuario, totalHallazgos, vigiladosDelUsuario } from "@/lib/estados";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
+import { explicacionCorta, separarEstados } from "@/lib/textos-estados";
 
 const hora = (d: Date | null) =>
   d ? new Date(d).toLocaleString("es-CO", { timeZone: "America/Bogota" }) : "—";
@@ -194,9 +195,24 @@ export default async function CargasUsuario({
                     {c.radicados ?? `${c.total} (no se guardaba cuáles)`}
                   </td>
                   <td className="small">
-                    {c.ok && <div>{c.ok}</div>}
-                    {c.error && <div className="error">{c.error}</div>}
-                    {!c.ok && !c.error && <span className="muted">{c.estado}</span>}
+                    {(() => {
+                      // Los que la Consulta Nacional no tiene no son error: se vigilan en estados.
+                      const { radicados, resto } = separarEstados(c.error);
+                      return (
+                        <>
+                          {c.ok && <div>{c.ok}</div>}
+                          {radicados.length > 0 && (
+                            <div style={{ color: "var(--accent)" }}>
+                              {estados
+                                ? explicacionCorta(radicados)
+                                : `La Consulta Nacional no tiene: ${radicados.join(", ")} (estados electrónicos apagado para este usuario).`}
+                            </div>
+                          )}
+                          {resto && <div className="error">{resto}</div>}
+                          {!c.ok && !c.error && <span className="muted">{c.estado}</span>}
+                        </>
+                      );
+                    })()}
                   </td>
                   <td className="small muted" style={{ whiteSpace: "pre-wrap" }}>{c.detalle ?? "—"}</td>
                 </tr>

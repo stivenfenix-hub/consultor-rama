@@ -4,6 +4,7 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cerrarCargaAction } from "@/app/actions";
 import { Icon } from "@/components/icon";
+import { separarEstados } from "@/lib/textos-estados";
 
 type Carga = {
   id: number;
@@ -28,7 +29,7 @@ export function CargaAviso({
   cargas: Carga[];
   reintentos?: { radicado: string; intentos: number }[];
   esAdmin?: boolean;
-  /** El abogado está en la prueba de estados electrónicos. */
+  /** El abogado tiene estados electrónicos activo. */
   estados?: boolean;
 }) {
   const router = useRouter();
@@ -76,9 +77,7 @@ export function CargaAviso({
 
         // Los radicados que la Consulta Nacional no tiene no son una falla: se
         // explican aparte (y a los abogados en prueba se les dice que se buscan en estados).
-        const m = c.error?.match(/No existen en la Rama Judicial: ([^.]*)\./);
-        const noExisten = m ? m[1].split(/,\s*/).filter(Boolean) : [];
-        const resto = (m ? c.error!.replace(m[0], "") : c.error ?? "").trim();
+        const { radicados: noExisten, resto } = separarEstados(c.error);
         const fallaRama = /no respondi|interrumpi/i.test(resto);
 
         const clase = c.ok ? "listo" : resto ? "falla" : estados ? "estados" : "falla";
@@ -87,7 +86,7 @@ export function CargaAviso({
           : resto
             ? "La Rama Judicial no respondió todavía"
             : estados
-              ? "Lo buscaremos en los estados electrónicos"
+              ? "Lo vigilamos con Estados electrónicos"
               : "No encontramos este radicado en la Rama Judicial";
 
         return (
@@ -108,10 +107,12 @@ export function CargaAviso({
                     <>
                       {noExisten.length === 1 ? "El radicado " : "Los radicados "}
                       <b>{noExisten.join(", ")}</b>{" "}
-                      {noExisten.length === 1 ? "no aparece" : "no aparecen"} en la Consulta Nacional de la Rama
-                      Judicial, pero muchos juzgados solo los publican en sus <b>estados electrónicos</b>. Ya
-                      quedó en tu lista, en <b>&quot;En estados electrónicos&quot;</b> (más abajo), y lo revisamos
-                      automáticamente cada noche: si en los próximos días aparece, te notificamos y lo verás aquí.
+                      {noExisten.length === 1 ? "no está" : "no están"} en la Consulta Nacional porque el juzgado
+                      no sube sus actuaciones a la Rama Judicial. No te preocupes: {noExisten.length === 1 ? "lo" : "los"}{" "}
+                      vigilamos con <b>Estados electrónicos</b>, la nueva tecnología de Estradox: cada noche revisamos
+                      las publicaciones públicas del juzgado, extraemos la información y te avisamos cuando{" "}
+                      {noExisten.length === 1 ? "aparezca" : "aparezcan"}. {noExisten.length === 1 ? "Lo" : "Los"} ves
+                      en <b>&quot;En estados electrónicos&quot;</b>, más abajo.
                     </>
                   ) : (
                     <>
