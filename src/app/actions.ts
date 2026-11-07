@@ -72,6 +72,7 @@ import { prisma } from "@/lib/db";
 import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual, tick } from "@/lib/sync-queue";
 import { marcarRegistroNuevo } from "@/lib/meta-registro";
 import { MSG_RAMA_ACTUALIZAR } from "@/lib/aviso-rama";
+import { textoPrivado } from "@/lib/textos-estados";
 import { avisarNuevoUsuario } from "@/lib/aviso-admin";
 import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
 import {
@@ -476,7 +477,9 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
     // respondió, NO se le muestra error: se reintenta en segundo plano y se le
     // notifica al quedar listo (regla del dueño, 7 nov 2026).
     if (esProcesoPrivado(err)) {
-      resultado = { error: MSG_PRIVADO };
+      // No es un error: se le explica que lo vigilamos en estados electrónicos.
+      const { estadosActivo } = await import("@/lib/estados");
+      resultado = { ok: textoPrivado(await estadosActivo(user.id)) };
     } else {
       resultado = { ok: MSG_RAMA_ACTUALIZAR };
       after(async () => {

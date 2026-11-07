@@ -192,7 +192,8 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
   }
   const { sendPushToUser } = await import("./push");
   const { estadosActivo } = await import("./estados");
-  const enEstados = r.noEncontrados.length > 0 && (await estadosActivo(userId));
+  const enEstadosUsuario = await estadosActivo(userId);
+  const enEstados = r.noEncontrados.length > 0 && enEstadosUsuario;
   await sendPushToUser(userId, {
     title:
       listos > 0
@@ -204,6 +205,9 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
             : "⚠️ No pudimos cargar tus procesos",
     body:
       (listos > 0 ? `Cargamos ${listos} proceso(s) de la Rama Judicial. Ya puedes revisarlos.` : "") +
+      (r.privados && enEstadosUsuario
+        ? ` ${r.privados} es privado: la Rama no publica sus actuaciones, pero lo vigilamos con Estados electrónicos y te avisamos cuando salga en un estado.`
+        : "") +
       (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
       (r.noEncontrados.length
         ? enEstados
@@ -483,7 +487,9 @@ export function mensajeAgregar(
     ok.push(`${r.pendientes} agregado(s); sus actuaciones se terminan de cargar en segundo plano.`);
   }
   if (r.privados) {
-    ok.push(`${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones.`);
+    ok.push(
+      `${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones. Lo vigilamos con Estados electrónicos y te avisamos cuando salga en un estado.`,
+    );
   }
   if (r.enFondo) {
     ok.push(

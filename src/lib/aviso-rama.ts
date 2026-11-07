@@ -1,3 +1,5 @@
+import { textoPrivado } from "./textos-estados";
+
 // Textos para cuando la Rama Judicial (la fuente de la información) falla.
 // Regla del dueño (7 nov 2026): al abogado NUNCA se le muestra un error de la
 // Rama. Todo se reintenta en segundo plano y se le dice que en unos momentos le
@@ -29,10 +31,14 @@ export const MSG_RAMA_DOC_RESTRINGIDO =
  * error es una caída: privado y "sin actuaciones" son respuestas normales.
  * Las fallas de la Rama no se le muestran (se reintentan solas).
  */
-export function avisoProceso(lastError?: string | null): { tipo: "privado" | "sinActuaciones"; texto: string } | null {
+export function avisoProceso(
+  lastError?: string | null,
+  /** El abogado tiene estados electrónicos activo (los privados se vigilan ahí). */
+  enEstados = true,
+): { tipo: "privado" | "sinActuaciones"; texto: string } | null {
   if (!lastError) return null;
   if (/privad/i.test(lastError)) {
-    return { tipo: "privado", texto: "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones." };
+    return { tipo: "privado", texto: textoPrivado(enEstados) };
   }
   if (/no se encontraron actuaciones/i.test(lastError)) {
     return { tipo: "sinActuaciones", texto: "Este proceso aún no tiene actuaciones publicadas en la Rama Judicial. Te avisamos cuando aparezca la primera." };

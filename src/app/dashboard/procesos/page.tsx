@@ -220,7 +220,7 @@ export default async function ProcesosPage({
           <div className="row wrap">
             <span className="radicado">{c.radicado}</span>
             {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
-            {privado && <span className="badge">privado</span>}
+            {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en estados electrónicos">{estados ? "privado · en estados" : "privado"}</span>}
             {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
             <div className="spacer" />
             <span className="muted small">Últ. actuación: {fmt(c.lastActuacionDate)}</span>
@@ -231,7 +231,7 @@ export default async function ProcesosPage({
           </div>
           {(() => {
             // Las fallas de la Rama no se muestran (se reintentan solas).
-            const a = avisoProceso(c.lastError);
+            const a = avisoProceso(c.lastError, !!estados);
             return a ? <div className="muted small" style={{ marginTop: 4 }}>{a.texto}</div> : null;
           })()}
         </Link>

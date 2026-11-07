@@ -222,7 +222,7 @@ export default async function CaseDetail({
       <p className="muted small">
         Sincronizado: {fmtHora(caso.lastSyncedAt)}
         {(() => {
-          const a = avisoProceso(caso.lastError);
+          const a = avisoProceso(caso.lastError, estados !== undefined);
           return a ? ` · ${a.texto}` : "";
         })()}
       </p>

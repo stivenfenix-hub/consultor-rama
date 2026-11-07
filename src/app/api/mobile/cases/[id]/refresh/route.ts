@@ -1,9 +1,10 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { MSG_RAMA_ACTUALIZAR } from "@/lib/aviso-rama";
 import { reintentarActualizacion } from "@/lib/reintentar-actualizacion";
+import { textoPrivado } from "@/lib/textos-estados";
 import { prisma } from "@/lib/db";
 import { marcarActualizacionProceso, proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
-import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual } from "@/lib/sync-queue";
+import { esProcesoPrivado, revisarProcesoManual } from "@/lib/sync-queue";
 import { jsonError, withMobileUser } from "@/lib/mobile";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ ok: "Proceso actualizado.", nuevas: r.nuevas });
     } catch (err) {
       // el error queda guardado en caso.lastError; no se gasta el intento del día
-      if (esProcesoPrivado(err)) return jsonError(MSG_PRIVADO, 422);
+      if (esProcesoPrivado(err)) {
+        // No es un error: se le explica que lo vigilamos en estados electrónicos.
+        const { estadosActivo } = await import("@/lib/estados");
+        return NextResponse.json({ ok: textoPrivado(await estadosActivo(user.id)), nuevas: 0 });
+      }
       // Sin error para el abogado: se reintenta solo y se le notifica al quedar listo.
       after(() => reintentarActualizacion(id, user.id, caso.radicado));
       return NextResponse.json({ ok: MSG_RAMA_ACTUALIZAR, nuevas: 0 });

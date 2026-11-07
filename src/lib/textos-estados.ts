@@ -44,6 +44,18 @@ export function textoSegundoPlano(radicados: string[]) {
   );
 }
 
+/**
+ * Proceso privado: la Rama no publica sus actuaciones, pero muchos juzgados sí
+ * lo publican en sus estados electrónicos, y esos se vigilan.
+ */
+export function textoPrivado(enEstados = true) {
+  return enEstados
+    ? "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones en la Consulta Nacional. Pero con Estados " +
+        "electrónicos, la nueva tecnología de Estradox, revisamos cada noche las publicaciones públicas del juzgado " +
+        "y te avisamos cuando tu proceso salga en un estado."
+    : "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones.";
+}
+
 /** Explicación corta (notificaciones). */
 export function explicacionCorta(radicados: string[]) {
   const uno = radicados.length === 1;
