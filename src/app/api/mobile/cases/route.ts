@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { iniciarCargaProcesos } from "@/lib/sync";
+import { iniciarCargaProcesos, mensajeFilaCarga } from "@/lib/sync";
 import { analizarRadicados, MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { body, jsonError, str, withMobileUser } from "@/lib/mobile";
 
@@ -52,9 +52,10 @@ export async function POST(req: NextRequest) {
     }
     // Se carga en segundo plano (la Rama puede tardar o estar caída): al
     // terminar llega la notificación, y lo que falle se reintenta solo.
+    const fila = await mensajeFilaCarga(validos.length);
     await iniciarCargaProcesos(user.id, validos, invalidos);
     return NextResponse.json({
-      ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. Te avisamos cuando estén listos.`,
+      ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. ${fila} Te avisamos cuando estén listos.`,
       agregados: validos.length,
       fallidos: 0,
     });

@@ -80,7 +80,7 @@ import {
   passwordSchema,
   registerSchema,
 } from "@/lib/validation";
-import { estadoCarga, iniciarCargaProcesos, marcarCargaVista, marcarVistas } from "@/lib/sync";
+import { estadoCarga, iniciarCargaProcesos, marcarCargaVista, marcarVistas, mensajeFilaCarga } from "@/lib/sync";
 import {
   marcarActualizacionProceso,
   proximaActualizacionProceso,
@@ -440,10 +440,11 @@ export async function agregarProcesoAction(
 
   // Se carga en segundo plano: el abogado puede seguir usando Estradox y en
   // Procesos ve el avance; al terminar le llega notificación y aviso.
+  const fila = await mensajeFilaCarga(validos.length);
   await iniciarCargaProcesos(user.id, validos, invalidos);
   revalidatePath("/dashboard/procesos");
   return {
-    ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. Puedes seguir usando Estradox: te avisamos cuando estén listos.`,
+    ok: `Estamos cargando ${validos.length} proceso(s) desde la Rama Judicial. ${fila} Puedes seguir usando Estradox: te avisamos cuando estén listos.`,
   };
 }
 

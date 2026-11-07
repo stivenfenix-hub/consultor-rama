@@ -75,6 +75,50 @@ export type ResultadoAgregar = {
   errores?: string[];
 };
 
+/**
+ * Fila única de cargas para TODA la plataforma: los radicados que suben los
+ * abogados se consultan de a uno, con 20 s entre uno y otro (como la
+ * revisión nocturna), aunque varios abogados suban a la vez. El turno se
+ * reserva en la base de datos para que valga entre todos los procesos del
+ * servidor. Evita ráfagas como la carga de Tatiana Bustos que bloqueó la Rama.
+ */
+const PAUSA_CARGA_S = 20;
+let turnosListos = false;
+async function esperarTurnoCarga() {
+  try {
+    if (!turnosListos) {
+      await prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "CargaTurno" (id INT PRIMARY KEY, siguiente TIMESTAMPTZ NOT NULL)`,
+      );
+      turnosListos = true;
+    }
+    const [t] = await prisma.$queryRawUnsafe<{ espera: number }[]>(
+      `INSERT INTO "CargaTurno" (id, siguiente) VALUES (1, now() + make_interval(secs => $1))
+       ON CONFLICT (id) DO UPDATE SET siguiente = GREATEST(now(), "CargaTurno".siguiente) + make_interval(secs => $1)
+       RETURNING GREATEST(0, EXTRACT(EPOCH FROM (siguiente - make_interval(secs => $1) - now())) * 1000)::float8 AS espera`,
+      PAUSA_CARGA_S,
+    );
+    const espera = Number(t?.espera ?? 0);
+    if (espera > 0) await new Promise((r) => setTimeout(r, espera));
+  } catch (e) {
+    // Sin base de datos para el turno: al menos se respeta la pausa local.
+    console.error("[carga] turno", e);
+    await new Promise((r) => setTimeout(r, PAUSA_CARGA_S * 1000));
+  }
+}
+
+/** Cuánto falta para que una carga nueva empiece (segundos), para avisar al abogado. */
+export async function esperaFilaCarga(): Promise<number> {
+  try {
+    const [t] = await prisma.$queryRawUnsafe<{ s: number }[]>(
+      `SELECT GREATEST(0, EXTRACT(EPOCH FROM (siguiente - now())))::float8 AS s FROM "CargaTurno" WHERE id = 1`,
+    );
+    return Math.round(Number(t?.s ?? 0));
+  } catch {
+    return 0;
+  }
+}
+
 /** Agrega varios radicados y cuenta qué pasó con cada uno. */
 export async function agregarRadicados(
   userId: string,
@@ -102,6 +146,8 @@ export async function agregarRadicados(
       enFondo(() => agregarEnFondo(userId, resto));
       break;
     }
+    // Cargas en segundo plano: de a un radicado cada 20 s en toda la plataforma.
+    if (presupuestoMs === Infinity) await esperarTurnoCarga();
     try {
       const creados = await agregarProcesoPorRadicado(userId, rad, limite);
       if (creados.every((c) => !c.nuevo)) r.yaEstaban++;
@@ -352,6 +398,11 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
   let fallidos = 0;
   for (const f of filas) {
     if (Date.now() - inicio > presupuestoMs) break;
+    // Los reintentos también van en la fila de cargas (de a uno cada 20 s);
+    // si la fila está larga, quedan para la próxima corrida.
+    const restante = presupuestoMs - (Date.now() - inicio);
+    if ((await esperaFilaCarga()) * 1000 + PAUSA_CARGA_S * 1000 > restante) break;
+    await esperarTurnoCarga();
     try {
       await agregarProcesoPorRadicado(f.userId, f.radicado);
       await prisma.$executeRawUnsafe(
@@ -1079,4 +1130,11 @@ export async function estadoCarga(userId: string, id: number) {
     userId,
   );
   return c ?? null;
+}
+
+/** Aviso para el abogado de cuánto tardará su carga en la fila (de a uno cada 20 s). */
+export async function mensajeFilaCarga(n: number) {
+  const segundos = (await esperaFilaCarga()) + n * PAUSA_CARGA_S;
+  const min = Math.max(1, Math.ceil(segundos / 60));
+  return `Los cargamos de a uno cada ${PAUSA_CARGA_S} segundos para no saturar la Rama Judicial: estarán listos en unos ${min} minuto(s).`;
 }
