@@ -9,7 +9,7 @@ Todo se maneja desde **Panel admin → WhatsApp**: el QR, el estado, pausar, des
 
 Reglas de envío:
 - un mensaje cada 25 a 70 segundos, con una pausa al azar;
-- solo de 8:00 a.m. a 8:00 p.m., hora de Bogotá;
+- solo de 7:01 a.m. a 8:00 p.m., hora de Bogotá;
 - nunca más del máximo diario de cada número.
 
 > Debe correr en **un solo proceso siempre encendido**. No lo subas a Hostinger web (varios procesos que se reinician): úsalo en un servidor aparte.

@@ -30,7 +30,7 @@ if (!process.env.DATABASE_URL) {
 const CUENTAS = ["avisos", "comercial"];
 const PAUSA_MIN = Number(process.env.WA_PAUSA_MIN ?? 25);
 const PAUSA_MAX = Number(process.env.WA_PAUSA_MAX ?? 70);
-const HORA_DESDE = 8 * 60; // 8:00 a.m. Bogotá
+const HORA_DESDE = 7 * 60 + 1; // 7:01 a.m. Bogotá
 const HORA_HASTA = 20 * 60; // 8:00 p.m. Bogotá
 const MAX_INTENTOS = 3;
 
