@@ -1087,34 +1087,57 @@ function escapeHtml(s: string): string {
 
 /** Intentos de carga por abogado (Panel admin → Usuarios). */
 /** Root: cargas, reintentos y procesos de un usuario (página de soporte). */
-export async function detalleCargasUsuario(userId: string) {
+export async function detalleCargasUsuario(
+  userId: string,
+  /** Desde qué fila va cada lista (páginas de a porPagina). */
+  desde: { cargas?: number; reintentos?: number; procesos?: number } = {},
+  porPagina = 20,
+) {
   await asegurarCargas();
   await asegurarReintentos();
-  const [cargas, reintentos, procesos] = await Promise.all([
+  const [cargas, reintentos, procesos, totales] = await Promise.all([
     prisma.$queryRawUnsafe<
       (CargaProcesos & { radicados: string | null })[]
     >(
       `SELECT id, total, listos, estado, ok, error, detalle, radicados, "createdAt" FROM "CargaProcesos"
-       WHERE "userId" = $1 ORDER BY id DESC LIMIT 50`,
+       WHERE "userId" = $1 ORDER BY id DESC LIMIT $2 OFFSET $3`,
       userId,
+      porPagina,
+      desde.cargas ?? 0,
     ),
     prisma.$queryRawUnsafe<
       { radicado: string; intentos: number; proximoAt: Date; ultimoError: string | null }[]
     >(
       `SELECT radicado, intentos, "proximoAt", "ultimoError" FROM "RadicadoReintento"
-       WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+       WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT $2 OFFSET $3`,
       userId,
+      porPagina,
+      desde.reintentos ?? 0,
     ),
     prisma.case.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      skip: desde.procesos ?? 0,
+      take: porPagina,
       select: { id: true, radicado: true, ubicacion: true, lastError: true, _count: { select: { actuaciones: true } } },
     }),
+    prisma.$queryRawUnsafe<{ cargas: bigint; reintentos: bigint; procesos: bigint }[]>(
+      `SELECT (SELECT count(*) FROM "CargaProcesos" WHERE "userId" = $1) AS cargas,
+              (SELECT count(*) FROM "RadicadoReintento" WHERE "userId" = $1) AS reintentos,
+              (SELECT count(*) FROM "Case" WHERE "userId" = $1) AS procesos`,
+      userId,
+    ),
   ]);
+  const t = totales[0];
   return {
     cargas,
     reintentos,
     procesos: procesos.map((p) => ({ ...p, actuaciones: p._count.actuaciones })),
+    totales: {
+      cargas: Number(t?.cargas ?? 0),
+      reintentos: Number(t?.reintentos ?? 0),
+      procesos: Number(t?.procesos ?? 0),
+    },
   };
 }
 

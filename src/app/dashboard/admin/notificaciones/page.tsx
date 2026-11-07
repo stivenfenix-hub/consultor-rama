@@ -3,12 +3,21 @@ import { PromoForm } from "./promo-form";
 import { eventosPush, listarEnviosPromo } from "@/lib/push";
 import { BorrarEnvio } from "./borrar-envio";
 import { PruebaPush } from "./prueba-push";
+import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 
-export default async function NotificacionesAdmin() {
+export default async function NotificacionesAdmin({
+  searchParams,
+}: {
+  searchParams: Promise<{ pagina?: string }>;
+}) {
   const dispositivos = await prisma.pushSubscription.count();
+  // Dispositivos de a 20: solo se pide la página que se ve.
+  const pag = paginaDe((await searchParams).pagina, dispositivos);
   const [subs, eventos, envios] = await Promise.all([
     prisma.pushSubscription.findMany({
       orderBy: { createdAt: "desc" },
+      skip: pag.desde,
+      take: POR_PAGINA,
       include: { user: { select: { email: true } } },
     }),
     eventosPush(),
@@ -100,6 +109,11 @@ export default async function NotificacionesAdmin() {
             </tbody>
           </table>
         </div>
+        <Paginador
+          pagina={pag.pagina}
+          paginas={pag.paginas}
+          hrefDe={(p) => `/dashboard/admin/notificaciones${p > 1 ? `?pagina=${p}` : ""}`}
+        />
       </div>
 
       <div className="card">

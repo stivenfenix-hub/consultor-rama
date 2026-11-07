@@ -291,7 +291,7 @@ export async function listarEnviosPromo(): Promise<EnvioPromo[]> {
     `SELECT title, body, date_trunc('minute', "createdAt") AS fecha, count(*) AS usuarios
      FROM "MobileNotice" WHERE tag = 'promo'
      GROUP BY title, body, date_trunc('minute', "createdAt")
-     ORDER BY fecha DESC LIMIT 40`,
+     ORDER BY fecha DESC LIMIT 20`,
   );
   return filas.map((f) => ({
     clave: JSON.stringify([f.title, f.body, new Date(f.fecha).toISOString()]),

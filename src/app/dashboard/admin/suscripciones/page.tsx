@@ -8,6 +8,7 @@ import {
   totalPagosAprobados,
 } from "@/lib/subscription";
 import { PlanForm } from "./plan-form";
+import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { EndAccessButton, GiftDaysButton } from "./gift-days-button";
 
 const fecha = (d: Date | null) =>
@@ -28,7 +29,11 @@ const ETIQUETA = {
   vencida: <span className="badge" style={{ color: "var(--amber)" }}>vencida</span>,
 };
 
-export default async function SuscripcionesAdmin() {
+export default async function SuscripcionesAdmin({
+  searchParams,
+}: {
+  searchParams: Promise<{ pagina?: string }>;
+}) {
   const [users, subs, plan, pagos, eventos] = await Promise.all([
     resumenUsuarios(),
     suscripcionesDeTodos(),
@@ -37,6 +42,9 @@ export default async function SuscripcionesAdmin() {
     eventosBold(),
   ]);
   const cuenta = (e: string) => users.filter((u) => subs.get(u.id)?.estado === e).length;
+  // Los totales miran a todos; la tabla se muestra de a 20.
+  const pag = paginaDe((await searchParams).pagina, users.length);
+  const visibles = users.slice(pag.desde, pag.desde + POR_PAGINA);
 
   return (
     <div className="page">
@@ -85,7 +93,7 @@ export default async function SuscripcionesAdmin() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {visibles.map((u) => {
                 const s = subs.get(u.id);
                 return (
                   <tr key={u.id}>
@@ -109,6 +117,11 @@ export default async function SuscripcionesAdmin() {
             </tbody>
           </table>
         </div>
+        <Paginador
+          pagina={pag.pagina}
+          paginas={pag.paginas}
+          hrefDe={(p) => `/dashboard/admin/suscripciones${p > 1 ? `?pagina=${p}` : ""}`}
+        />
       </div>
 
       <div className="card">

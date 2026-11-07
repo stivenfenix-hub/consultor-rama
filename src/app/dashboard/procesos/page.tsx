@@ -53,7 +53,8 @@ type Filtro = "todos" | "novedades" | "aldia";
 export default async function ProcesosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filtro?: string; pagina?: string }>;
+  /** pe: página de la lista "En estados electrónicos" (de a 20). */
+  searchParams: Promise<{ filtro?: string; pagina?: string; pe?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -112,7 +113,8 @@ export default async function ProcesosPage({
   }));
 
   // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
-  const { filtro: f, pagina: pg } = await searchParams;
+  const { filtro: f, pagina: pg, pe } = await searchParams;
+  const pagE = paginaDe(pe, estados?.solo.length ?? 0);
   const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
   const conNovedades = grupos.filter((g) => g.nuevas > 0);
   const alDia = grupos.filter((g) => g.nuevas === 0);
@@ -257,7 +259,7 @@ export default async function ProcesosPage({
             Cada noche buscamos tus radicados en el último estado que publica su juzgado. Aquí están los que la
             Consulta Nacional no tiene y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).
           </p>
-          {estados.solo.map((s) => (
+          {estados.solo.slice(pagE.desde, pagE.desde + POR_PAGINA).map((s) => (
             <div key={s.radicado} className="case">
             <Link
               href={s.caseId ? `/dashboard/procesos/${s.caseId}` : "/dashboard/estados"}
@@ -292,6 +294,17 @@ export default async function ProcesosPage({
             </div>
             </div>
           ))}
+          <Paginador
+            pagina={pagE.pagina}
+            paginas={pagE.paginas}
+            hrefDe={(p) => {
+              const s = new URLSearchParams();
+              if (pag.pagina > 1) s.set("pagina", String(pag.pagina));
+              if (p > 1) s.set("pe", String(p));
+              const t = s.toString();
+              return `/dashboard/procesos${t ? `?${t}` : ""}`;
+            }}
+          />
         </>
       )}
     </div>

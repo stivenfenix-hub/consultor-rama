@@ -81,7 +81,7 @@ export default async function UsuariosAdmin({
           <div className="table-wrap">
             <table className="table">
               <tbody>
-                {sospechosos.map((u) => (
+                {sospechosos.slice(0, POR_PAGINA).map((u) => (
                   <tr key={u.id}>
                     <td>{u.name ?? "—"}</td>
                     <td className="muted">{u.email}</td>
@@ -95,6 +95,11 @@ export default async function UsuariosAdmin({
               </tbody>
             </table>
           </div>
+          {sospechosos.length > POR_PAGINA && (
+            <p className="muted small">
+              Se muestran {POR_PAGINA} de {sospechosos.length}. Al eliminar o revisar estos aparecen los siguientes.
+            </p>
+          )}
         </div>
       )}
 

@@ -8,14 +8,37 @@ export const dynamic = "force-dynamic";
 // Agregar varios radicados consulta la Rama, que puede ser lenta.
 export const maxDuration = 300;
 
-// GET -> { cases: [...] }
+// GET [?pagina=N] -> { cases: [...], total, pagina, paginas }
+// Con ?pagina= devuelve de a 20; sin ella, todos (la app instalada aún no pagina).
 export async function GET(req: NextRequest) {
   return withMobileUser(req, async (user) => {
+    const pedida = req.nextUrl.searchParams.get("pagina");
+    const POR_PAGINA = 20;
+    const total = await prisma.case.count({ where: { userId: user.id } });
+    const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+    const pagina = pedida ? Math.min(paginas, Math.max(1, Number(pedida) || 1)) : 1;
     const cases = await prisma.case.findMany({
       where: { userId: user.id },
       orderBy: [{ lastActuacionDate: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      ...(pedida ? { skip: (pagina - 1) * POR_PAGINA, take: POR_PAGINA } : {}),
+      // Solo lo que muestra la lista (sin partes, sujetos ni detalle).
+      select: {
+        id: true,
+        radicado: true,
+        despacho: true,
+        departamento: true,
+        claseProceso: true,
+        esPrivado: true,
+        unseenCount: true,
+        lastActuacionDate: true,
+        lastSyncedAt: true,
+        lastError: true,
+      },
     });
     return NextResponse.json({
+      total,
+      pagina,
+      paginas: pedida ? paginas : 1,
       cases: cases.map((c) => ({
         id: c.id,
         radicado: c.radicado,
