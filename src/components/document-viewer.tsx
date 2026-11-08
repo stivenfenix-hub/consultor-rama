@@ -34,7 +34,15 @@ function loadPdfJs(): Promise<PdfJs> {
   return pdfjsPromise;
 }
 
-export type ViewerDoc = { id: string; nombre: string; tipo: string | null };
+export type ViewerDoc = {
+  id: string;
+  nombre: string;
+  tipo: string | null;
+  /** De dónde se baja, si no es un documento de la Rama (p. ej. un estado electrónico). */
+  ruta?: string;
+};
+
+const rutaDe = (doc: ViewerDoc) => doc.ruta ?? `/api/documento/${doc.id}`;
 
 /** Mensaje del servidor (Rama caída o documento restringido por el juzgado). */
 async function errorDeRespuesta(r: Response): Promise<Error> {
@@ -49,7 +57,7 @@ async function errorDeRespuesta(r: Response): Promise<Error> {
 export async function descargarDocumento(doc: ViewerDoc, data?: ArrayBuffer) {
   const buf: ArrayBuffer =
     data ??
-    (await fetch(`/api/documento/${doc.id}`).then(async (r): Promise<ArrayBuffer> => {
+    (await fetch(rutaDe(doc)).then(async (r): Promise<ArrayBuffer> => {
       if (!r.ok) throw await errorDeRespuesta(r);
       return r.arrayBuffer();
     }));
@@ -64,6 +72,44 @@ export async function descargarDocumento(doc: ViewerDoc, data?: ArrayBuffer) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+/** Botones "Ver" y "Descargar" de un documento. */
+export function DocButtons({
+  doc,
+  onVer,
+  etiqueta,
+}: {
+  doc: ViewerDoc;
+  onVer: (d: ViewerDoc) => void;
+  etiqueta: string;
+}) {
+  const [bajando, setBajando] = useState(false);
+  return (
+    <div className="row" style={{ gap: 6 }}>
+      <button className="btn secondary small" onClick={() => onVer(doc)} title={doc.nombre}>
+        <Icon name="eye" size={16} /> {etiqueta}
+      </button>
+      <button
+        className="btn small"
+        disabled={bajando}
+        title="Descargar"
+        aria-label={`Descargar ${doc.nombre}`}
+        onClick={async () => {
+          setBajando(true);
+          try {
+            await descargarDocumento(doc);
+          } catch (e) {
+            alert(e instanceof Error && e.message ? e.message : MSG_RAMA_DOCUMENTO);
+          } finally {
+            setBajando(false);
+          }
+        }}
+      >
+        {bajando ? "Descargando…" : <><Icon name="download" size={16} /> Descargar</>}
+      </button>
+    </div>
+  );
 }
 
 export function DocumentViewer({
@@ -98,7 +144,7 @@ export function DocumentViewer({
     let cancelado = false;
     (async () => {
       try {
-        const res = await fetch(`/api/documento/${doc.id}?inline=1`);
+        const res = await fetch(`${rutaDe(doc)}?inline=1`);
         if (!res.ok) throw await errorDeRespuesta(res);
         const buf = await res.arrayBuffer();
         if (cancelado) return;
@@ -147,6 +193,7 @@ export function DocumentViewer({
     return () => {
       cancelado = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id]);
 
   async function descargar() {

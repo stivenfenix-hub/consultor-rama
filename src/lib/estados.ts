@@ -792,6 +792,18 @@ export async function estadosDelRadicado(userId: string, radicado: string) {
   return { publicaciones: pubs, juzgado: nombres.get(despacho) ?? null, revisadoAt: d?.revisadoAt ?? null };
 }
 
+/** Enlace del archivo de un hallazgo, solo si es del usuario y viene del portal de la Rama. */
+export async function archivoDeHallazgo(userId: string, id: number) {
+  await asegurarTablas();
+  const [h] = await prisma.$queryRawUnsafe<{ url: string | null; archivo: string | null }[]>(
+    `SELECT url, archivo FROM "EstadoHallazgo" WHERE id = $1 AND "userId" = $2`,
+    id,
+    userId,
+  );
+  if (!h?.url || !h.url.startsWith(`${BASE}/`)) return null;
+  return { url: h.url, archivo: h.archivo ?? "estado" };
+}
+
 export async function marcarHallazgosVistos(userId: string) {
   await asegurarTablas();
   await prisma.$executeRawUnsafe(`UPDATE "EstadoHallazgo" SET visto = true WHERE "userId" = $1 AND NOT visto`, userId);

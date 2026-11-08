@@ -1,12 +1,8 @@
 "use client";
 
-import { MSG_RAMA_DOCUMENTO } from "@/lib/aviso-rama";
 import { useState } from "react";
-import {
-  DocumentViewer,
-  descargarDocumento,
-  type ViewerDoc,
-} from "@/components/document-viewer";
+import { DocButtons, DocumentViewer, type ViewerDoc } from "@/components/document-viewer";
+import { EstadoBotones } from "@/components/estado-botones";
 import { Icon } from "@/components/icon";
 import { Paginador } from "@/components/paginador";
 
@@ -56,6 +52,9 @@ export type EstadoPub = {
   nuevo: boolean;
 };
 
+/** Una fila de la pestaña Actuaciones: actuación de la Rama o estado electrónico. */
+export type FilaLinea = { tipo: "actuacion"; a: Act } | { tipo: "estado"; e: EstadoPub };
+
 type TabKey =
   | "resumen"
   | "actuaciones"
@@ -77,8 +76,8 @@ export function CaseTabs({
   paginas,
 }: {
   datos: Datos;
-  /** Solo la página que se ve (de a 20); el total viene en `paginas`. */
-  actuaciones: Act[];
+  /** Actuaciones y estados por fecha; solo la página que se ve (de a 20), el total viene en `paginas`. */
+  actuaciones: FilaLinea[];
   partes: Parte[];
   documentos: Doc[];
   grabaciones: Grabacion[];
@@ -160,7 +159,32 @@ export function CaseTabs({
             {actuaciones.length === 0 && (
               <p className="muted small">Sin actuaciones registradas.</p>
             )}
-            {actuaciones.map((a) => (
+            {actuaciones.map((f) => {
+              if (f.tipo === "estado") {
+                const e = f.e;
+                return (
+                  <div key={`estado-${e.id}`} className={`event ${e.nuevo ? "unseen" : ""}`}>
+                    <div className="date">
+                      {e.fecha}
+                      <span className="badge reciente" style={{ marginLeft: 8 }}>
+                        estado electrónico
+                      </span>
+                      {e.nuevo && (
+                        <span className="badge new" style={{ marginLeft: 8 }}>
+                          nuevo
+                        </span>
+                      )}
+                    </div>
+                    <div className="name">{e.titulo}</div>
+                    {e.extracto && <div className="note">…{e.extracto}…</div>}
+                    <div className="row wrap" style={{ gap: 8, marginTop: 8 }}>
+                      <EstadoBotones hallazgoId={e.id} archivo={e.archivo} url={e.url} />
+                    </div>
+                  </div>
+                );
+              }
+              const a = f.a;
+              return (
               <div key={a.id} className={`event ${a.seen ? "" : "unseen"}`}>
                 <div className="date">
                   {a.fecha}
@@ -190,7 +214,8 @@ export function CaseTabs({
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             <Paginador
               pagina={paginas.actuaciones.pagina}
               paginas={paginas.actuaciones.paginas}
@@ -318,11 +343,7 @@ export function CaseTabs({
                     <div className="muted small">{e.fecha}</div>
                     {e.extracto && <div className="small" style={{ marginTop: 4 }}>…{e.extracto}…</div>}
                   </div>
-                  {e.url && (
-                    <a className="btn secondary small" href={e.url} target="_blank" rel="noopener noreferrer">
-                      Ver {e.archivo && e.archivo !== "Página de la publicación" ? "PDF" : "estado"}
-                    </a>
-                  )}
+                  <EstadoBotones hallazgoId={e.id} archivo={e.archivo} url={e.url} />
                 </div>
               ))
             )}
@@ -383,47 +404,6 @@ export function CaseTabs({
       </div>
 
       {visor && <DocumentViewer doc={visor} onClose={() => setVisor(null)} />}
-    </div>
-  );
-}
-
-function DocButtons({
-  doc,
-  onVer,
-  etiqueta,
-}: {
-  doc: ViewerDoc;
-  onVer: (d: ViewerDoc) => void;
-  etiqueta: string;
-}) {
-  const [bajando, setBajando] = useState(false);
-  return (
-    <div className="row" style={{ gap: 6 }}>
-      <button
-        className="btn secondary small"
-        onClick={() => onVer(doc)}
-        title={doc.nombre}
-      >
-        <Icon name="eye" size={16} /> {etiqueta}
-      </button>
-      <button
-        className="btn small"
-        disabled={bajando}
-        title="Descargar"
-        aria-label={`Descargar ${doc.nombre}`}
-        onClick={async () => {
-          setBajando(true);
-          try {
-            await descargarDocumento(doc);
-          } catch (e) {
-            alert(e instanceof Error && e.message ? e.message : MSG_RAMA_DOCUMENTO);
-          } finally {
-            setBajando(false);
-          }
-        }}
-      >
-        {bajando ? "Descargando…" : <><Icon name="download" size={16} /> Descargar</>}
-      </button>
     </div>
   );
 }

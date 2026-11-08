@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { Icon } from "@/components/icon";
+import { EstadoBotones } from "@/components/estado-botones";
 import {
   estadosActivo,
   hallazgosDelUsuario,
@@ -93,11 +93,9 @@ export default async function EstadosPage({
                   …{h.extracto}…
                 </div>
               )}
-              {h.url && (
-                <a href={h.url} target="_blank" rel="noopener noreferrer" className="small" style={{ display: "inline-block", marginTop: 6 }}>
-                  <Icon name="download" size={14} /> {h.archivo ?? "Ver publicación"}
-                </a>
-              )}
+              <div className="row wrap" style={{ gap: 8, marginTop: 8 }}>
+                <EstadoBotones hallazgoId={h.id} archivo={h.archivo} url={h.url} />
+              </div>
             </div>
           ))
         )}

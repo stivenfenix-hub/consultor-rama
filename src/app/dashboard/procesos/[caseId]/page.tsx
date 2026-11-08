@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
 import { proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
-import { CaseTabs, type Datos } from "./case-tabs";
+import { CaseTabs, type Datos, type FilaLinea } from "./case-tabs";
 import { Icon } from "@/components/icon";
 import { avisoProceso } from "@/lib/aviso-rama";
 import { extraerGrabaciones, parsePartes } from "@/lib/case-detail";
@@ -48,15 +48,61 @@ export default async function CaseDetail({
   });
   if (!caso) notFound();
 
-  // Actuaciones: solo las 20 de la página que se ve.
-  const totalActs = await prisma.actuacion.count({ where: { caseId: caso.id } });
-  const pagActs = paginaDe(sp.pa, totalActs);
-  const actsPagina = await prisma.actuacion.findMany({
+  // Estados electrónicos donde salió el radicado.
+  const estados = (await estadosActivo(user.id))
+    ? await estadosDelRadicado(user.id, caso.radicado)
+        .then((e) => ({
+          juzgado: e.juzgado,
+          revisado: e.revisadoAt ? fmtHora(e.revisadoAt) : null,
+          publicaciones: e.publicaciones.map((p) => ({
+            id: p.id,
+            titulo: p.titulo,
+            // Fecha del estado (día sin hora): se muestra tal cual, sin pasar a Bogotá.
+            fecha: p.fecha
+              ? new Date(p.fecha).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
+              : "—",
+            dia: p.fecha ? new Date(p.fecha).toISOString().slice(0, 10) : null,
+            extracto: p.extracto,
+            archivo: p.archivo,
+            url: p.url,
+            nuevo: !p.visto,
+          })),
+        }))
+        .catch(() => undefined)
+    : undefined;
+
+  // Pestaña Actuaciones: actuaciones y estados del proceso en una sola línea por
+  // fecha (más reciente primero). Se ordena con id y fecha, y de la página que
+  // se ve (de a 20) se traen los datos completos.
+  const ordenActs = await prisma.actuacion.findMany({
     where: { caseId: caso.id },
     orderBy: [{ fechaActuacion: { sort: "desc", nulls: "last" } }, { consActuacion: "desc" }],
-    skip: pagActs.desde,
-    take: POR_PAGINA,
+    select: { id: true, fechaActuacion: true },
   });
+  const diaBogota = (d: Date | null) =>
+    d ? new Date(new Date(d).getTime() - 5 * 3600_000).toISOString().slice(0, 10) : null;
+  const pubs = estados?.publicaciones ?? [];
+  type Entrada = { tipo: "actuacion"; id: string } | { tipo: "estado"; pub: (typeof pubs)[number] };
+  const linea: Entrada[] = [];
+  for (let i = 0, j = 0; i < ordenActs.length || j < pubs.length; ) {
+    const a = ordenActs[i];
+    const e = pubs[j];
+    const diaA = a ? diaBogota(a.fechaActuacion) : null;
+    // El mismo día, el estado va primero.
+    if (e && (!a || (e.dia && (!diaA || e.dia >= diaA)))) {
+      linea.push({ tipo: "estado", pub: e });
+      j++;
+    } else {
+      linea.push({ tipo: "actuacion", id: a.id });
+      i++;
+    }
+  }
+  const pagActs = paginaDe(sp.pa, linea.length);
+  const lineaPagina = linea.slice(pagActs.desde, pagActs.desde + POR_PAGINA);
+  const actsPagina = await prisma.actuacion.findMany({
+    where: { id: { in: lineaPagina.flatMap((f) => (f.tipo === "actuacion" ? [f.id] : [])) } },
+  });
+  const actPorId = new Map(actsPagina.map((a) => [a.id, a]));
   // Documentos de esas actuaciones (para sus botones "Ver").
   const consPagina = actsPagina.map((a) => a.consActuacion).filter((c): c is number => c != null);
   const docsDeActs = consPagina.length
@@ -115,15 +161,25 @@ export default async function CaseDetail({
     docsByCons.set(d.consActuacion, arr);
   }
 
-  const actuaciones = actsPagina.map((a) => ({
-    id: a.id,
-    fecha: fmtFecha(a.fechaActuacion),
-    nombre: a.actuacion ?? "Actuación",
-    anotacion: a.anotacion,
-    seen: !!a.seenAt,
-    conDocumentos: a.conDocumentos,
-    docs: a.consActuacion != null ? docsByCons.get(a.consActuacion) ?? [] : [],
-  }));
+  const actuaciones = lineaPagina.flatMap((f): FilaLinea[] => {
+    if (f.tipo === "estado") return [{ tipo: "estado", e: f.pub }];
+    const a = actPorId.get(f.id);
+    if (!a) return [];
+    return [
+      {
+        tipo: "actuacion",
+        a: {
+          id: a.id,
+          fecha: fmtFecha(a.fechaActuacion),
+          nombre: a.actuacion ?? "Actuación",
+          anotacion: a.anotacion,
+          seen: !!a.seenAt,
+          conDocumentos: a.conDocumentos,
+          docs: a.consActuacion != null ? docsByCons.get(a.consActuacion) ?? [] : [],
+        },
+      },
+    ];
+  });
 
   // Partes estructuradas; si aún no hay (proceso sincronizado antes), parsea el texto.
   const partes =
@@ -166,28 +222,6 @@ export default async function CaseDetail({
     ...g,
     fecha: fmtFecha(g.fecha),
   }));
-
-  // Prueba de estados electrónicos: pestaña con los estados donde salió el radicado.
-  const estados = (await estadosActivo(user.id))
-    ? await estadosDelRadicado(user.id, caso.radicado)
-        .then((e) => ({
-          juzgado: e.juzgado,
-          revisado: e.revisadoAt ? fmtHora(e.revisadoAt) : null,
-          publicaciones: e.publicaciones.map((p) => ({
-            id: p.id,
-            titulo: p.titulo,
-            // Fecha del estado (día sin hora): se muestra tal cual, sin pasar a Bogotá.
-            fecha: p.fecha
-              ? new Date(p.fecha).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
-              : "—",
-            extracto: p.extracto,
-            archivo: p.archivo,
-            url: p.url,
-            nuevo: !p.visto,
-          })),
-        }))
-        .catch(() => undefined)
-    : undefined;
 
   // Al abogado nunca se le muestran fallas de la Rama (se reintentan solas):
   // ve solo las sincronizaciones exitosas. El root ve todo, con el error.
@@ -271,7 +305,7 @@ export default async function CaseDetail({
         tabInicial={sp.tab}
         paginas={{
           base: `/dashboard/procesos/${caso.id}`,
-          actuaciones: { pagina: pagActs.pagina, paginas: pagActs.paginas, total: totalActs },
+          actuaciones: { pagina: pagActs.pagina, paginas: pagActs.paginas, total: linea.length },
           documentos: { pagina: pagDocs.pagina, paginas: pagDocs.paginas, total: docsUnicos.length },
         }}
       />
