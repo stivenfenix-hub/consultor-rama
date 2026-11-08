@@ -110,12 +110,12 @@ export function CaseTabs({
   const tabs: { key: TabKey; label: string; n?: number }[] = [
     { key: "resumen", label: "Resumen" },
     { key: "actuaciones", label: "Actuaciones", n: paginas.actuaciones.total },
-    { key: "documentos", label: "Documentos", n: paginas.documentos.total },
-    { key: "partes", label: "Partes", n: partes.length },
-    { key: "grabaciones", label: "Grabaciones", n: grabaciones.length },
     ...(estados
       ? [{ key: "estados" as const, label: "Estados electrónicos", n: estados.publicaciones.length }]
       : []),
+    { key: "documentos", label: "Documentos", n: paginas.documentos.total },
+    { key: "partes", label: "Partes", n: partes.length },
+    { key: "grabaciones", label: "Grabaciones", n: grabaciones.length },
     { key: "sincronizacion", label: "Sincronización" },
   ];
 
