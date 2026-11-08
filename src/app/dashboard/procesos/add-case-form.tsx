@@ -50,8 +50,8 @@ export function AddCaseForm({ max }: { max: number }) {
           {pending ? "Enviando…" : "Agregar"}
         </button>
       </div>
+      {/* Al enviar no hay texto: el avance se ve en la barra de carga, debajo del botón. */}
       {state.error && <div className="error">{state.error}</div>}
-      {state.ok && <div className="ok">{state.ok}</div>}
     </form>
   );
 }

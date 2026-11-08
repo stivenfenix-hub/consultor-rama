@@ -143,6 +143,12 @@ export default async function ProcesosPage({
       <div className="card">
         <h2>Agregar proceso por radicado</h2>
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
+        {/* Barra de carga y resultado, justo debajo del botón Agregar. */}
+        {(cargas.length > 0 || reintentos.length > 0) && (
+          <div style={{ marginTop: 14, marginBottom: -14 }}>
+            <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} estados={!!estados} />
+          </div>
+        )}
         {/* Plan con procesos incluidos (usuarios desde el 3 nov 2026). */}
         {/* Solo se avisa cuando ya pasó de los incluidos. */}
         {uso?.limitado && uso.adicionales > 0 && (
@@ -166,10 +172,6 @@ export default async function ProcesosPage({
             Buscamos tus radicados en los estados que publica cada juzgado, aunque no estén en la Consulta Nacional.
           </div>
         </Link>
-      )}
-
-      {(cargas.length > 0 || reintentos.length > 0) && (
-        <CargaAviso cargas={cargas} reintentos={reintentos} esAdmin={user.role === "admin"} estados={!!estados} />
       )}
 
       {todos.length > 0 && (

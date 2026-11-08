@@ -108,7 +108,7 @@ async function esperarTurnoCarga() {
   }
 }
 
-/** Cuánto falta para que una carga nueva empiece (segundos), para avisar al abogado. */
+/** Cuánto falta para que una carga nueva empiece (segundos). */
 export async function esperaFilaCarga(): Promise<number> {
   try {
     const [t] = await prisma.$queryRawUnsafe<{ s: number }[]>(
@@ -1195,11 +1195,4 @@ export async function estadoCarga(userId: string, id: number) {
     userId,
   );
   return c ?? null;
-}
-
-/** Aviso para el abogado de cuánto tardará su carga en la fila (de a uno cada 20 s). */
-export async function mensajeFilaCarga(n: number) {
-  const segundos = (await esperaFilaCarga()) + n * PAUSA_CARGA_S;
-  const min = Math.max(1, Math.ceil(segundos / 60));
-  return `Los cargamos de a uno cada ${PAUSA_CARGA_S} segundos para no saturar la Rama Judicial: estarán listos en unos ${min} minuto(s).`;
 }
