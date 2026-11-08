@@ -203,7 +203,13 @@ const fechaISO = (d: Date) => d.toISOString().slice(0, 10);
 type Item = { id: string; titulo: string; fecha: string | null };
 
 /** Publicaciones del despacho entre dos fechas (todas las clases: estados, traslados, etc.). */
-async function buscarPublicaciones(despacho: string, desde: Date, hasta: Date): Promise<Item[]> {
+async function buscarPublicaciones(
+  despacho: string,
+  desde: Date,
+  hasta: Date,
+  porPagina = 75,
+  timeoutMs = 290_000,
+): Promise<Item[]> {
   const p = new URLSearchParams({
     p_p_id: PORTLET,
     p_p_lifecycle: "0",
@@ -214,10 +220,10 @@ async function buscarPublicaciones(despacho: string, desde: Date, hasta: Date): 
     [`${NS}_fechaInicio`]: fechaISO(desde),
     [`${NS}_fechaFin`]: fechaISO(hasta),
     // La lista viene paginada de a 10; se piden más por página.
-    [`${NS}_delta`]: "75",
+    [`${NS}_delta`]: String(porPagina),
     [`${NS}_cur`]: "1",
   });
-  const html = await (await traer(`${BASE}/web/publicaciones-procesales/inicio?${p}`, 290_000)).text();
+  const html = await (await traer(`${BASE}/web/publicaciones-procesales/inicio?${p}`, timeoutMs)).text();
   const items = new Map<string, Item>();
   const re = /href="[^"]*detail\.jsp[^"]*?articleId=(\d+)[^"]*"[^>]*title="Ver ([^"]+)"/g;
   for (const m of html.matchAll(re)) {
@@ -227,6 +233,39 @@ async function buscarPublicaciones(despacho: string, desde: Date, hasta: Date): 
     items.set(m[1], { id: m[1], titulo: decodificar(m[2]).trim(), fecha: f?.[1] ?? null });
   }
   return [...items.values()];
+}
+
+// El 504 lo da el propio portal cuando su servidor interno se demora: esperar
+// más no sirve. Se reintenta enseguida, con una búsqueda más liviana.
+const REINTENTOS_LIVIANOS = [
+  { esperaMs: 45_000, dias: 3, porPagina: 20, timeoutMs: 120_000 },
+  { esperaMs: 60_000, dias: 3, porPagina: 20, timeoutMs: 120_000 },
+];
+
+/** Un 4xx no mejora reintentando; un 5xx, un timeout o un corte de red sí. */
+const vale_reintentar = (e: unknown) => !/respondió 4\d\d/.test(e instanceof Error ? e.message : String(e));
+
+/** Busca las publicaciones del despacho; si el portal falla, reintenta con menos días y resultados. */
+export async function buscarConReintentos(despacho: string): Promise<Item[]> {
+  const hasta = new Date(Date.now() + 2 * 86400_000); // hay estados con fecha futura (se fijan al día hábil siguiente)
+  const hace = (dias: number) => new Date(Date.now() - dias * 86400_000);
+  try {
+    return await buscarPublicaciones(despacho, hace(DIAS_ATRAS), hasta);
+  } catch (primero) {
+    if (!vale_reintentar(primero)) throw primero;
+    let ultimo = primero;
+    for (const r of REINTENTOS_LIVIANOS) {
+      console.log(`[estados] ${despacho}: ${ultimo instanceof Error ? ultimo.message : ultimo}; reintento liviano`);
+      await new Promise((ok) => setTimeout(ok, r.esperaMs));
+      try {
+        return await buscarPublicaciones(despacho, hace(r.dias), hasta, r.porPagina, r.timeoutMs);
+      } catch (e) {
+        if (!vale_reintentar(e)) throw e;
+        ultimo = e;
+      }
+    }
+    throw ultimo;
+  }
 }
 
 function decodificar(s: string) {
@@ -486,11 +525,9 @@ export async function pedirRevisionDeTodos(): Promise<number> {
 }
 
 async function revisarDespacho(despacho: string) {
-  const hasta = new Date(Date.now() + 2 * 86400_000); // hay estados con fecha futura (se fijan al día hábil siguiente)
-  const desde = new Date(Date.now() - DIAS_ATRAS * 86400_000);
   let items: Item[];
   try {
-    items = await buscarPublicaciones(despacho, desde, hasta);
+    items = await buscarConReintentos(despacho);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // No cuenta como revisado: se reintenta en ~1 hora (ver "errorAt" en revisarEstados).
