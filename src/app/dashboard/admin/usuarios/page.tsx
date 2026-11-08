@@ -113,6 +113,10 @@ export default async function UsuariosAdmin({
           />
           <button className="btn secondary" type="submit">Buscar</button>
           {q && <Link className="btn secondary" href="/dashboard/admin/usuarios">Limpiar</Link>}
+          {/* Siempre descarga todos los usuarios, aunque haya una búsqueda. */}
+          <a className="btn" href="/api/admin/usuarios-excel" download>
+            Descargar todos (Excel)
+          </a>
         </form>
         <div className="muted small" style={{ marginBottom: 8 }}>
           {pagina.total === 0
