@@ -15,7 +15,7 @@ export const MSG_RAMA_ACTUALIZAR =
   "Estamos actualizando tu proceso en segundo plano. En unos momentos te notificamos cuando esté listo.";
 
 export const MSG_RAMA_DOCUMENTO =
-  "Estamos preparando este documento. Intenta abrirlo de nuevo en unos minutos.";
+  "Este documento no está disponible por ahora. Intenta de nuevo más tarde.";
 
 /** Ya no se muestra a los abogados. */
 export const MSG_RAMA_REVISION = "";
