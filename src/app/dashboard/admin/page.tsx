@@ -216,10 +216,10 @@ export default async function AdminDashboard() {
       <section className="card">
         <h2>Accesos rápidos</h2>
         <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
-          <Link href="/dashboard/admin/usuarios" className="btn secondary">
+          <Link prefetch={false} href="/dashboard/admin/usuarios" className="btn secondary">
             <Icon name="users" /> Ver usuarios
           </Link>
-          <Link href="/dashboard/admin/apariencia" className="btn secondary">
+          <Link prefetch={false} href="/dashboard/admin/apariencia" className="btn secondary">
             <Icon name="palette" /> Apariencia del sitio
           </Link>
         </div>

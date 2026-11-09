@@ -23,8 +23,8 @@ export function GoogleButton({ separador }: { separador: string }) {
       </a>
       <p className="muted small" style={{ margin: "8px 0 0", textAlign: "center" }}>
         Al continuar con Google aceptas los{" "}
-        <Link href="/terminos" target="_blank">Términos</Link> y la{" "}
-        <Link href="/privacidad" target="_blank">Política de Datos</Link>.
+        <Link prefetch={false} href="/terminos" target="_blank">Términos</Link> y la{" "}
+        <Link prefetch={false} href="/privacidad" target="_blank">Política de Datos</Link>.
       </p>
       <div className="or-divider">
         <span>{separador}</span>

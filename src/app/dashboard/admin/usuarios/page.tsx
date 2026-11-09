@@ -114,7 +114,7 @@ export default async function UsuariosAdmin({
             style={{ flex: 1, minWidth: 200 }}
           />
           <button className="btn secondary" type="submit">Buscar</button>
-          {q && <Link className="btn secondary" href="/dashboard/admin/usuarios">Limpiar</Link>}
+          {q && <Link prefetch={false} className="btn secondary" href="/dashboard/admin/usuarios">Limpiar</Link>}
           {/* Siempre descarga todos los usuarios, aunque haya una búsqueda. */}
           <a className="btn" href="/api/admin/usuarios-excel" download>
             Descargar todos (Excel)
@@ -145,7 +145,7 @@ export default async function UsuariosAdmin({
               {users.map((u) => (
                 <tr key={u.id}>
                   <td>
-                    <Link href={`/dashboard/admin/usuarios/${u.id}`}>{u.name ?? "—"}</Link>
+                    <Link prefetch={false} href={`/dashboard/admin/usuarios/${u.id}`}>{u.name ?? "—"}</Link>
                     {sospechas.has(u.id) && (
                       <div className="badge warn" title={sospechas.get(u.id)!.join("; ")} style={{ marginTop: 4 }}>
                         ⚠️ Sospechoso
@@ -180,7 +180,7 @@ export default async function UsuariosAdmin({
                       const c = cargas.get(u.id);
                       if (!c || (c.cargas === 0 && c.reintentos === 0)) return <span className="muted">—</span>;
                       return (
-                        <Link href={`/dashboard/admin/usuarios/${u.id}`} title="Ver qué pasó con cada carga">
+                        <Link prefetch={false} href={`/dashboard/admin/usuarios/${u.id}`} title="Ver qué pasó con cada carga">
                           {c.cargas}
                           {c.conError > 0 && <span className="badge warn" style={{ marginLeft: 4 }}>{c.conError} con falla</span>}
                           {c.reintentos > 0 && <span className="badge reciente" style={{ marginLeft: 4 }}>{c.reintentos} reintentando</span>}
@@ -201,7 +201,7 @@ export default async function UsuariosAdmin({
         {pagina.paginas > 1 && (
           <div className="row wrap" style={{ gap: 8, marginTop: 12, justifyContent: "center", alignItems: "center" }}>
             {pagina.pagina > 1 ? (
-              <Link className="btn secondary small" href={enlace(pagina.pagina - 1)}>← Anterior</Link>
+              <Link prefetch={false} className="btn secondary small" href={enlace(pagina.pagina - 1)}>← Anterior</Link>
             ) : (
               <span className="btn secondary small" aria-disabled style={{ opacity: 0.4 }}>← Anterior</span>
             )}
@@ -209,7 +209,7 @@ export default async function UsuariosAdmin({
               Página {pagina.pagina} de {pagina.paginas}
             </span>
             {pagina.pagina < pagina.paginas ? (
-              <Link className="btn secondary small" href={enlace(pagina.pagina + 1)}>Siguiente →</Link>
+              <Link prefetch={false} className="btn secondary small" href={enlace(pagina.pagina + 1)}>Siguiente →</Link>
             ) : (
               <span className="btn secondary small" aria-disabled style={{ opacity: 0.4 }}>Siguiente →</span>
             )}

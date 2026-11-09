@@ -85,7 +85,7 @@ export function AppShell({
 
   const renderNav = (items: NavItem[]) =>
     items.map((item) => (
-      <Link
+      <Link prefetch={false}
         key={item.href}
         href={item.href}
         className={`nav-item ${isActive(item.href) ? "active" : ""}`}
@@ -192,7 +192,7 @@ export function AppShell({
             ? pathname === "/dashboard/admin"
             : isActive(nav.href);
           return (
-            <Link
+            <Link prefetch={false}
               key={nav.href}
               href={href}
               className={`bottom-item ${activo ? "active" : ""}`}

@@ -156,7 +156,7 @@ export function NotificationBell() {
                 </>
               );
               return a.url ? (
-                <Link
+                <Link prefetch={false}
                   key={a.id}
                   href={a.url}
                   className={`bell-item ${a.leido ? "" : "unread"}`}

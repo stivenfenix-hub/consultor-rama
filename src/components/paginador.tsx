@@ -23,7 +23,7 @@ export function Paginador({
   if (paginas <= 1) return null;
   const boton = (p: number, texto: string, activo: boolean) =>
     activo ? (
-      <Link className="btn secondary small" href={hrefDe(p)} scroll={false}>
+      <Link prefetch={false} className="btn secondary small" href={hrefDe(p)} scroll={false}>
         {texto}
       </Link>
     ) : (

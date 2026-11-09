@@ -82,7 +82,7 @@ export function CargaToast({ inicial }: { inicial: Carga | null }) {
         <b>{titulo}</b>
         <span className="small">{texto}</span>
       </div>
-      <Link href="/dashboard/procesos" className="btn small" onClick={cerrar}>
+      <Link prefetch={false} href="/dashboard/procesos" className="btn small" onClick={cerrar}>
         Ver procesos
       </Link>
       <button className="carga-toast-x" onClick={cerrar} aria-label="Cerrar">

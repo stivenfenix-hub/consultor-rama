@@ -239,7 +239,7 @@ export default async function CaseDetail({
     <div className="page">
       <div className="page-head wrap">
         <div>
-          <Link href="/dashboard/procesos" className="small muted">
+          <Link prefetch={false} href="/dashboard/procesos" className="small muted">
             <Icon name="arrowLeft" size={14} /> Procesos
           </Link>
           <h1 className="radicado" style={{ marginTop: 4 }}>
@@ -275,7 +275,7 @@ export default async function CaseDetail({
             </p>
             <div className="fuente-tabs">
               {registros.map((r, i) => (
-                <Link
+                <Link prefetch={false}
                   key={r.id}
                   href={`/dashboard/procesos/${r.id}`}
                   className={`fuente-tab ${r.id === caso.id ? "sel" : ""}`}

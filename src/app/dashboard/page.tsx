@@ -78,7 +78,7 @@ export default async function DashboardPage({
       <div className="page-head wrap">
         <h1>Dashboard</h1>
         <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
-          <Link href="/dashboard/procesos" className="btn">
+          <Link prefetch={false} href="/dashboard/procesos" className="btn">
             + Agregar proceso
           </Link>
         </div>
@@ -106,7 +106,7 @@ export default async function DashboardPage({
           <div className="row">
             <h2 style={{ margin: 0 }}>Estados electrónicos</h2>
             <div className="spacer" />
-            <Link href="/dashboard/estados" className="small">
+            <Link prefetch={false} href="/dashboard/estados" className="small">
               Ver todo
             </Link>
           </div>
@@ -137,7 +137,7 @@ export default async function DashboardPage({
                   {estados.ultimos.map((h) => (
                     <tr key={h.id}>
                       <td>
-                        <Link href="/dashboard/estados" className="radicado">
+                        <Link prefetch={false} href="/dashboard/estados" className="radicado">
                           {h.radicado}
                         </Link>
                         {!h.visto && <span className="badge new" style={{ marginLeft: 6 }}>nuevo</span>}
@@ -195,14 +195,14 @@ export default async function DashboardPage({
         <div className="row">
           <h2 style={{ margin: 0 }}>Procesos con actuación reciente</h2>
           <div className="spacer" />
-          <Link href="/dashboard/procesos" className="small">
+          <Link prefetch={false} href="/dashboard/procesos" className="small">
             Ver todos
           </Link>
         </div>
         {recientes.length === 0 ? (
           <p className="muted small" style={{ marginTop: 12 }}>
             Aún no sigues procesos.{" "}
-            <Link href="/dashboard/procesos">Agrega el primero</Link>.
+            <Link prefetch={false} href="/dashboard/procesos">Agrega el primero</Link>.
           </p>
         ) : (
           <div className="table-wrap">
@@ -218,7 +218,7 @@ export default async function DashboardPage({
                 {recientes.map((c) => (
                   <tr key={c.id}>
                     <td>
-                      <Link
+                      <Link prefetch={false}
                         href={`/dashboard/procesos/${c.id}`}
                         className="radicado"
                       >

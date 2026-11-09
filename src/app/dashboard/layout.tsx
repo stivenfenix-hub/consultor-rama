@@ -64,14 +64,14 @@ export default async function AppLayout({
       aviso = (
         <>
           Prueba gratis: te quedan <b>{sub.diasRestantes} día(s)</b>.{" "}
-          <Link href="/dashboard/suscripcion">Suscribirme</Link>
+          <Link prefetch={false} href="/dashboard/suscripcion">Suscribirme</Link>
         </>
       );
     } else if (sub.estado === "activa" && sub.diasRestantes <= 5) {
       aviso = (
         <>
           Tu plan vence en <b>{sub.diasRestantes} día(s)</b>.{" "}
-          <Link href="/dashboard/suscripcion">Renovar</Link>
+          <Link prefetch={false} href="/dashboard/suscripcion">Renovar</Link>
         </>
       );
     }

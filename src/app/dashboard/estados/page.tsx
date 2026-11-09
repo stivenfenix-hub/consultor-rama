@@ -75,7 +75,7 @@ export default async function EstadosPage({
             <div key={h.id} className="case" style={{ cursor: "default" }}>
               <div className="row wrap">
                 {casoDe.has(h.radicado) ? (
-                  <Link href={`/dashboard/procesos/${casoDe.get(h.radicado)}`} className="radicado">
+                  <Link prefetch={false} href={`/dashboard/procesos/${casoDe.get(h.radicado)}`} className="radicado">
                     {h.radicado}
                   </Link>
                 ) : (

@@ -155,13 +155,13 @@ export default async function ProcesosPage({
           <div className="muted small" style={{ marginTop: 10 }}>
             📋 Tu plan incluye <b>{uso.incluidos} procesos</b> · llevas <b>{uso.total}</b>. Tienes{" "}
             <b>{uso.adicionales} adicional(es)</b>: +{pesos(uso.valorMes)} al mes que se suman a tu próximo pago.{" "}
-            <Link href="/dashboard/suscripcion">Ver detalle</Link>
+            <Link prefetch={false} href="/dashboard/suscripcion">Ver detalle</Link>
           </div>
         )}
       </div>
 
       {estados && (
-        <Link href="/dashboard/estados" className="case">
+        <Link prefetch={false} href="/dashboard/estados" className="case">
           <div className="row wrap">
             <b>📋 Estados electrónicos</b>
             {estados.sinVer > 0 && <span className="badge new">{estados.sinVer} nuevos</span>}
@@ -177,7 +177,7 @@ export default async function ProcesosPage({
       {todos.length > 0 && (
         <nav className="tabbar tabbar-3">
           {pestanas.map((p) => (
-            <Link
+            <Link prefetch={false}
               key={p.key}
               href={p.key === "todos" ? "/dashboard/procesos" : `/dashboard/procesos?filtro=${p.key}`}
               className={`tab ${filtro === p.key ? "active" : ""}`}
@@ -218,7 +218,7 @@ export default async function ProcesosPage({
       )}
 
       {lista.map(({ principal: c, registros, nuevas, privado }) => (
-        <Link key={c.id} href={`/dashboard/procesos/${c.id}`} className="case">
+        <Link prefetch={false} key={c.id} href={`/dashboard/procesos/${c.id}`} className="case">
           <div className="row wrap">
             <span className="radicado">{c.radicado}</span>
             {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
@@ -251,7 +251,7 @@ export default async function ProcesosPage({
           </p>
           {estados.solo.slice(pagE.desde, pagE.desde + POR_PAGINA).map((s) => (
             <div key={s.radicado} className="case">
-            <Link
+            <Link prefetch={false}
               href={s.caseId ? `/dashboard/procesos/${s.caseId}` : "/dashboard/estados"}
               style={{ display: "block", color: "inherit", textDecoration: "none" }}
             >

@@ -68,7 +68,7 @@ export default async function CargasUsuario({
     <div className="page">
       <div className="page-head">
         <div>
-          <Link href="/dashboard/admin/usuarios" className="small muted">← Usuarios</Link>
+          <Link prefetch={false} href="/dashboard/admin/usuarios" className="small muted">← Usuarios</Link>
           <h1 style={{ marginTop: 4 }}>
             {[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email}
           </h1>

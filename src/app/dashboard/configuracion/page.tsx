@@ -61,8 +61,8 @@ export default async function ConfiguracionPage() {
         <h2>Ofertas y boletines</h2>
         <OffersToggle initial={ofertas} />
         <p className="muted small" style={{ marginBottom: 0 }}>
-          <Link href="/terminos" target="_blank">Términos y Condiciones</Link> ·{" "}
-          <Link href="/privacidad" target="_blank">Política de Tratamiento de Datos</Link>
+          <Link prefetch={false} href="/terminos" target="_blank">Términos y Condiciones</Link> ·{" "}
+          <Link prefetch={false} href="/privacidad" target="_blank">Política de Tratamiento de Datos</Link>
         </p>
       </div>
 
