@@ -5,6 +5,7 @@ import { StatTile } from "@/components/charts";
 import { EliminarUsuario } from "./eliminar-usuario";
 import { motivosSospecha } from "@/lib/sospechoso";
 import { resumenCargasPorUsuario } from "@/lib/sync";
+import { conteoProcesosPorUsuario } from "@/lib/estados";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -32,9 +33,10 @@ export default async function UsuariosAdmin({
   ]);
   const users = pagina.users;
   const ids = users.map((u) => u.id);
-  const [whatsapp, cargas] = await Promise.all([
+  const [whatsapp, cargas, procesos] = await Promise.all([
     getWhatsappPorUsuario(ids),
     resumenCargasPorUsuario(ids).catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
+    conteoProcesosPorUsuario(ids).catch(() => new Map<string, number>()),
   ]);
   const sospechas = new Map<string, string[]>();
   for (const u of todos) {
@@ -172,7 +174,7 @@ export default async function UsuariosAdmin({
                     )}
                   </td>
                   <td>{u.emailVerified ? "✓" : "—"}</td>
-                  <td>{u._count.cases}</td>
+                  <td>{procesos.get(u.id) ?? 0}</td>
                   <td className="small">
                     {(() => {
                       const c = cargas.get(u.id);

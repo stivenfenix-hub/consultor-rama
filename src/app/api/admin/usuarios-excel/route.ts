@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { listUsers } from "@/lib/admin";
+import { conteoProcesosPorUsuario } from "@/lib/estados";
 import { resumenCargasPorUsuario } from "@/lib/sync";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +20,10 @@ export async function GET() {
 
   const { users } = await listUsers({ porPagina: 100_000 });
   const ids = users.map((u) => u.id);
-  const [whatsapp, cargas] = await Promise.all([
+  const [whatsapp, cargas, procesosPorUsuario] = await Promise.all([
     getWhatsappPorUsuario(ids),
     resumenCargasPorUsuario(ids).catch(() => new Map<string, { cargas: number }>()),
+    conteoProcesosPorUsuario(ids).catch(() => new Map<string, number>()),
   ]);
 
   const wb = new ExcelJS.Workbook();
@@ -47,7 +49,7 @@ export async function GET() {
       whatsapp: whatsapp.get(u.id) ?? "",
       rol: u.role === "admin" ? "admin" : "usuario",
       verificado: u.emailVerified ? "Sí" : "No",
-      procesos: u._count.cases,
+      procesos: procesosPorUsuario.get(u.id) ?? 0,
       intentos: cargas.get(u.id)?.cargas ?? 0,
       acceso: bogota(u.lastLoginAt),
       registro: bogota(u.createdAt),

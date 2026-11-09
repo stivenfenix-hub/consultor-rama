@@ -186,6 +186,31 @@ export async function contarSoloEstados(userId: string): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
+/**
+ * Procesos de cada usuario (tabla de Usuarios del root): radicados de la Rama
+ * más los que solo están en estados. Un radicado cuenta una vez, igual que en
+ * el Dashboard y en el plan.
+ */
+export async function conteoProcesosPorUsuario(ids: string[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+  await asegurarTablas();
+  const filas = await prisma.$queryRawUnsafe<{ userId: string; n: bigint }[]>(
+    `SELECT r."userId", count(DISTINCT r.radicado) AS n FROM (
+       SELECT c."userId", c.radicado FROM "Case" c WHERE c."userId" = ANY($1::text[])
+       UNION
+       SELECT cp."userId", (regexp_matches(
+         coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1]
+       FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId"
+       WHERE cp."userId" = ANY($1::text[]) AND u."estadosActivo"
+     ) r
+     WHERE EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = r."userId" AND c.radicado = r.radicado)
+        OR NOT EXISTS (SELECT 1 FROM "EstadoQuitado" q WHERE q."userId" = r."userId" AND q.radicado = r.radicado)
+     GROUP BY r."userId"`,
+    ids,
+  );
+  return new Map(filas.map((f) => [f.userId, Number(f.n)]));
+}
+
 export async function estadosActivo(userId: string): Promise<boolean> {
   try {
     await asegurarTablas();
