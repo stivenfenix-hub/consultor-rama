@@ -36,12 +36,16 @@ export default async function DashboardPage({
 
   // Estados electrónicos (solo usuarios en la prueba).
   const estados = (await estadosActivo(user.id))
-    ? await Promise.all([
-        vigiladosDelUsuario(user.id),
-        soloEnEstados(user.id),
-        hallazgosDelUsuario(user.id, 5),
-        hallazgosSinVer(user.id),
-      ]).then(([vigilados, solo, ultimos, sinVer]) => ({
+    ? await vigiladosDelUsuario(user.id)
+        .then(async (vigilados) => {
+          const [solo, ultimos, sinVer] = await Promise.all([
+            soloEnEstados(user.id, vigilados),
+            hallazgosDelUsuario(user.id, 5),
+            hallazgosSinVer(user.id),
+          ]);
+          return { vigilados, solo, ultimos, sinVer };
+        })
+        .then(({ vigilados, solo, ultimos, sinVer }) => ({
         vigilados: vigilados.length,
         soloEstados: solo.filter((s) => !s.caseId).length,
         conHallazgo: solo.filter((s) => s.ultimo).length,

@@ -32,18 +32,29 @@ const PRESUPUESTO_MS = 15 * 60 * 1000;
 const MAX_ARCHIVOS = 60; // por publicación
 const MAX_TEXTO_ARCHIVO = 60_000;
 
-let tablasListas = false;
-async function asegurarTablas() {
-  if (tablasListas) return;
+// Una sola preparación por proceso, aunque lleguen varias páginas a la vez al arrancar.
+let tablasListas: Promise<void> | null = null;
+function asegurarTablas() {
+  tablasListas ??= crearTablas().catch((e) => {
+    tablasListas = null;
+    throw e;
+  });
+  return tablasListas;
+}
+
+async function crearTablas() {
   await ensureColumn("User", "estadosActivo", "BOOLEAN NOT NULL DEFAULT true");
   // Estados para todos (7 nov 2026): los nuevos usuarios lo tienen activo y,
-  // una sola vez, se activa a todos los que ya existían.
-  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ALTER COLUMN "estadosActivo" SET DEFAULT true`);
+  // una sola vez, se activa a todos los que ya existían. El ALTER va aquí
+  // dentro porque bloquea la tabla User: no debe correr en cada arranque.
   await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EstadoMigracion" (id TEXT PRIMARY KEY, "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now())`);
   const [primera] = await prisma.$queryRawUnsafe<{ id: string }[]>(
     `INSERT INTO "EstadoMigracion" (id) VALUES ('todos-activos') ON CONFLICT DO NOTHING RETURNING id`,
   );
-  if (primera) await prisma.$executeRawUnsafe(`UPDATE "User" SET "estadosActivo" = true WHERE NOT "estadosActivo"`);
+  if (primera) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ALTER COLUMN "estadosActivo" SET DEFAULT true`);
+    await prisma.$executeRawUnsafe(`UPDATE "User" SET "estadosActivo" = true WHERE NOT "estadosActivo"`);
+  }
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "EstadoDespacho" (
       despacho TEXT PRIMARY KEY,
@@ -90,7 +101,6 @@ async function asegurarTablas() {
   // Hallazgos por avisar: salen en el mismo resumen de las actuaciones
   // (correo, WhatsApp y notificación), no en un aviso aparte de noche.
   await ensureColumn("EstadoHallazgo", "porAvisar", "BOOLEAN NOT NULL DEFAULT false");
-  tablasListas = true;
 }
 
 export type EstadoPorAvisar = {
@@ -125,19 +135,22 @@ const despachoDe = (radicado: string) => radicado.slice(0, 12);
 
 // ---------- Quién vigila qué ----------
 /** Radicados vigilados: los procesos del usuario y los que intentó agregar (aunque la Rama no los tenga). */
-async function seguimientos(despacho?: string) {
+async function seguimientos(filtro: { despacho?: string; userId?: string } = {}) {
   await asegurarTablas();
+  // Las páginas de un abogado piden solo lo suyo (antes traían los de todos).
+  const deUsuario = filtro.userId ? `AND u.id = $1` : "";
   const filas = await prisma.$queryRawUnsafe<{ userId: string; radicado: string }[]>(
     `SELECT DISTINCT r."userId", r.radicado FROM (
-       SELECT c."userId", c.radicado FROM "Case" c JOIN "User" u ON u.id = c."userId" WHERE u."estadosActivo"
+       SELECT c."userId", c.radicado FROM "Case" c JOIN "User" u ON u.id = c."userId" WHERE u."estadosActivo" ${deUsuario}
        UNION
        SELECT cp."userId", (regexp_matches(
          coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1]
-       FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId" WHERE u."estadosActivo"
+       FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId" WHERE u."estadosActivo" ${deUsuario}
      ) r
      WHERE NOT EXISTS (SELECT 1 FROM "EstadoQuitado" q WHERE q."userId" = r."userId" AND q.radicado = r.radicado)`,
+    ...(filtro.userId ? [filtro.userId] : []),
   );
-  return despacho ? filas.filter((f) => despachoDe(f.radicado) === despacho) : filas;
+  return filtro.despacho ? filas.filter((f) => despachoDe(f.radicado) === filtro.despacho) : filas;
 }
 
 /**
@@ -585,7 +598,7 @@ async function revisarDespacho(despacho: string) {
 
 /** Busca los radicados vigilados del despacho en sus publicaciones guardadas y avisa los nuevos. */
 async function cruzarDespacho(despacho: string) {
-  const segs = await seguimientos(despacho);
+  const segs = await seguimientos({ despacho });
   if (segs.length === 0) return 0;
   const pubs = await prisma.$queryRawUnsafe<{ id: string; titulo: string; fecha: Date | null; archivos: Archivo[] }[]>(
     `SELECT id, titulo, fecha, archivos FROM "EstadoPublicacion"
@@ -834,8 +847,12 @@ export type SoloEstados = {
  * Consulta Nacional no tiene (siempre) y los que sí tiene pero salieron en un
  * estado (hay juzgados que publican el estado y no registran la actuación).
  */
-export async function soloEnEstados(userId: string): Promise<SoloEstados[]> {
-  const vigilados = await vigiladosDelUsuario(userId);
+export async function soloEnEstados(
+  userId: string,
+  /** Si la página ya los pidió, para no repetir la consulta. */
+  yaVigilados?: Awaited<ReturnType<typeof vigiladosDelUsuario>>,
+): Promise<SoloEstados[]> {
+  const vigilados = yaVigilados ?? (await vigiladosDelUsuario(userId));
   const casos = new Map(
     (
       await prisma.case.findMany({
@@ -879,7 +896,7 @@ export async function soloEnEstados(userId: string): Promise<SoloEstados[]> {
 /** Radicados vigilados del usuario y cuándo se revisó su despacho. */
 export async function vigiladosDelUsuario(userId: string) {
   await asegurarTablas();
-  const segs = (await seguimientos()).filter((s) => s.userId === userId);
+  const segs = await seguimientos({ userId });
   const despachos = [...new Set(segs.map((s) => despachoDe(s.radicado)))];
   const estado = await prisma.$queryRawUnsafe<
     { despacho: string; revisadoAt: Date | null; ultimoError: string | null; publicaciones: number }[]
