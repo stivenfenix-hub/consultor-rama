@@ -1,4 +1,5 @@
 import { fechaBogotaHace, filasSinProcesosDelDia } from "@/lib/reporte-whatsapp";
+import { EnviarWhatsapp } from "./enviar-whatsapp";
 
 function fechaLarga(f: string) {
   const t = new Date(`${f}T12:00:00-05:00`).toLocaleDateString("es-CO", {
@@ -30,9 +31,9 @@ export default async function ReportesAdmin({
       <div className="card">
         <h2>Registrados sin procesos</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Quienes se registraron ese día y todavía no han cargado ningún proceso. Mismo
-          formato del reporte de WhatsApp (A: nombre - mensaje, B: teléfono). Cada mañana a
-          las 7:20 a.m. te llega la notificación con el del día anterior.
+          Quienes se registraron ese día y no han ingresado ningún radicado. Cada mañana a las
+          7:20 a.m. los del día anterior se envían solos por WhatsApp y te llega la notificación.
+          Esta misma lista es la del Excel (A: mensaje, B: teléfono).
         </p>
         <div className="table-wrap">
           <table className="table">
@@ -50,9 +51,12 @@ export default async function ReportesAdmin({
                   <td>{c.n}</td>
                   <td>
                     {c.n > 0 ? (
-                      <a className="btn small" href={`/api/admin/reporte-sin-procesos?fecha=${c.fecha}`} download>
-                        Descargar Excel
-                      </a>
+                      <div className="row wrap" style={{ gap: 8 }}>
+                        <a className="btn small" href={`/api/admin/reporte-sin-procesos?fecha=${c.fecha}`} download>
+                          Descargar Excel
+                        </a>
+                        <EnviarWhatsapp fecha={c.fecha} n={c.n} />
+                      </div>
                     ) : (
                       <span className="muted small">—</span>
                     )}
