@@ -45,13 +45,17 @@ export function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
+  // Hay dos campanas (celular y escritorio) y una está oculta: solo consulta la visible.
+  const esVisible = () => (ref.current?.getClientRects().length ?? 0) > 0;
   const contar = useCallback(() => {
+    if (!esVisible()) return;
     contarAvisos().then(setN).catch(() => {});
   }, []);
 
   // Al abrir una página: sus avisos quedan leídos y se recuenta. Si llegó
   // tocando una notificación push (?aviso=id), ese aviso queda leído.
   useEffect(() => {
+    if (!esVisible()) return;
     const params = new URLSearchParams(window.location.search);
     const avisoId = Number(params.get("aviso"));
     if (avisoId) {

@@ -33,6 +33,39 @@ export default async function BaseDatosPage() {
   );
   const kbLogos = Math.round((logosViejos?.[0]?.b ?? 0) / 1024);
 
+  // Diagnóstico de lentitud: cuánto tarda la consulta más simple (red + espera de conexión).
+  const latencias: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const t = Date.now();
+    await intentar(() => prisma.$queryRawUnsafe(`SELECT 1`));
+    latencias.push(Date.now() - t);
+  }
+  const [enCurso, masLentas] = await Promise.all([
+    intentar(() =>
+      prisma.$queryRawUnsafe<
+        { estado: string | null; s: number; espera: string | null; app: string | null; consulta: string }[]
+      >(
+        `SELECT state AS estado, round(extract(epoch FROM now() - query_start))::int AS s,
+                concat_ws(':', wait_event_type, wait_event) AS espera, application_name AS app,
+                left(regexp_replace(query, '\\s+', ' ', 'g'), 180) AS consulta
+         FROM pg_stat_activity
+         WHERE datname = current_database() AND pid <> pg_backend_pid() AND state IS NOT NULL AND state <> 'idle'
+         ORDER BY query_start LIMIT 15`,
+      ),
+    ),
+    intentar(() =>
+      prisma.$queryRawUnsafe<{ consulta: string; llamadas: bigint; media: number; max: number; total: number }[]>(
+        `SELECT left(regexp_replace(query, '\\s+', ' ', 'g'), 200) AS consulta, calls AS llamadas,
+                round(mean_exec_time::numeric, 0)::float AS media, round(max_exec_time::numeric, 0)::float AS max,
+                round(total_exec_time::numeric, 0)::float AS total
+         FROM extensions.pg_stat_statements
+         WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database()) AND calls >= 3
+           AND query NOT ILIKE '%pg_stat%' AND query NOT ILIKE '%pg_timezone%' AND query NOT ILIKE '%pgbouncer%'
+         ORDER BY total_exec_time DESC LIMIT 15`,
+      ),
+    ),
+  ]);
+
   const [tam, tablas, conexiones, maxConn, consultas] = await Promise.all([
     intentar(() =>
       prisma.$queryRawUnsafe<{ b: bigint }[]>(`SELECT pg_database_size(current_database()) AS b`),
@@ -125,6 +158,53 @@ export default async function BaseDatosPage() {
                   <td>{c.app || "—"}</td>
                   <td className="muted">{c.estado ?? "—"}</td>
                   <td>{Number(c.n)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Velocidad de la base</h2>
+        <p style={{ marginTop: 0 }}>
+          Consulta más simple, 4 veces: <b>{latencias.map((m) => `${m} ms`).join(" · ")}</b>
+        </p>
+        <h3 style={{ marginBottom: 4 }}>En ejecución ahora ({enCurso?.length ?? 0})</h3>
+        <div className="table-wrap">
+          <table className="table">
+            <tbody>
+              {(enCurso ?? []).map((q, i) => (
+                <tr key={i}>
+                  <td>{q.s} s</td>
+                  <td className="muted small">{q.estado} {q.espera}</td>
+                  <td className="muted small">{q.app || "—"}</td>
+                  <td className="small" style={{ fontFamily: "monospace", maxWidth: 480 }}>{q.consulta}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <h3 style={{ marginBottom: 4 }}>Las que más tiempo consumen</h3>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Consulta</th>
+                <th>Veces</th>
+                <th>Media</th>
+                <th>Máx.</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(masLentas ?? []).map((q, i) => (
+                <tr key={i}>
+                  <td className="small" style={{ fontFamily: "monospace", maxWidth: 480 }}>{q.consulta}</td>
+                  <td>{Number(q.llamadas).toLocaleString("es-CO")}</td>
+                  <td>{q.media} ms</td>
+                  <td>{q.max} ms</td>
+                  <td className="muted">{Math.round(q.total / 1000)} s</td>
                 </tr>
               ))}
             </tbody>
