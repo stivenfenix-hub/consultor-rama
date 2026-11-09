@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "./db";
+import { contarSoloEstados } from "./estados";
 
 export type Slice = { label: string; value: number };
 
@@ -63,7 +64,9 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   }
   const cases = [...porRadicado.values()];
 
-  const totalProcesos = cases.length;
+  // Procesos activos: los de la Rama más los que solo están en estados
+  // electrónicos (un radicado que está en ambos cuenta una vez, como en el plan).
+  const totalProcesos = cases.length + (await contarSoloEstados(userId).catch(() => 0));
   const nuevosEsteMes = cases.filter((c) => c.createdAt >= startOfMonth).length;
   const sinVer = cases.reduce((n, c) => n + c.unseenCount, 0);
 
