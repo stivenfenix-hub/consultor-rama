@@ -69,7 +69,7 @@ export function CaseActions({
         className="btn danger"
         disabled={pending}
         onClick={() => {
-          if (!confirm("¿Eliminar este proceso de tu seguimiento? Se eliminan todos sus registros de la Rama (SIUGJ, Justicia XXI…).")) return;
+          if (!confirm("¿Eliminar este proceso de tu seguimiento? Se eliminan todos sus registros de la Rama (SIUGJ, Justicia XXI…) y deja de vigilarse en estados electrónicos.")) return;
           run("del", async () => {
             await eliminarProcesoAction(caseId);
             router.push("/dashboard/procesos");

@@ -513,6 +513,10 @@ export async function eliminarProcesoAction(caseId: string) {
   });
   if (caso) {
     await prisma.case.deleteMany({ where: { userId: user.id, radicado: caso.radicado } });
+    // También sale de estados electrónicos: ya no se vigila ni cuenta en el plan.
+    // Si lo vuelve a agregar, se vigila otra vez (buscarEstadosDeNuevos).
+    const { dejarDeVigilar } = await import("@/lib/estados");
+    await dejarDeVigilar(user.id, caso.radicado).catch((e) => console.error("[estados] al eliminar", e));
   }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");

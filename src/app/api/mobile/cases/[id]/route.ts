@@ -103,7 +103,12 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
         where: { id, userId: user.id },
         select: { radicado: true },
       });
-      if (caso) await prisma.case.deleteMany({ where: { userId: user.id, radicado: caso.radicado } });
+      if (caso) {
+        await prisma.case.deleteMany({ where: { userId: user.id, radicado: caso.radicado } });
+        // También sale de estados electrónicos (ya no se vigila ni cuenta en el plan).
+        const { dejarDeVigilar } = await import("@/lib/estados");
+        await dejarDeVigilar(user.id, caso.radicado).catch((e) => console.error("[estados] al eliminar", e));
+      }
       return NextResponse.json({ ok: "Proceso eliminado." });
     },
     { allowExpired: true },
