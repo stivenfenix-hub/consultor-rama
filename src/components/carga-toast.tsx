@@ -36,8 +36,14 @@ export function CargaToast({ inicial }: { inicial: Carga | null }) {
 
   useEffect(() => {
     if (!carga || carga.estado !== "cargando") return;
+    // Una consulta a la vez y solo con la pestaña visible: no se acumulan y
+    // no hacen esperar la navegación.
+    let enCurso = false;
     const t = setInterval(async () => {
+      if (enCurso || document.visibilityState !== "visible") return;
+      enCurso = true;
       const c = await estadoCargaAction(carga.id).catch(() => null);
+      enCurso = false;
       if (c && c.estado !== "cargando") setCarga(c);
     }, 6_000);
     return () => clearInterval(t);

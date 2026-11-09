@@ -4,13 +4,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  contarAvisosAction,
   listarAvisosAction,
   marcarAvisoLeidoAction,
   marcarTodosLeidosAction,
 } from "@/app/actions";
 import type { AvisoApp } from "@/lib/push";
 import { Icon } from "./icon";
+
+/** No leídas de la campana. Con `ruta`, los avisos de esa página quedan leídos. */
+async function contarAvisos(ruta?: string): Promise<number> {
+  const r = await fetch("/api/avisos/contar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ruta }),
+  });
+  if (!r.ok) throw new Error("contar");
+  return ((await r.json()) as { n: number }).n;
+}
 
 function hace(fecha: Date | string) {
   const min = Math.max(0, Math.round((Date.now() - new Date(fecha).getTime()) / 60_000));
@@ -36,7 +46,7 @@ export function NotificationBell() {
   const pathname = usePathname();
 
   const contar = useCallback(() => {
-    contarAvisosAction().then(setN).catch(() => {});
+    contarAvisos().then(setN).catch(() => {});
   }, []);
 
   // Al abrir una página: sus avisos quedan leídos y se recuenta. Si llegó
@@ -50,7 +60,7 @@ export function NotificationBell() {
       window.history.replaceState(window.history.state, "", `${pathname}${q ? `?${q}` : ""}`);
     }
     (avisoId ? marcarAvisoLeidoAction(avisoId) : Promise.resolve())
-      .then(() => contarAvisosAction(pathname))
+      .then(() => contarAvisos(pathname))
       .then(setN)
       .catch(() => {});
   }, [pathname]);

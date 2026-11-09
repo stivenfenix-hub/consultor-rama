@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import QRCode from "qrcode";
 import {
   controlWhatsappAction,
-  estadoWhatsappAction,
   maxDiaWhatsappAction,
   pruebaWhatsappAction,
 } from "@/app/actions";
@@ -32,13 +31,24 @@ const fmt = (d: Date | string | null) =>
 export function PanelWhatsapp() {
   const [datos, setDatos] = useState<{ cuentas: EstadoWa[]; mensajes: MensajeWa[] } | null>(null);
 
-  const cargar = useCallback(() => {
-    estadoWhatsappAction().then(setDatos).catch(() => {});
+  const cargar = useCallback(async () => {
+    const r = await fetch("/api/admin/whatsapp-estado", { cache: "no-store" });
+    if (r.ok) setDatos(await r.json());
   }, []);
   useEffect(() => {
-    cargar();
-    const t = setInterval(cargar, 4_000); // el QR cambia cada ~20 s
-    return () => clearInterval(t);
+    // Cada 4 s después de terminar la anterior: las consultas nunca se acumulan.
+    // Con la pestaña oculta no se consulta.
+    let timer: ReturnType<typeof setTimeout>;
+    let activo = true;
+    const ciclo = async () => {
+      if (document.visibilityState === "visible") await cargar().catch(() => {});
+      if (activo) timer = setTimeout(ciclo, 4_000); // el QR cambia cada ~20 s
+    };
+    void ciclo();
+    return () => {
+      activo = false;
+      clearTimeout(timer);
+    };
   }, [cargar]);
 
   if (!datos) return <p className="muted">Cargando…</p>;
