@@ -7,7 +7,7 @@ import { sendMail } from "./mailer";
 /**
  * Reporte diario para enviar los avisos por WhatsApp desde una plataforma de
  * envío masivo (sin la API de WhatsApp). Cada aviso que Estradox da por correo
- * o por la app (actuaciones nuevas, recordatorio de cargar procesos, acceso por
+ * o por la app (actuaciones nuevas, acceso por
  * vencer o vencido; la bienvenida no) se guarda también aquí en texto. A las
  * 7:30 a.m. se manda al root un Excel sin encabezado con lo acumulado desde el
  * reporte anterior, una fila por aviso (cada uno es un mensaje aparte):
@@ -198,26 +198,6 @@ export function agruparPorAbogado(
 }
 
 /**
- * Quien lleva 24 h o más registrado y no ha cargado ningún proceso va una vez
- * al reporte (aunque el correo de recordatorio ya le haya llegado antes).
- */
-async function agregarSinProcesos() {
-  await ensureColumn("User", "waSinProcesosAt", "TIMESTAMPTZ");
-  const usuarios = await prisma.$queryRawUnsafe<{ id: string; lastName: string | null; name: string | null }[]>(
-    `UPDATE "User" u SET "waSinProcesosAt" = now()
-     WHERE u.role <> 'admin'
-       AND u."createdAt" <= now() - interval '24 hours'
-       AND u."waSinProcesosAt" IS NULL
-       AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
-     RETURNING u.id, u."lastName", u.name`,
-  );
-  for (const u of usuarios) {
-    const apellido = primerApellido(u.lastName, u.name);
-    await registrarAvisoWhatsapp(u.id, "sinProcesos", textoAutomatico("sinProcesos", { apellido }));
-  }
-}
-
-/**
  * Envía al root el reporte con los avisos no reportados, una sola vez al día.
  * `forzar` lo envía aunque ya haya salido hoy.
  */
@@ -229,7 +209,6 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
   );
   if (!opts.forzar && s?.f === hoy) return { omitido: "ya enviado hoy" };
 
-  await agregarSinProcesos();
   const avisos = await prisma.$queryRawUnsafe<
     { id: number; userId: string; tipo: string; mensaje: string; firstName: string | null; name: string | null; whatsapp: string | null }[]
   >(
@@ -269,7 +248,7 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
       to: a.email,
       subject: `Reporte WhatsApp ${hoy}: ${filas.length} aviso(s)`,
       text: `Adjunto el Excel con ${filas.length} aviso(s) para enviar por WhatsApp (una fila por mensaje).`,
-      html: `<div style="font-family:system-ui,sans-serif"><p>Adjunto el Excel con <b>${filas.length}</b> aviso(s) para enviar por WhatsApp, uno por fila (actuaciones nuevas, procesos sin cargar y pagos por vencer o vencidos).</p><p style="color:#777;font-size:13px">Columna A: nombre y aviso. Columna B: teléfono.</p></div>`,
+      html: `<div style="font-family:system-ui,sans-serif"><p>Adjunto el Excel con <b>${filas.length}</b> aviso(s) para enviar por WhatsApp, uno por fila (actuaciones nuevas y pagos por vencer o vencidos).</p><p style="color:#777;font-size:13px">Columna A: nombre y aviso. Columna B: teléfono.</p></div>`,
       attachments: [
         {
           filename: `avisos-whatsapp-${hoy}.xlsx`,
@@ -306,25 +285,28 @@ export function fechaBogotaHace(dias: number, d = new Date()) {
 }
 
 /**
- * Quienes se registraron ese día (hora de Bogotá) y aún no han cargado ningún
- * proceso: A = mensaje (saluda por el apellido), B = teléfono.
+ * Quienes se registraron ese día (hora de Bogotá) y no han ingresado ningún
+ * radicado (ni en la Rama ni solo en estados): A = mensaje (saluda por el
+ * apellido), B = teléfono. Es la ÚNICA lista: la misma del Excel y del WhatsApp.
  */
 export async function filasSinProcesosDelDia(fecha: string) {
   const usuarios = await prisma.$queryRawUnsafe<
-    { firstName: string | null; lastName: string | null; name: string | null; whatsapp: string | null }[]
+    { id: string; lastName: string | null; name: string | null; whatsapp: string | null }[]
   >(
-    `SELECT u."firstName", u."lastName", u.name, u."whatsapp" FROM "User" u
+    `SELECT u.id, u."lastName", u.name, u."whatsapp" FROM "User" u
      WHERE u.role <> 'admin'
        AND (u."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date = $1::date
        AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
+       AND NOT EXISTS (SELECT 1 FROM "CargaProcesos" cp WHERE cp."userId" = u.id)
      ORDER BY u."createdAt"`,
     fecha,
   );
-  const filas: { mensaje: string; telefono: string }[] = [];
+  const filas: { userId: string; mensaje: string; telefono: string }[] = [];
   for (const u of usuarios) {
     const telefono = (u.whatsapp ?? "").replace(/\D/g, "");
     if (!telefono) continue;
     filas.push({
+      userId: u.id,
       // Sin "Nombre - ": el mensaje ya saluda por el apellido.
       mensaje: textoAutomatico("sinProcesos", { apellido: primerApellido(u.lastName, u.name) }),
       telefono,
@@ -333,7 +315,7 @@ export async function filasSinProcesosDelDia(fecha: string) {
   return filas;
 }
 
-/** 7:20 a.m.: avisa al root (push + campana) con el enlace para descargar el Excel. */
+/** 7:20 a.m.: envía por WhatsApp a los registrados ayer sin radicados y avisa al root (push + campana). */
 export async function avisarReporteSinProcesos() {
   await ensureColumn("SiteSetting", "reporteSinProcesosFecha", "TEXT");
   const hoy = hoyBogota();
@@ -347,6 +329,12 @@ export async function avisarReporteSinProcesos() {
   );
   const ayer = fechaBogotaHace(1);
   const filas = await filasSinProcesosDelDia(ayer);
+  // De una vez a la cola del WhatsApp comercial (la misma lista del Excel).
+  const { encolarWhatsapp } = await import("./whatsapp");
+  const encolados = await encolarWhatsapp(filas.map((f) => ({ ...f, tipo: "sinProcesos" }))).catch((e) => {
+    console.error("[reporte-sin-procesos] encolar WhatsApp", e);
+    return 0;
+  });
   const admins = await prisma.user.findMany({ where: { role: "admin" }, select: { id: true } });
   const { sendPushToUsers } = await import("./push");
   await sendPushToUsers(
@@ -355,11 +343,11 @@ export async function avisarReporteSinProcesos() {
       title: "📋 Registrados ayer sin procesos",
       body:
         filas.length > 0
-          ? `${filas.length} usuario(s) se registraron ayer y no han cargado procesos. Toca para descargar el Excel.`
-          : "Todos los que se registraron ayer ya cargaron procesos (o no hubo registros).",
+          ? `${filas.length} usuario(s) se registraron ayer y no ingresaron radicados; ${encolados} mensaje(s) enviados a la cola de WhatsApp. Toca para ver el Excel.`
+          : "Todos los que se registraron ayer ya ingresaron radicados (o no hubo registros).",
       url: `/dashboard/admin/reportes?fecha=${ayer}`,
       tag: "reporte-sin-procesos",
     },
   );
-  return { fecha: ayer, usuarios: filas.length };
+  return { fecha: ayer, usuarios: filas.length, encoladosWhatsapp: encolados };
 }
