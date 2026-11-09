@@ -18,6 +18,11 @@
   box-sizing: border-box;
 }
 
+/* Sin zoom con los dedos (Safari en iPhone ignora user-scalable del viewport). */
+html {
+  touch-action: pan-x pan-y;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -736,7 +741,8 @@ a.tab {
 @media (max-width: 720px) {
   .tabbar {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    /* minmax(0, …): una etiqueta larga ya no ensancha la columna ni se sale del marco. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
     overflow: visible;
   }
@@ -745,6 +751,10 @@ a.tab {
     gap: 5px;
     padding: 10px 4px;
     font-size: 13px;
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
   }
   .tab-count {
     min-width: 18px;

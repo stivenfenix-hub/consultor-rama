@@ -26,6 +26,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0a0820",
+  // Sin zoom en el celular.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({
