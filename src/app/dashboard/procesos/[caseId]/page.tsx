@@ -63,8 +63,7 @@ export default async function CaseDetail({
               : "—",
             dia: p.fecha ? new Date(p.fecha).toISOString().slice(0, 10) : null,
             extracto: p.extracto,
-            archivo: p.archivo,
-            url: p.url,
+            documentos: p.documentos,
             nuevo: !p.visto,
           })),
         }))

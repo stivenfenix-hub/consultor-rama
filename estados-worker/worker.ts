@@ -10,7 +10,7 @@
  * Variables (.env): DATABASE_URL, ESTRADOX_DB_POOL, ESTADOS_DESPACHOS_POR_CORRIDA,
  * ESTADOS_PAUSA_MS. Ver README.md.
  */
-import { revisarEstados } from "../src/lib/estados";
+import { completarDocumentosHallazgos, revisarEstados } from "../src/lib/estados";
 
 const ESPERA_SIN_TRABAJO_MS = 60_000; // nada pendiente: vuelve a mirar en 1 minuto
 const ESPERA_CON_TRABAJO_MS = 5_000; // hubo juzgados: sigue casi enseguida
@@ -25,6 +25,12 @@ const log = (msg: string, extra?: unknown) =>
   );
 
 log("Servicio de estados electrónicos iniciado");
+// Hallazgos de antes con un solo documento: se completan con todos (solo base, sin portal).
+try {
+  log("documentos completados", await completarDocumentosHallazgos());
+} catch (e) {
+  log("error completando documentos", e instanceof Error ? e.message : String(e));
+}
 while (!parar) {
   let hubo = false;
   try {

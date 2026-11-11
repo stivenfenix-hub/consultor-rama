@@ -18,7 +18,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Tu acceso venció. Renueva tu plan." }, { status: 402 });
   }
   if (!/^\d+$/.test(id)) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-  const archivo = await archivoDeHallazgo(user.id, Number(id));
+  const doc = Math.max(0, Math.floor(Number(req.nextUrl.searchParams.get("doc")) || 0));
+  const archivo = await archivoDeHallazgo(user.id, Number(id), doc);
   if (!archivo) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   // Máximo 40 s esperando que el portal empiece a responder (Hostinger corta las peticiones largas).

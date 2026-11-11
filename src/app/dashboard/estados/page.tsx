@@ -94,7 +94,7 @@ export default async function EstadosPage({
                 </div>
               )}
               <div className="row wrap" style={{ gap: 8, marginTop: 8 }}>
-                <EstadoBotones hallazgoId={h.id} archivo={h.archivo} url={h.url} />
+                <EstadoBotones hallazgoId={h.id} documentos={h.documentos} />
               </div>
             </div>
           ))

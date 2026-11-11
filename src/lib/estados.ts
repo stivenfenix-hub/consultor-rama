@@ -101,6 +101,8 @@ async function crearTablas() {
   // Hallazgos por avisar: salen en el mismo resumen de las actuaciones
   // (correo, WhatsApp y notificación), no en un aviso aparte de noche.
   await ensureColumn("EstadoHallazgo", "porAvisar", "BOOLEAN NOT NULL DEFAULT false");
+  // Todos los documentos de la publicación donde está el radicado; archivo/url es el primero.
+  await ensureColumn("EstadoHallazgo", "documentos", "JSONB");
 }
 
 export type EstadoPorAvisar = {
@@ -316,6 +318,8 @@ function decodificar(s: string) {
 }
 
 type Archivo = { nombre: string; url: string; texto: string; imagen?: boolean };
+/** Un documento de un hallazgo (la planilla del estado, un auto, o la página). */
+export type DocEstado = { nombre: string; url: string };
 
 /** Abre una publicación y lee el texto de sus archivos (y de la página misma). */
 async function leerPublicacion(id: string): Promise<Archivo[]> {
@@ -393,9 +397,10 @@ export function buscarRadicado(texto: string, radicado: string): number {
   return -1;
 }
 
+// Desde el radicado: antes viene la fila del proceso anterior de la planilla.
 function extracto(texto: string, i: number) {
   return texto
-    .slice(Math.max(0, i - 80), i + 260)
+    .slice(i, i + 320)
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -621,6 +626,21 @@ async function revisarDespacho(despacho: string) {
   return { despacho, publicaciones: items.length, nuevas, hallazgos };
 }
 
+/**
+ * Vuelve a cruzar, con las publicaciones ya guardadas (sin ir al portal), los
+ * despachos que tienen hallazgos: completa los documentos de los hallazgos de
+ * antes (que guardaban uno solo). Lo corre el servicio del VPS al arrancar.
+ */
+export async function completarDocumentosHallazgos() {
+  await asegurarTablas();
+  const filas = await prisma.$queryRawUnsafe<{ despacho: string }[]>(
+    `SELECT DISTINCT p.despacho FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"`,
+  );
+  let nuevos = 0;
+  for (const f of filas) nuevos += await cruzarDespacho(f.despacho);
+  return { despachos: filas.length, nuevos };
+}
+
 /** Busca los radicados vigilados del despacho en sus publicaciones guardadas y avisa los nuevos. */
 async function cruzarDespacho(despacho: string) {
   const segs = await seguimientos({ despacho });
@@ -633,28 +653,45 @@ async function cruzarDespacho(despacho: string) {
   const nuevosPorUsuario = new Map<string, { radicado: string; titulo: string; extracto: string }[]>();
   for (const pub of pubs) {
     for (const s of segs) {
-      // Primero los PDF; la página solo si ningún archivo lo tiene.
-      const orden = [...pub.archivos.slice(1), ...pub.archivos.slice(0, 1)];
-      for (const a of orden) {
+      // TODOS los archivos de la publicación donde está el radicado (la planilla
+      // y cada auto), por su texto o por su nombre ("021-2024-00281-NombraCurador.pdf":
+      // los autos escaneados no tienen texto). La página solo si ningún archivo lo tiene.
+      const docs: DocEstado[] = [];
+      let ext: string | null = null;
+      for (const a of pub.archivos.slice(1)) {
         const i = buscarRadicado(a.texto, s.radicado);
+        if (i < 0 && buscarRadicado(a.nombre, s.radicado) < 0) continue;
+        docs.push({ nombre: a.nombre, url: a.url });
+        if (ext === null && i >= 0) ext = extracto(a.texto, i);
+      }
+      if (docs.length === 0) {
+        const pagina = pub.archivos[0];
+        const i = pagina ? buscarRadicado(pagina.texto, s.radicado) : -1;
         if (i < 0) continue;
-        const ext = extracto(a.texto, i);
-        const [r] = await prisma.$queryRawUnsafe<{ id: number }[]>(
-          `INSERT INTO "EstadoHallazgo" ("userId", radicado, "publicacionId", archivo, url, extracto, "porAvisar")
-           VALUES ($1, $2, $3, $4, $5, $6, true) ON CONFLICT DO NOTHING RETURNING id`,
-          s.userId,
-          s.radicado,
-          pub.id,
-          a.nombre,
-          a.url,
-          ext,
-        );
-        if (r) {
-          const l = nuevosPorUsuario.get(s.userId) ?? [];
-          l.push({ radicado: s.radicado, titulo: pub.titulo, extracto: ext });
-          nuevosPorUsuario.set(s.userId, l);
-        }
-        break;
+        docs.push({ nombre: pagina.nombre, url: pagina.url });
+        ext = extracto(pagina.texto, i);
+      }
+      // Si ya existía (de antes, con un solo documento), se completa sin volver a avisar.
+      const [r] = await prisma.$queryRawUnsafe<{ nuevo: boolean }[]>(
+        `INSERT INTO "EstadoHallazgo" ("userId", radicado, "publicacionId", archivo, url, extracto, documentos, "porAvisar")
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, true)
+         ON CONFLICT ("userId", radicado, "publicacionId") DO UPDATE
+           SET documentos = EXCLUDED.documentos, extracto = EXCLUDED.extracto
+           WHERE "EstadoHallazgo".documentos IS DISTINCT FROM EXCLUDED.documentos
+              OR "EstadoHallazgo".extracto IS DISTINCT FROM EXCLUDED.extracto
+         RETURNING (xmax = 0) AS nuevo`,
+        s.userId,
+        s.radicado,
+        pub.id,
+        docs[0].nombre,
+        docs[0].url,
+        ext,
+        JSON.stringify(docs),
+      );
+      if (r?.nuevo) {
+        const l = nuevosPorUsuario.get(s.userId) ?? [];
+        l.push({ radicado: s.radicado, titulo: pub.titulo, extracto: ext ?? "" });
+        nuevosPorUsuario.set(s.userId, l);
       }
     }
   }
@@ -786,12 +823,18 @@ export type HallazgoVista = {
   extracto: string | null;
   visto: boolean;
   createdAt: Date;
+  /** Todos los documentos donde salió el radicado (la planilla y cada auto). */
+  documentos: DocEstado[];
 };
+
+// Los hallazgos de antes solo tienen archivo/url: se muestran como un único documento.
+const DOCS = `coalesce(h.documentos, CASE WHEN h.url IS NULL THEN '[]'::jsonb
+  ELSE jsonb_build_array(jsonb_build_object('nombre', coalesce(h.archivo, 'estado'), 'url', h.url)) END) AS documentos`;
 
 export async function hallazgosDelUsuario(userId: string, limite = 200, desde = 0): Promise<HallazgoVista[]> {
   await asegurarTablas();
   return prisma.$queryRawUnsafe<HallazgoVista[]>(
-    `SELECT h.id, h.radicado, p.titulo, p.fecha, h.archivo, h.url, h.extracto, h.visto, h."createdAt"
+    `SELECT h.id, h.radicado, p.titulo, p.fecha, h.archivo, h.url, h.extracto, h.visto, h."createdAt", ${DOCS}
      FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
      WHERE h."userId" = $1 ORDER BY p.fecha DESC NULLS LAST, h.id DESC LIMIT $2 OFFSET $3`,
     userId,
@@ -815,7 +858,7 @@ export async function estadosDelRadicado(userId: string, radicado: string) {
   const despacho = despachoDe(radicado);
   const [pubs, [d], nombres] = await Promise.all([
     prisma.$queryRawUnsafe<HallazgoVista[]>(
-      `SELECT h.id, h.radicado, p.titulo, p.fecha, h.archivo, h.url, h.extracto, h.visto, h."createdAt"
+      `SELECT h.id, h.radicado, p.titulo, p.fecha, h.archivo, h.url, h.extracto, h.visto, h."createdAt", ${DOCS}
        FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
        WHERE h."userId" = $1 AND h.radicado = $2 ORDER BY p.fecha DESC NULLS LAST, h.id DESC`,
       userId,
@@ -830,16 +873,17 @@ export async function estadosDelRadicado(userId: string, radicado: string) {
   return { publicaciones: pubs, juzgado: nombres.get(despacho) ?? null, revisadoAt: d?.revisadoAt ?? null };
 }
 
-/** Enlace del archivo de un hallazgo, solo si es del usuario y viene del portal de la Rama. */
-export async function archivoDeHallazgo(userId: string, id: number) {
+/** Enlace de un documento (por su posición) de un hallazgo, solo si es del usuario y viene del portal de la Rama. */
+export async function archivoDeHallazgo(userId: string, id: number, doc = 0) {
   await asegurarTablas();
-  const [h] = await prisma.$queryRawUnsafe<{ url: string | null; archivo: string | null }[]>(
-    `SELECT url, archivo FROM "EstadoHallazgo" WHERE id = $1 AND "userId" = $2`,
+  const [h] = await prisma.$queryRawUnsafe<{ documentos: DocEstado[] }[]>(
+    `SELECT ${DOCS} FROM "EstadoHallazgo" h WHERE h.id = $1 AND h."userId" = $2`,
     id,
     userId,
   );
-  if (!h?.url || !h.url.startsWith(`${BASE}/`)) return null;
-  return { url: h.url, archivo: h.archivo ?? "estado" };
+  const d = h?.documentos?.[doc];
+  if (!d?.url || !d.url.startsWith(`${BASE}/`)) return null;
+  return { url: d.url, archivo: d.nombre || "estado" };
 }
 
 export async function marcarHallazgosVistos(userId: string) {

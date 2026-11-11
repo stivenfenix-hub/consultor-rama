@@ -47,8 +47,7 @@ export type EstadoPub = {
   titulo: string;
   fecha: string;
   extracto: string | null;
-  archivo: string | null;
-  url: string | null;
+  documentos: { nombre: string; url: string }[];
   nuevo: boolean;
 };
 
@@ -178,7 +177,7 @@ export function CaseTabs({
                     <div className="name">{e.titulo}</div>
                     {e.extracto && <div className="note">…{e.extracto}…</div>}
                     <div className="row wrap" style={{ gap: 8, marginTop: 8 }}>
-                      <EstadoBotones hallazgoId={e.id} archivo={e.archivo} url={e.url} />
+                      <EstadoBotones hallazgoId={e.id} documentos={e.documentos} />
                     </div>
                   </div>
                 );
@@ -343,7 +342,7 @@ export function CaseTabs({
                     <div className="muted small">{e.fecha}</div>
                     {e.extracto && <div className="small" style={{ marginTop: 4 }}>…{e.extracto}…</div>}
                   </div>
-                  <EstadoBotones hallazgoId={e.id} archivo={e.archivo} url={e.url} />
+                  <EstadoBotones hallazgoId={e.id} documentos={e.documentos} />
                 </div>
               ))
             )}

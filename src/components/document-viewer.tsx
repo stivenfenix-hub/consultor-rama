@@ -144,7 +144,8 @@ export function DocumentViewer({
     let cancelado = false;
     (async () => {
       try {
-        const res = await fetch(`${rutaDe(doc)}?inline=1`);
+        const ruta = rutaDe(doc);
+        const res = await fetch(`${ruta}${ruta.includes("?") ? "&" : "?"}inline=1`);
         if (!res.ok) throw await errorDeRespuesta(res);
         const buf = await res.arrayBuffer();
         if (cancelado) return;
