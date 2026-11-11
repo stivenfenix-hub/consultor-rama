@@ -107,13 +107,22 @@ export type MensajeWa = {
   enviadoAt: Date | null;
 };
 
-export async function ultimosMensajesWa(limite = 60): Promise<MensajeWa[]> {
+/** Mensajes de la cola, de a `porPagina` (los más nuevos primero), con el total. */
+export async function ultimosMensajesWa(
+  pagina = 1,
+  porPagina = 20,
+): Promise<{ mensajes: MensajeWa[]; total: number }> {
   await asegurarTablasWa();
-  return prisma.$queryRawUnsafe<MensajeWa[]>(
-    `SELECT id, cuenta, tipo, telefono, mensaje, estado, error, "createdAt", "enviadoAt"
-     FROM "WaMensaje" ORDER BY id DESC LIMIT $1`,
-    limite,
-  );
+  const [mensajes, [t]] = await Promise.all([
+    prisma.$queryRawUnsafe<MensajeWa[]>(
+      `SELECT id, cuenta, tipo, telefono, mensaje, estado, error, "createdAt", "enviadoAt"
+       FROM "WaMensaje" ORDER BY id DESC LIMIT $1 OFFSET $2`,
+      porPagina,
+      (Math.max(1, pagina) - 1) * porPagina,
+    ),
+    prisma.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM "WaMensaje"`),
+  ]);
+  return { mensajes, total: Number(t?.n ?? 0) };
 }
 
 /**

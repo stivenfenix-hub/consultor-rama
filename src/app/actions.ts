@@ -30,16 +30,12 @@ import {
   CUENTAS_WA,
   encolarPruebaWa,
   encolarWhatsapp,
-  estadoWhatsapp,
   gestionarColaWa,
   setComandoWa,
   setMaxDiaWa,
   setPausaWa,
   setWaActuaciones,
-  ultimosMensajesWa,
   type CuentaWa,
-  type EstadoWa,
-  type MensajeWa,
 } from "@/lib/whatsapp";
 import {
   EMAIL_KINDS,
@@ -867,12 +863,6 @@ export async function borrarEnvioPromoAction(clave: string): Promise<ActionState
 }
 
 // ---------- WhatsApp propio (root) ----------
-export async function estadoWhatsappAction(): Promise<{ cuentas: EstadoWa[]; mensajes: MensajeWa[] }> {
-  await requireAdmin();
-  const [cuentas, mensajes] = await Promise.all([estadoWhatsapp(), ultimosMensajesWa()]);
-  return { cuentas, mensajes };
-}
-
 export async function controlWhatsappAction(
   cuenta: CuentaWa,
   accion: "pausar" | "reanudar" | "desvincular" | "reintentar" | "vaciar",

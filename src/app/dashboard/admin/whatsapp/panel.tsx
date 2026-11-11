@@ -8,6 +8,7 @@ import {
   pruebaWhatsappAction,
 } from "@/app/actions";
 import type { CuentaWa, EstadoWa, MensajeWa } from "@/lib/whatsapp";
+import { POR_PAGINA } from "@/components/paginador";
 
 const NOMBRE: Record<CuentaWa, { titulo: string; para: string }> = {
   avisos: { titulo: "WhatsApp de avisos", para: "Actuaciones nuevas y avisos de pago" },
@@ -29,12 +30,14 @@ const fmt = (d: Date | string | null) =>
     : "—";
 
 export function PanelWhatsapp() {
-  const [datos, setDatos] = useState<{ cuentas: EstadoWa[]; mensajes: MensajeWa[] } | null>(null);
+  const [datos, setDatos] = useState<{ cuentas: EstadoWa[]; mensajes: MensajeWa[]; total: number } | null>(null);
+  const [pagina, setPagina] = useState(1);
 
   const cargar = useCallback(async () => {
-    const r = await fetch("/api/admin/whatsapp-estado", { cache: "no-store" });
+    const r = await fetch(`/api/admin/whatsapp-estado?pagina=${pagina}`, { cache: "no-store" });
     if (r.ok) setDatos(await r.json());
-  }, []);
+  }, [pagina]);
+  const paginas = Math.max(1, Math.ceil((datos?.total ?? 0) / POR_PAGINA));
   useEffect(() => {
     // Cada 4 s después de terminar la anterior: las consultas nunca se acumulan.
     // Con la pestaña oculta no se consulta.
@@ -99,6 +102,31 @@ export function PanelWhatsapp() {
               </tbody>
             </table>
           </div>
+        )}
+        {paginas > 1 && (
+          <nav
+            className="row wrap"
+            aria-label="Paginación"
+            style={{ gap: 8, margin: "12px 0", justifyContent: "center", alignItems: "center" }}
+          >
+            <button
+              className="btn secondary small"
+              disabled={pagina <= 1}
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </button>
+            <span className="muted small">
+              Página {pagina} de {paginas}
+            </span>
+            <button
+              className="btn secondary small"
+              disabled={pagina >= paginas}
+              onClick={() => setPagina((p) => Math.min(paginas, p + 1))}
+            >
+              Siguiente →
+            </button>
+          </nav>
         )}
       </div>
     </>
