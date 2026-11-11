@@ -341,7 +341,7 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
     .replace(/<script[\s\S]*?<\/script>/g, " ")
     .replace(/<style[\s\S]*?<\/style>/g, " ")
     .replace(/<[^>]+>/g, " ");
-  archivos.push({ nombre: "Página de la publicación", url: urlPagina, texto: decodificar(cuerpo).slice(0, MAX_TEXTO_ARCHIVO) });
+  archivos.push({ nombre: "Página de la publicación", url: urlPagina, texto: sinNulos(decodificar(cuerpo)).slice(0, MAX_TEXTO_ARCHIVO) });
 
   const vistos = new Set<string>();
   const re = /<a[^>]*href="((?:\/c\/document_library\/get_file\?[^"]+)|(?:\/documents\/\d+\/\d+\/[^"]+))"[^>]*>([\s\S]*?)<\/a>/g;
@@ -355,7 +355,7 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
     try {
       const buf = new Uint8Array(await (await traer(url, 60_000)).arrayBuffer());
       const texto = await textoPdf(buf);
-      archivos.push({ nombre, url, texto: texto.slice(0, MAX_TEXTO_ARCHIVO), imagen: texto.trim().length < 20 });
+      archivos.push({ nombre, url, texto: sinNulos(texto).slice(0, MAX_TEXTO_ARCHIVO), imagen: texto.trim().length < 20 });
     } catch {
       archivos.push({ nombre, url, texto: "" });
     }
@@ -363,6 +363,10 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
   }
   return archivos;
 }
+
+// Postgres no acepta el carácter nulo (\u0000) en JSONB/TEXT: un PDF con ese
+// carácter impedía guardar toda la publicación.
+const sinNulos = (s: string) => s.replace(/\u0000/g, "");
 
 async function textoPdf(buf: Uint8Array): Promise<string> {
   // Solo PDF (%PDF): otros formatos (Word, imágenes) se dejan con el enlace.
