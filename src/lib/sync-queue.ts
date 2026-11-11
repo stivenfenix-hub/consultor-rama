@@ -55,7 +55,9 @@ const VENTANA_INICIO = 18 * 60; // 6:00 p.m. (cierran los juzgados)
 const VENTANA_FIN = 6 * 60 + 45; // 6:45 a.m.
 const RESUMEN_DESDE = 7 * 60; // 7:00 a.m.
 const RESUMEN_HASTA = VENTANA_INICIO; // no se avisa de noche (lo de la noche sale a las 7 a.m.)
-const REPORTE_WA = 7 * 60 + 30; // 7:30 a.m.: Excel de avisos para WhatsApp
+// Avisos de actuaciones a WhatsApp: apenas termina el resumen de las 7:00 (el
+// worker del VPS los envía desde las 7:01).
+const REPORTE_WA = RESUMEN_DESDE;
 const REPORTE_SIN_PROCESOS = 7 * 60 + 20; // 7:20 a.m.: registrados ayer sin procesos (root)
 
 const MIN = 60_000;
@@ -595,8 +597,8 @@ export async function tick(opts: { forzar?: boolean } = {}) {
         error: e instanceof Error ? e.message : String(e),
       }));
     }
-    // Reporte de WhatsApp para el root: 7:30 a.m., cuando ya salieron los
-    // resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).
+    // Avisos de WhatsApp: en la misma corrida de las 7:00, en cuanto salieron
+    // todos los resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).
     if (m >= REPORTE_WA && m < RESUMEN_HASTA) {
       const [p] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
         `SELECT count(*) AS n FROM "Actuacion" WHERE "pendingNotify"`,

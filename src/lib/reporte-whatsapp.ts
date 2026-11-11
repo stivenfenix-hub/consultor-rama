@@ -9,7 +9,7 @@ import { sendMail } from "./mailer";
  * envío masivo (sin la API de WhatsApp). Cada aviso que Estradox da por correo
  * o por la app (actuaciones nuevas, acceso por
  * vencer o vencido; la bienvenida no) se guarda también aquí en texto. A las
- * 7:30 a.m. se manda al root un Excel sin encabezado con lo acumulado desde el
+ * 7:00 a.m., en cuanto salen los resúmenes, se encolan al WhatsApp y se manda al root un Excel sin encabezado con lo acumulado desde el
  * reporte anterior, una fila por aviso (cada uno es un mensaje aparte):
  *   A: "Nombre - aviso"   B: teléfono (573001234567)
  */
