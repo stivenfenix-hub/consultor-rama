@@ -97,6 +97,23 @@ async function ensureSchema() {
       "paidAt" TIMESTAMPTZ
     )`);
   await ensureColumn("BoldPayment", "meses", "INTEGER NOT NULL DEFAULT 1");
+  // "plan" (paquete de meses) o "adicionales" (cobro mensual de procesos adicionales
+  // de quien pagó varios meses por adelantado: no suma acceso).
+  await ensureColumn("BoldPayment", "tipo", "TEXT NOT NULL DEFAULT 'plan'");
+  // Adicionales que ya cubre ese pago (por cada mes del paquete). NULL en pagos de antes.
+  await ensureColumn("BoldPayment", "adicionales", "INTEGER");
+  // Un renglón por usuario y corte mensual: los adicionales de ese mes que no
+  // cubría su paquete. "paymentId" es el link que los cobra (NULL: aún sin cobrar).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "AdicionalMes" (
+      "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      corte TIMESTAMPTZ NOT NULL,
+      adicionales INTEGER NOT NULL,
+      valor INTEGER NOT NULL,
+      "paymentId" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY ("userId", corte)
+    )`);
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "BoldEvent" (
       id SERIAL PRIMARY KEY,
@@ -216,7 +233,66 @@ export type UsoProcesos = {
   precioAdicional: number;
   /** Lo que suman los adicionales por mes. */
   valorMes: number;
+  /**
+   * Pagó un paquete de varios meses que sigue vigente: los adicionales que ya
+   * pagó van hasta el final del paquete; los que agregue después se cobran mes a mes.
+   */
+  prepago: null | {
+    meses: number;
+    /** Adicionales que pagó con el paquete. */
+    cubiertos: number;
+    /** Adicionales de más sobre los pagados: se cobran en cada corte mensual. */
+    porCobrar: number;
+    /** Valor de cada corte mensual (porCobrar × precio). */
+    valorCorte: number;
+    /** Próximo corte mensual (null: el próximo cobro es la renovación). */
+    proximoCorte: Date | null;
+  };
+  /** Cobro mensual de adicionales generado y aún sin pagar. */
+  cobroPendiente: null | { valor: number; url: string; adicionales: number };
 };
+
+function sumarMeses(d: Date, n: number) {
+  const x = new Date(d);
+  x.setUTCMonth(x.getUTCMonth() + n);
+  return x;
+}
+
+type PaqueteVigente = { meses: number; paidAt: Date; cubiertos: number };
+
+/** Último paquete pagado de varios meses que sigue vigente, con los adicionales que cubre. */
+async function paqueteVigente(userId: string, plan: Plan): Promise<PaqueteVigente | null> {
+  await ensureSchema();
+  const [p] = await prisma.$queryRawUnsafe<
+    { meses: number; paidAt: Date; amount: number; adicionales: number | null; paidUntil: Date | null }[]
+  >(
+    `SELECT b.meses, b."paidAt", b.amount, b.adicionales, u."paidUntil"
+     FROM "BoldPayment" b JOIN "User" u ON u.id = b."userId"
+     WHERE b."userId" = $1 AND b.status = 'PAID' AND b.tipo = 'plan' AND b."paidAt" IS NOT NULL
+     ORDER BY b."paidAt" DESC LIMIT 1`,
+    userId,
+  );
+  if (!p || p.meses <= 1 || !p.paidUntil || new Date(p.paidUntil).getTime() <= Date.now()) return null;
+  // Pagos de antes de guardar el dato: se deduce del valor pagado.
+  const base = plan.paquetes.find((x) => x.meses === p.meses)?.precio ?? 0;
+  const cubiertos =
+    p.adicionales ?? Math.max(0, Math.round((p.amount - base) / (plan.precioAdicional * p.meses)));
+  return { meses: p.meses, paidAt: new Date(p.paidAt), cubiertos };
+}
+
+/**
+ * Cortes mensuales dentro del tiempo pagado: cada mes contado hacia atrás desde
+ * el fin del acceso, después del día del pago (el mes del pago ya va pagado).
+ */
+function cortes(paidAt: Date, paidUntil: Date) {
+  const lista: Date[] = [];
+  for (let j = 1; j <= 36; j++) {
+    const c = sumarMeses(paidUntil, -j);
+    if (c.getTime() <= paidAt.getTime() + 2 * DIA_MS) break;
+    lista.unshift(c);
+  }
+  return lista;
+}
 
 export async function usoProcesos(userId: string): Promise<UsoProcesos> {
   const plan = await getPlan();
@@ -234,6 +310,33 @@ export async function usoProcesos(userId: string): Promise<UsoProcesos> {
   }
   const total = Number(u?.total ?? 0) + soloEstados;
   const adicionales = limitado ? Math.max(0, total - plan.procesosIncluidos) : 0;
+
+  let prepago: UsoProcesos["prepago"] = null;
+  let cobroPendiente: UsoProcesos["cobroPendiente"] = null;
+  if (limitado) {
+    const paq = await paqueteVigente(userId, plan).catch(() => null);
+    if (paq) {
+      const [u2] = await prisma.$queryRawUnsafe<{ paidUntil: Date }[]>(
+        `SELECT "paidUntil" FROM "User" WHERE id = $1`,
+        userId,
+      );
+      const porCobrar = Math.max(0, adicionales - paq.cubiertos);
+      prepago = {
+        meses: paq.meses,
+        cubiertos: paq.cubiertos,
+        porCobrar,
+        valorCorte: porCobrar * plan.precioAdicional,
+        proximoCorte: cortes(paq.paidAt, new Date(u2.paidUntil)).find((c) => c.getTime() > Date.now()) ?? null,
+      };
+    }
+    const [c] = await prisma.$queryRawUnsafe<{ amount: number; url: string; adicionales: number | null }[]>(
+      `SELECT amount, url, adicionales FROM "BoldPayment"
+       WHERE "userId" = $1 AND tipo = 'adicionales' AND status IN ('ACTIVE', 'PROCESSING') AND url IS NOT NULL
+       ORDER BY "createdAt" DESC LIMIT 1`,
+      userId,
+    ).catch(() => []);
+    if (c) cobroPendiente = { valor: c.amount, url: c.url, adicionales: c.adicionales ?? 0 };
+  }
   return {
     limitado,
     incluidos: plan.procesosIncluidos,
@@ -241,7 +344,151 @@ export async function usoProcesos(userId: string): Promise<UsoProcesos> {
     adicionales,
     precioAdicional: plan.precioAdicional,
     valorMes: adicionales * plan.precioAdicional,
+    prepago,
+    cobroPendiente,
   };
+}
+
+// Bold no acepta links de muy poco valor: por debajo de esto se acumula al mes siguiente.
+const MIN_COBRO = 1000;
+
+/**
+ * Cobro mensual de los procesos adicionales de quien pagó varios meses por
+ * adelantado (cron horario). En cada corte mensual, los adicionales que no
+ * cubría su paquete quedan en "AdicionalMes"; si lo pendiente llega al mínimo
+ * de Bold se genera un link y se le avisa (correo, notificación y campana).
+ * Lo que no alcanza el mínimo se suma al mes siguiente o a la renovación.
+ */
+export async function cobrarAdicionalesMensuales(): Promise<number> {
+  if (!boldConfigurado()) return 0;
+  await ensureSchema();
+  const plan = await getPlan();
+  const us = await prisma.$queryRawUnsafe<{ id: string; email: string; paidUntil: Date }[]>(
+    `SELECT id, email, "paidUntil" FROM "User"
+     WHERE role <> 'admin' AND NOT coalesce(socio, false) AND "createdAt" >= $1 AND "paidUntil" > now()`,
+    LIMITE_DESDE,
+  );
+  let cobros = 0;
+  for (const u of us) {
+    try {
+      const paq = await paqueteVigente(u.id, plan);
+      if (!paq) continue;
+      const corte = cortes(paq.paidAt, new Date(u.paidUntil))
+        .filter((c) => c.getTime() <= Date.now())
+        .pop();
+      // Solo el corte de esta semana (no se cobran meses viejos de golpe).
+      if (!corte || Date.now() - corte.getTime() > 7 * DIA_MS) continue;
+      const uso = await usoProcesos(u.id);
+      const porCobrar = Math.max(0, uso.adicionales - paq.cubiertos);
+      if (porCobrar === 0) continue;
+      const nuevo = await prisma.$executeRawUnsafe(
+        `INSERT INTO "AdicionalMes" ("userId", corte, adicionales, valor) VALUES ($1, $2, $3, $4)
+         ON CONFLICT DO NOTHING`,
+        u.id,
+        corte,
+        porCobrar,
+        porCobrar * plan.precioAdicional,
+      );
+      if (nuevo !== 1) continue;
+      const pend = await adicionalesSinCobrar(u.id);
+      if (pend.valor < MIN_COBRO) continue;
+      const link = await crearLinkBold({
+        email: u.email,
+        valor: pend.valor,
+        descripcion: `Estradox - ${porCobrar} proceso(s) adicional(es) · mes desde el ${fechaCorta(corte)}`,
+      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "BoldPayment" (id, "userId", amount, status, url, meses, tipo, adicionales)
+         VALUES ($1, $2, $3, 'ACTIVE', $4, 0, 'adicionales', $5)`,
+        link.id,
+        u.id,
+        pend.valor,
+        link.url,
+        porCobrar,
+      );
+      await prisma.$executeRawUnsafe(
+        `UPDATE "AdicionalMes" SET "paymentId" = $2 WHERE "userId" = $1 AND corte = ANY($3::timestamptz[])`,
+        u.id,
+        link.id,
+        pend.cortes,
+      );
+      await avisarCobroAdicionales(u.id, u.email, {
+        porCobrar,
+        cubiertos: paq.cubiertos,
+        meses: paq.meses,
+        total: uso.total,
+        incluidos: uso.incluidos,
+        precio: plan.precioAdicional,
+        valor: pend.valor,
+        url: link.url,
+      });
+      cobros++;
+    } catch (e) {
+      console.error("[suscripcion] cobro adicionales", u.id, e);
+    }
+  }
+  return cobros;
+}
+
+/**
+ * Meses de adicionales aún sin cobrar: sin link, o en un link de renovación
+ * que no se pagó (ese link se abandona y se vuelven a cobrar).
+ */
+async function adicionalesSinCobrar(userId: string) {
+  const filas = await prisma.$queryRawUnsafe<{ corte: Date; valor: number }[]>(
+    `SELECT a.corte, a.valor FROM "AdicionalMes" a
+     LEFT JOIN "BoldPayment" b ON b.id = a."paymentId"
+     WHERE a."userId" = $1 AND (a."paymentId" IS NULL OR (b.tipo = 'plan' AND b.status <> 'PAID'))`,
+    userId,
+  );
+  return { valor: filas.reduce((s, f) => s + f.valor, 0), cortes: filas.map((f) => f.corte) };
+}
+
+const fechaCorta = (d: Date) =>
+  d.toLocaleDateString("es-CO", { day: "numeric", month: "long", timeZone: "America/Bogota" });
+
+async function avisarCobroAdicionales(
+  userId: string,
+  email: string,
+  d: {
+    porCobrar: number;
+    cubiertos: number;
+    meses: number;
+    total: number;
+    incluidos: number;
+    precio: number;
+    valor: number;
+    url: string;
+  },
+) {
+  const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
+  const pagados = d.incluidos + d.cubiertos;
+  const titulo = `📋 Cobro de ${d.porCobrar} proceso(s) adicional(es): ${pesos(d.valor)}`;
+  const cuerpo =
+    `Tu plan de ${d.meses} meses cubre ${pagados} procesos (${d.incluidos} incluidos` +
+    (d.cubiertos ? ` + ${d.cubiertos} adicionales que pagaste` : "") +
+    `) y hoy tienes ${d.total}. Los ${d.porCobrar} de más valen ${pesos(d.precio)} c/u al mes: ` +
+    `${pesos(d.valor)} este mes. Mientras los tengas, se cobran cada mes; si eliminas los que ya no necesitas, no se cobran.`;
+  const { sendPushToUser } = await import("./push");
+  await sendPushToUser(userId, { title: titulo, body: cuerpo, url: "/dashboard/suscripcion", tag: "cobro-adicionales" });
+  const { sendMail } = await import("./mailer");
+  await sendMail({
+    to: email,
+    subject: titulo.replace("📋 ", ""),
+    text: `${cuerpo}\n\nPagar: ${d.url}`,
+    html: `<div style="font-family:Arial,sans-serif;font-size:15px;color:#222;max-width:560px">
+      <p>${cuerpo}</p>
+      <table style="border-collapse:collapse;margin:12px 0;font-size:14px">
+        <tr><td style="padding:4px 12px 4px 0">Procesos incluidos en tu plan</td><td><b>${d.incluidos}</b></td></tr>
+        ${d.cubiertos ? `<tr><td style="padding:4px 12px 4px 0">Adicionales ya pagados con tu plan</td><td><b>${d.cubiertos}</b></td></tr>` : ""}
+        <tr><td style="padding:4px 12px 4px 0">Procesos que tienes hoy</td><td><b>${d.total}</b></td></tr>
+        <tr><td style="padding:4px 12px 4px 0">Adicionales por cobrar este mes</td><td><b>${d.porCobrar} × ${pesos(d.precio)}</b></td></tr>
+        <tr><td style="padding:4px 12px 4px 0">Total</td><td><b>${pesos(d.valor)}</b></td></tr>
+      </table>
+      <p><a href="${d.url}" style="display:inline-block;background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Pagar ${pesos(d.valor)}</a></p>
+      <p style="color:#666;font-size:13px">Puedes pagar con tarjeta, PSE, Nequi o Botón Bancolombia a través de Bold.</p>
+    </div>`,
+  });
 }
 
 /**
@@ -270,14 +517,23 @@ export async function avisarProcesosAdicionales(userId: string) {
     const sub = await getSuscripcion(userId);
     const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
     const { sendPushToUser } = await import("./push");
+    // Pagó varios meses: solo cuentan los que pasan de lo que ya pagó, y se cobran mes a mes.
+    const pp = uso.prepago;
+    if (pp && pp.porCobrar === 0) return;
     await sendPushToUser(userId, {
-      title: `📋 Tienes ${uso.adicionales} proceso(s) adicional(es)`,
-      body:
-        `Tu plan incluye ${uso.incluidos} procesos y llevas ${uso.total}. Cada adicional vale ` +
-        `${pesos(uso.precioAdicional)} al mes: ${pesos(uso.valorMes)}/mes en total. ` +
-        (sub.estado === "prueba"
-          ? "Durante tu prueba gratis no se cobra; se sumará a tu primer pago."
-          : "Se sumará a tu próximo pago."),
+      title: pp
+        ? `📋 Tienes ${pp.porCobrar} proceso(s) más de los que pagaste`
+        : `📋 Tienes ${uso.adicionales} proceso(s) adicional(es)`,
+      body: pp
+        ? `Tu plan de ${pp.meses} meses cubre ${uso.incluidos + pp.cubiertos} procesos y llevas ${uso.total}. ` +
+          `Los ${pp.porCobrar} de más valen ${pesos(uso.precioAdicional)} c/u al mes (${pesos(pp.valorCorte)}/mes) ` +
+          `y se cobran cada mes` +
+          (pp.proximoCorte ? `; el próximo cobro es el ${fechaCorta(pp.proximoCorte)}.` : `, junto con tu renovación.`)
+        : `Tu plan incluye ${uso.incluidos} procesos y llevas ${uso.total}. Cada adicional vale ` +
+          `${pesos(uso.precioAdicional)} al mes: ${pesos(uso.valorMes)}/mes en total. ` +
+          (sub.estado === "prueba"
+            ? "Durante tu prueba gratis no se cobra; se sumará a tu primer pago."
+            : "Se sumará a tu próximo pago."),
       url: "/dashboard/suscripcion",
       tag: "procesos-adicionales",
     });
@@ -423,36 +679,59 @@ export async function crearLinkDePago(user: { id: string; email: string }, meses
   await ensureSchema();
   const plan = await getPlan();
   const base = plan.paquetes.find((p) => p.meses === meses)?.precio ?? plan.precio;
-  // Procesos adicionales (sobre los incluidos) por cada mes del paquete.
+  // Procesos adicionales (sobre los incluidos) por cada mes del paquete, más los
+  // meses de adicionales que quedaron sin cobrar (por no llegar al mínimo de Bold).
   const uso = await usoProcesos(user.id);
-  const extra = uso.valorMes * meses;
+  const atrasados = await adicionalesSinCobrar(user.id);
+  const extra = uso.valorMes * meses + atrasados.valor;
   const precio = base + extra;
   const plazo = meses === 1 ? "Plan 1 mes" : `Plan ${meses} meses`;
+  const link = await crearLinkBold({
+    email: user.email,
+    valor: precio,
+    descripcion: uso.adicionales
+      ? `Estradox - ${plazo} + ${uso.adicionales} proceso(s) adicional(es)`
+      : atrasados.valor
+        ? `Estradox - ${plazo} + adicionales de meses anteriores`
+        : `Estradox - ${plazo}`,
+  });
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "BoldPayment" (id, "userId", amount, status, url, meses, tipo, adicionales)
+     VALUES ($1, $2, $3, 'ACTIVE', $4, $5, 'plan', $6)`,
+    link.id,
+    user.id,
+    precio,
+    link.url,
+    meses,
+    uso.adicionales,
+  );
+  if (atrasados.cortes.length) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "AdicionalMes" SET "paymentId" = $2 WHERE "userId" = $1 AND corte = ANY($3::timestamptz[])`,
+      user.id,
+      link.id,
+      atrasados.cortes,
+    );
+  }
+  return link.url;
+}
+
+async function crearLinkBold(d: { email: string; valor: number; descripcion: string }) {
   const j = await bold("/online/link/v1", {
     method: "POST",
     body: JSON.stringify({
       amount_type: "CLOSE",
-      amount: { currency: "COP", total_amount: precio, tip_amount: 0 },
-      description: extra
-        ? `Estradox - ${plazo} + ${uso.adicionales} proceso(s) adicional(es)`
-        : `Estradox - ${plazo}`,
+      amount: { currency: "COP", total_amount: d.valor, tip_amount: 0 },
+      description: d.descripcion,
       callback_url: `${APP_URL}/dashboard/suscripcion?pago=1`,
-      payer_email: user.email,
+      payer_email: d.email,
     }),
   });
   const payload = (j.payload ?? {}) as { payment_link?: string; url?: string };
   if (!payload.payment_link || !payload.url) {
     throw new Error(`Bold no devolvió el link: ${JSON.stringify(j).slice(0, 300)}`);
   }
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "BoldPayment" (id, "userId", amount, status, url, meses) VALUES ($1, $2, $3, 'ACTIVE', $4, $5)`,
-    payload.payment_link,
-    user.id,
-    precio,
-    payload.url,
-    meses,
-  );
-  return payload.url;
+  return { id: payload.payment_link, url: payload.url };
 }
 
 /**
@@ -470,8 +749,8 @@ export async function confirmarPago(
 ): Promise<boolean> {
   await ensureSchema();
   const [pago] = await prisma.$queryRawUnsafe<
-    { id: string; userId: string; status: string; amount: number; meses: number }[]
-  >(`SELECT id, "userId", status, amount, meses FROM "BoldPayment" WHERE id = $1`, linkId);
+    { id: string; userId: string; status: string; amount: number; meses: number; tipo: string }[]
+  >(`SELECT id, "userId", status, amount, meses, tipo FROM "BoldPayment" WHERE id = $1`, linkId);
   if (!pago || pago.status === "PAID") return false;
 
   const j = await bold(`/online/link/v1/${encodeURIComponent(linkId)}`);
@@ -516,7 +795,8 @@ export async function confirmarPago(
     linkId,
   );
   if (marcado !== 1) return false; // otro proceso ya lo acreditó
-  await extenderAcceso(pago.userId, { meses: pago.meses || 1 });
+  // El cobro mensual de adicionales no suma acceso: solo lo paga.
+  if (pago.tipo !== "adicionales") await extenderAcceso(pago.userId, { meses: pago.meses || 1 });
   console.log(`[bold] pago ${linkId} acreditado a ${pago.userId}`);
   return true;
 }
@@ -528,7 +808,7 @@ export async function verificarPagosPendientes(userId: string) {
   const pendientes = await prisma.$queryRawUnsafe<{ id: string }[]>(
     `SELECT id FROM "BoldPayment"
      WHERE "userId" = $1 AND status IN ('ACTIVE', 'PROCESSING')
-       AND "createdAt" > now() - interval '3 days'
+       AND ("createdAt" > now() - interval '3 days' OR (tipo = 'adicionales' AND "createdAt" > now() - interval '35 days'))
      ORDER BY "createdAt" DESC LIMIT 5`,
     userId,
   );
@@ -547,7 +827,7 @@ export async function verificarTodosLosPagosPendientes(): Promise<number> {
   const pendientes = await prisma.$queryRawUnsafe<{ id: string }[]>(
     `SELECT id FROM "BoldPayment"
      WHERE status IN ('ACTIVE', 'PROCESSING')
-       AND "createdAt" > now() - interval '3 days'
+       AND ("createdAt" > now() - interval '3 days' OR (tipo = 'adicionales' AND "createdAt" > now() - interval '35 days'))
      ORDER BY "createdAt" DESC LIMIT 50`,
   );
   let acreditados = 0;
@@ -560,9 +840,9 @@ export async function verificarTodosLosPagosPendientes(): Promise<number> {
 export async function pagosDeUsuario(userId: string) {
   await ensureSchema();
   return prisma.$queryRawUnsafe<
-    { id: string; amount: number; status: string; createdAt: Date; paidAt: Date | null; meses: number }[]
+    { id: string; amount: number; status: string; createdAt: Date; paidAt: Date | null; meses: number; tipo: string; adicionales: number | null }[]
   >(
-    `SELECT id, amount, status, "createdAt", "paidAt", meses FROM "BoldPayment"
+    `SELECT id, amount, status, "createdAt", "paidAt", meses, tipo, adicionales FROM "BoldPayment"
      WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`,
     userId,
   );

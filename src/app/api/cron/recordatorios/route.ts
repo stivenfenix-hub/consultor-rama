@@ -3,7 +3,7 @@ import {
   enviarAvisosDeSuscripcion,
   enviarRecordatoriosPendientes,
 } from "@/lib/auto-emails";
-import { verificarTodosLosPagosPendientes } from "@/lib/subscription";
+import { cobrarAdicionalesMensuales, verificarTodosLosPagosPendientes } from "@/lib/subscription";
 
 /**
  * Envía el correo de recordatorio a quienes activaron su cuenta hace 24 h y aún
@@ -28,9 +28,15 @@ async function handle(req: NextRequest) {
     console.error("[cron] verificar pagos", e);
     return 0;
   });
+  // Planes de varios meses: cobro mensual de los procesos adicionales que no cubría el paquete.
+  const cobrosAdicionales = await cobrarAdicionalesMensuales().catch((e) => {
+    console.error("[cron] cobro adicionales", e);
+    return 0;
+  });
   return NextResponse.json({
     ok: true,
     pagosAcreditados,
+    cobrosAdicionales,
     recordatoriosEnviados: enviados,
     avisosSuscripcion: avisos,
   });

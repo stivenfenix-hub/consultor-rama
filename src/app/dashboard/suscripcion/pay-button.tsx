@@ -63,6 +63,11 @@ export function PricingCards({
               ) : (
                 <div className="muted small">Pago mes a mes</div>
               )}
+              {p.meses > 1 && (
+                <div className="muted small" style={{ marginTop: 6 }}>
+                  Cubre los procesos que tengas al pagar. Si después pasas de ellos, los de más se cobran mes a mes.
+                </div>
+              )}
               {extraMes > 0 && (
                 <div className="small" style={{ marginTop: 6 }}>
                   + {pesos(extraMes * p.meses)} por {adicionales} proceso(s) adicional(es)

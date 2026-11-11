@@ -151,7 +151,18 @@ export default async function ProcesosPage({
         )}
         {/* Plan con procesos incluidos (usuarios desde el 3 nov 2026). */}
         {/* Solo se avisa cuando ya pasó de los incluidos. */}
-        {uso?.limitado && uso.adicionales > 0 && (
+        {uso?.limitado && uso.prepago && uso.prepago.porCobrar > 0 && (
+          <div className="muted small" style={{ marginTop: 10 }}>
+            📋 Tu plan de {uso.prepago.meses} meses cubre <b>{uso.incluidos + uso.prepago.cubiertos} procesos</b> ·
+            llevas <b>{uso.total}</b>. Tienes <b>{uso.prepago.porCobrar} de más</b>: +{pesos(uso.prepago.valorCorte)}{" "}
+            que se cobran cada mes
+            {uso.prepago.proximoCorte
+              ? ` (próximo cobro: ${new Date(uso.prepago.proximoCorte).toLocaleDateString("es-CO", { day: "numeric", month: "long", timeZone: "America/Bogota" })})`
+              : " con tu renovación"}
+            . <Link prefetch={false} href="/dashboard/suscripcion">Ver detalle</Link>
+          </div>
+        )}
+        {uso?.limitado && !uso.prepago && uso.adicionales > 0 && (
           <div className="muted small" style={{ marginTop: 10 }}>
             📋 Tu plan incluye <b>{uso.incluidos} procesos</b> · llevas <b>{uso.total}</b>. Tienes{" "}
             <b>{uso.adicionales} adicional(es)</b>: +{pesos(uso.valorMes)} al mes que se suman a tu próximo pago.{" "}
