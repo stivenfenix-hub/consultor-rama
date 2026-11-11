@@ -102,6 +102,8 @@ async function ensureSchema() {
   await ensureColumn("BoldPayment", "tipo", "TEXT NOT NULL DEFAULT 'plan'");
   // Adicionales que ya cubre ese pago (por cada mes del paquete). NULL en pagos de antes.
   await ensureColumn("BoldPayment", "adicionales", "INTEGER");
+  // Recordatorios enviados de un cobro de adicionales sin pagar (a los 5 y 15 días).
+  await ensureColumn("BoldPayment", "recordatorios", "INTEGER NOT NULL DEFAULT 0");
   // Un renglón por usuario y corte mensual: los adicionales de ese mes que no
   // cubría su paquete. "paymentId" es el link que los cobra (NULL: aún sin cobrar).
   await prisma.$executeRawUnsafe(`
@@ -427,7 +429,56 @@ export async function cobrarAdicionalesMensuales(): Promise<number> {
       console.error("[suscripcion] cobro adicionales", u.id, e);
     }
   }
+  await recordarCobrosAdicionales().catch((e) => console.error("[suscripcion] recordar adicionales", e));
   return cobros;
+}
+
+/**
+ * Cobro de adicionales sin pagar: no se bloquea nada, solo se le recuerda
+ * (notificación y correo) a los 5 y a los 15 días, con el mismo link.
+ */
+async function recordarCobrosAdicionales() {
+  const pendientes = await prisma.$queryRawUnsafe<
+    { id: string; userId: string; email: string; amount: number; url: string; adicionales: number | null; recordatorios: number }[]
+  >(
+    `SELECT b.id, b."userId", u.email, b.amount, b.url, b.adicionales, b.recordatorios
+     FROM "BoldPayment" b JOIN "User" u ON u.id = b."userId"
+     WHERE b.tipo = 'adicionales' AND b.status IN ('ACTIVE', 'PROCESSING') AND b.url IS NOT NULL
+       AND b."createdAt" > now() - interval '35 days'
+       AND ((b.recordatorios = 0 AND b."createdAt" <= now() - interval '5 days')
+         OR (b.recordatorios = 1 AND b."createdAt" <= now() - interval '15 days'))`,
+  );
+  const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
+  const { sendPushToUser } = await import("./push");
+  const { sendMail } = await import("./mailer");
+  for (const p of pendientes) {
+    // Se marca antes de enviar: si el correo falla no se reintenta en bucle.
+    const n = await prisma.$executeRawUnsafe(
+      `UPDATE "BoldPayment" SET recordatorios = recordatorios + 1 WHERE id = $1 AND recordatorios = $2`,
+      p.id,
+      p.recordatorios,
+    );
+    if (n !== 1) continue;
+    const titulo = `Recordatorio: cobro de procesos adicionales por ${pesos(p.amount)}`;
+    const cuerpo =
+      `Tienes pendiente el pago de este mes por ${p.adicionales ?? ""} proceso(s) de más sobre los que pagaste ` +
+      `con tu plan (${pesos(p.amount)}). Tu cuenta sigue funcionando normalmente.`;
+    try {
+      await sendPushToUser(p.userId, { title: `📋 ${titulo}`, body: cuerpo, url: "/dashboard/suscripcion", tag: "cobro-adicionales" });
+      await sendMail({
+        to: p.email,
+        subject: titulo,
+        text: `${cuerpo}\n\nPagar: ${p.url}`,
+        html: `<div style="font-family:Arial,sans-serif;font-size:15px;color:#222;max-width:560px">
+          <p>${cuerpo}</p>
+          <p><a href="${p.url}" style="display:inline-block;background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Pagar ${pesos(p.amount)}</a></p>
+          <p style="color:#666;font-size:13px">Si eliminas los procesos que ya no necesitas, no se cobran el próximo mes.</p>
+        </div>`,
+      });
+    } catch (e) {
+      console.error("[suscripcion] recordatorio adicionales", p.id, e);
+    }
+  }
 }
 
 /**
