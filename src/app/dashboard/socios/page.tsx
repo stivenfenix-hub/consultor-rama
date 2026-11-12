@@ -69,12 +69,17 @@ export default async function PortalSocios({
           hint={`${usuarios.nuevosMes} nuevos este mes`}
         />
         <StatTile label="Total invertido" value={pesos(resumen.invertido)} />
-        <StatTile label="Ingresos (Bold + otros)" value={pesos(resumen.ingresos)} accent="var(--green)" />
-        <StatTile
-          label={resumen.resultado >= 0 ? "Ganancia" : "Por recuperar"}
-          value={pesos(Math.abs(resumen.resultado))}
-          accent={resumen.resultado >= 0 ? "var(--green)" : "var(--amber)"}
-        />
+        {/* Ingresos y ganancia / por recuperar: solo los ve el root, no los socios. */}
+        {esRoot && (
+          <>
+            <StatTile label="Ingresos (Bold + otros)" value={pesos(resumen.ingresos)} accent="var(--green)" />
+            <StatTile
+              label={resumen.resultado >= 0 ? "Ganancia" : "Por recuperar"}
+              value={pesos(Math.abs(resumen.resultado))}
+              accent={resumen.resultado >= 0 ? "var(--green)" : "var(--amber)"}
+            />
+          </>
+        )}
         <StatTile label="Por revisar" value={resumen.porRevisar} />
       </section>
 
@@ -139,9 +144,13 @@ export default async function PortalSocios({
           resumen.invertido > 0 && <div className="small" style={{ marginTop: 10 }}>✓ Están parejos: cada uno ha puesto su 50%.</div>
         )}
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Ingresos de la plataforma (pagos aprobados en Bold): {pesos(resumen.ingresosBold)}
-          {resumen.ingresosManuales ? ` · otros ingresos registrados: ${pesos(resumen.ingresosManuales)}` : ""}. Solo
-          suman los movimientos confirmados.
+          {esRoot && (
+            <>
+              Ingresos de la plataforma (pagos aprobados en Bold): {pesos(resumen.ingresosBold)}
+              {resumen.ingresosManuales ? ` · otros ingresos registrados: ${pesos(resumen.ingresosManuales)}` : ""}.{" "}
+            </>
+          )}
+          Solo suman los movimientos confirmados.
         </p>
       </div>
 
