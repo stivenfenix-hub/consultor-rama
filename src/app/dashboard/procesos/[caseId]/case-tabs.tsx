@@ -109,7 +109,7 @@ export function CaseTabs({
     { key: "resumen", label: "Resumen" },
     { key: "actuaciones", label: "Actuaciones", n: paginas.actuaciones.total },
     ...(estados
-      ? [{ key: "estados" as const, label: "Estados electrónicos", n: estados.publicaciones.length }]
+      ? [{ key: "estados" as const, label: "Publicaciones Procesales", n: estados.publicaciones.length }]
       : []),
     { key: "documentos", label: "Documentos", n: paginas.documentos.total },
     { key: "partes", label: "Partes", n: partes.length },
@@ -320,7 +320,7 @@ export function CaseTabs({
 
         {tab === "estados" && estados && (
           <>
-            <h2>Estados electrónicos ({estados.publicaciones.length})</h2>
+            <h2>Publicaciones Procesales ({estados.publicaciones.length})</h2>
             <p className="muted small" style={{ marginTop: 0 }}>
               Estados que publica {estados.juzgado ?? "el juzgado"} en Publicaciones Procesales de la Rama Judicial
               donde aparece este radicado. A veces el juzgado notifica por estado sin registrar la actuación en la

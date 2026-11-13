@@ -15,7 +15,7 @@ export function QuitarDeEstados({ radicado, enRama }: { radicado: string; enRama
         e.preventDefault();
         e.stopPropagation();
         const aviso = enRama
-          ? "¿Quitar este radicado de estados electrónicos? El proceso sigue en tu lista de la Rama; solo dejamos de buscarlo en los estados."
+          ? "¿Quitar este radicado de Publicaciones Procesales? El proceso sigue en tu lista de la Rama; solo dejamos de buscarlo en los estados."
           : "¿Quitar este radicado? Dejamos de buscarlo en los estados del juzgado y se borra lo encontrado.";
         if (!confirm(aviso)) return;
         start(async () => {

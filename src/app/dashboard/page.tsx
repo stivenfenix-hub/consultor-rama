@@ -105,22 +105,23 @@ export default async function DashboardPage({
         />
       </section>
 
-      {/* Estados electrónicos */}
+      {/* Publicaciones Procesales */}
       {estados && (
         <section className="card">
           <div className="row">
-            <h2 style={{ margin: 0 }}>Estados electrónicos</h2>
+            <h2 style={{ margin: 0 }}>Publicaciones Procesales</h2>
             <div className="spacer" />
             <Link prefetch={false} href="/dashboard/estados" className="small">
               Ver todo
             </Link>
           </div>
           <p className="muted small" style={{ marginTop: 4 }}>
-            Cada noche buscamos tus radicados en el último estado que publica su juzgado.
+            Es el portal de la Rama donde los juzgados publican sus estados, aunque el proceso no esté en la
+            Consulta de Procesos o sea privado. Cada noche buscamos ahí tus radicados.
           </p>
           <div className="stat-grid">
             <StatTile label="Radicados vigilados" value={estados.vigilados} />
-            <StatTile label="Solo en estados" value={estados.soloEstados} />
+            <StatTile label="Solo en Publicaciones" value={estados.soloEstados} />
             <StatTile label="Salieron en un estado" value={estados.conHallazgo} accent="var(--accent)" />
             <StatTile
               label="Estados sin ver"

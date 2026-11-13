@@ -55,10 +55,12 @@ export default async function EstadosPage({
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Estados electrónicos</h1>
+          <h1>Publicaciones Procesales</h1>
           <p className="muted small" style={{ margin: 0 }}>
-            Revisamos las publicaciones de los juzgados de tus radicados (Publicaciones Procesales de la Rama
-            Judicial) y te mostramos dónde aparecen, aunque el proceso no esté en la Consulta Nacional.
+            Publicaciones Procesales es el portal oficial de la Rama Judicial donde los juzgados publican sus
+            estados, incluso de procesos que no aparecen en la Consulta de Procesos o son privados. Además de la
+            Consulta, cada noche revisamos el último estado del juzgado de cada radicado tuyo y te mostramos dónde
+            aparece.
           </p>
         </div>
       </div>

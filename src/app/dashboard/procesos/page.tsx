@@ -174,7 +174,7 @@ export default async function ProcesosPage({
       {estados && (
         <Link prefetch={false} href="/dashboard/estados" className="case">
           <div className="row wrap">
-            <b>📋 Estados electrónicos</b>
+            <b>📋 Publicaciones Procesales</b>
             {estados.sinVer > 0 && <span className="badge new">{estados.sinVer} nuevos</span>}
             <div className="spacer" />
             <span className="muted small">Ver dónde salieron tus procesos →</span>
@@ -233,7 +233,7 @@ export default async function ProcesosPage({
           <div className="row wrap">
             <span className="radicado">{c.radicado}</span>
             {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
-            {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en estados electrónicos">{estados ? "privado · en estados" : "privado"}</span>}
+            {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en Publicaciones Procesales">{estados ? "privado · en publicaciones" : "privado"}</span>}
             {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
             <div className="spacer" />
             <span className="muted small">Últ. actuación: {fmt(c.lastActuacionDate)}</span>
@@ -255,10 +255,11 @@ export default async function ProcesosPage({
       {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado (al final de la lista). */}
       {filtro === "todos" && pag.pagina === pag.paginas && estados && estados.solo.length > 0 && (
         <>
-          <h2 style={{ margin: "18px 0 4px" }}>En estados electrónicos ({estados.solo.length})</h2>
+          <h2 style={{ margin: "18px 0 4px" }}>En Publicaciones Procesales ({estados.solo.length})</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Cada noche buscamos tus radicados en el último estado que publica su juzgado. Aquí están los que la
-            Consulta Nacional no tiene y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).
+            Publicaciones Procesales es donde los juzgados publican sus estados, aunque el proceso no esté en la
+            Consulta de Procesos o sea privado. Cada noche buscamos ahí tus radicados. Aquí están los que la Consulta
+            no tiene y los que salieron en un estado (a veces el juzgado no lo registra en la Consulta).
           </p>
           {estados.solo.slice(pagE.desde, pagE.desde + POR_PAGINA).map((s) => (
             <div key={s.radicado} className="case">

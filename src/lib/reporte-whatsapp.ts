@@ -84,7 +84,7 @@ export function textoActuaciones(
   // Estados electrónicos: la fecha es del estado (sin hora), se muestra en UTC.
   const fEstado = (d: Date | null) => (d ? new Date(d).toLocaleDateString("es-CO", { timeZone: "UTC" }) : "");
   const textoEstados = estados.length
-    ? `📋 Estados electrónicos: tus radicados salieron en ${estados.length} publicación(es):\n` +
+    ? `📋 Publicaciones Procesales: tus radicados salieron en ${estados.length} publicación(es):\n` +
       estados
         .slice(0, 15)
         .map((e) => `• ${e.radicado}: ${e.titulo}${e.fecha ? ` (${fEstado(e.fecha)})` : ""}`)
