@@ -259,7 +259,7 @@ export default async function ProcesosPage({
         <>
           <h2 style={{ margin: "18px 0 4px" }}>En Estados electrónicos (Publicaciones Procesales) · {estados.solo.length}</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Publicaciones Procesales es donde los juzgados publican sus estados, aunque el proceso no esté en la
+            Es donde los juzgados publican sus estados, aunque el proceso no esté en la
             Rama o sea privado. Cada noche, con la tecnología de IA de Estradox, también buscamos ahí tus
             radicados. Aquí están los que no están en la Rama
             y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).

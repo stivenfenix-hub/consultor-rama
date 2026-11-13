@@ -57,7 +57,7 @@ export default async function EstadosPage({
         <div>
           <h1>Estados electrónicos (Publicaciones Procesales)</h1>
           <p className="muted small" style={{ margin: 0 }}>
-            Publicaciones Procesales es el portal oficial de la Rama Judicial donde los juzgados publican sus
+            Es el portal oficial de la Rama Judicial donde los juzgados publican sus
             estados, incluso de procesos que no están en la Rama o son privados. Cada noche
             también revisamos ahí, con la tecnología de IA de Estradox, el último estado del juzgado de cada
             radicado tuyo, extraemos la información y te mostramos dónde aparece.
