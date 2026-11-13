@@ -201,12 +201,12 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
         : r.fallidos.length + r.sinIntentar.length
           ? "⏳ Estamos terminando de cargar tus procesos"
           : enEstados
-            ? "🔎 Lo vigilamos con Publicaciones Procesales"
+            ? "🔎 Lo vigilamos con Estados electrónicos (Publicaciones Procesales)"
             : "⚠️ No pudimos cargar tus procesos",
     body:
       (listos > 0 ? `Cargamos ${listos} proceso(s) de la Rama Judicial. Ya puedes revisarlos.` : "") +
       (r.privados && enEstadosUsuario
-        ? ` ${r.privados} es privado: la Rama no publica sus actuaciones, pero lo vigilamos con Publicaciones Procesales y te avisamos cuando salga en un estado.`
+        ? ` ${r.privados} es privado: la Rama no publica sus actuaciones, pero lo vigilamos con Estados electrónicos (Publicaciones Procesales) y te avisamos cuando salga en un estado.`
         : "") +
       (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
       (r.noEncontrados.length
@@ -450,7 +450,7 @@ export async function procesarReintentos(presupuestoMs = 90_000) {
         if (enEstados) await buscarEstadosDeNuevos(f.userId, [f.radicado]);
         if (noExiste) {
           await sendPushToUser(f.userId, {
-            title: enEstados ? "🔎 Lo vigilamos con Publicaciones Procesales" : "⚠️ No encontramos un radicado",
+            title: enEstados ? "🔎 Lo vigilamos con Estados electrónicos (Publicaciones Procesales)" : "⚠️ No encontramos un radicado",
             body: enEstados
               ? explicacionCorta([f.radicado])
               : `El radicado ${f.radicado} no está en la Consulta Nacional de la Rama Judicial. Revisa el número.`,
@@ -488,7 +488,7 @@ export function mensajeAgregar(
   }
   if (r.privados) {
     ok.push(
-      `${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones. Lo vigilamos con Publicaciones Procesales y te avisamos cuando salga en un estado.`,
+      `${r.privados} agregado(s), pero es privado: la Rama no publica sus actuaciones. Lo vigilamos con Estados electrónicos (Publicaciones Procesales) y te avisamos cuando salga en un estado.`,
     );
   }
   if (r.enFondo) {
@@ -1005,7 +1005,7 @@ export async function enviarResumen(
     d ? new Date(d).toLocaleDateString("es-CO", { timeZone: "UTC" }) : "";
   const bloqueEstados = estados.length
     ? `
-      <h3 style="margin-top:24px">📋 Publicaciones Procesales (${estados.length})</h3>
+      <h3 style="margin-top:24px">📋 Estados electrónicos (Publicaciones Procesales) · ${estados.length}</h3>
       <p>Tus radicados salieron en estas publicaciones de los juzgados:</p>
       ${estados
         .slice(0, 20)
@@ -1019,7 +1019,7 @@ export async function enviarResumen(
         )
         .join("")}
       ${estados.length > 20 ? `<p>…y ${estados.length - 20} más.</p>` : ""}
-      <a href="${appUrl}/dashboard/estados">Ver Publicaciones Procesales</a>`
+      <a href="${appUrl}/dashboard/estados">Ver Estados electrónicos (Publicaciones Procesales)</a>`
     : "";
   const titulo = [
     totalNuevas ? `${totalNuevas} actuacion(es) nueva(s)` : "",
@@ -1072,7 +1072,7 @@ export async function enviarResumen(
       )
       .join("\n\n") +
     (estados.length
-      ? `\n\nPublicaciones Procesales:\n` +
+      ? `\n\nEstados electrónicos (Publicaciones Procesales):\n` +
         estados.map((e) => `${e.radicado}: ${e.titulo} ${fechaEstado(e.fecha)}`).join("\n") +
         `\n  ${appUrl}/dashboard/estados`
       : "");

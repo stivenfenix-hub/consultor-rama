@@ -109,7 +109,7 @@ export default async function DashboardPage({
       {estados && (
         <section className="card">
           <div className="row">
-            <h2 style={{ margin: 0 }}>Publicaciones Procesales</h2>
+            <h2 style={{ margin: 0 }}>Estados electrónicos (Publicaciones Procesales)</h2>
             <div className="spacer" />
             <Link prefetch={false} href="/dashboard/estados" className="small">
               Ver todo
@@ -122,7 +122,7 @@ export default async function DashboardPage({
           </p>
           <div className="stat-grid">
             <StatTile label="Radicados vigilados" value={estados.vigilados} />
-            <StatTile label="Solo en Publicaciones" value={estados.soloEstados} />
+            <StatTile label="Solo en estados" value={estados.soloEstados} />
             <StatTile label="Salieron en un estado" value={estados.conHallazgo} accent="var(--accent)" />
             <StatTile
               label="Estados sin ver"

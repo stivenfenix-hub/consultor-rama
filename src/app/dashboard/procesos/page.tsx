@@ -174,7 +174,7 @@ export default async function ProcesosPage({
       {estados && (
         <Link prefetch={false} href="/dashboard/estados" className="case">
           <div className="row wrap">
-            <b>📋 Publicaciones Procesales</b>
+            <b>📋 Estados electrónicos (Publicaciones Procesales)</b>
             {estados.sinVer > 0 && <span className="badge new">{estados.sinVer} nuevos</span>}
             <div className="spacer" />
             <span className="muted small">Ver dónde salieron tus procesos →</span>
@@ -233,7 +233,7 @@ export default async function ProcesosPage({
           <div className="row wrap">
             <span className="radicado">{c.radicado}</span>
             {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
-            {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en Publicaciones Procesales">{estados ? "privado · en publicaciones" : "privado"}</span>}
+            {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en Estados electrónicos (Publicaciones Procesales)">{estados ? "privado · en estados" : "privado"}</span>}
             {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
             <div className="spacer" />
             <span className="muted small">Últ. actuación: {fmt(c.lastActuacionDate)}</span>
@@ -255,7 +255,7 @@ export default async function ProcesosPage({
       {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado (al final de la lista). */}
       {filtro === "todos" && pag.pagina === pag.paginas && estados && estados.solo.length > 0 && (
         <>
-          <h2 style={{ margin: "18px 0 4px" }}>En Publicaciones Procesales ({estados.solo.length})</h2>
+          <h2 style={{ margin: "18px 0 4px" }}>En Estados electrónicos (Publicaciones Procesales) · {estados.solo.length}</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
             Publicaciones Procesales es donde los juzgados publican sus estados, aunque el proceso no esté en la
             Consulta de Procesos o sea privado. Cada noche, con la tecnología de IA de Estradox, buscamos ahí tus

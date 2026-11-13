@@ -783,7 +783,7 @@ export async function quitarDeEstadosAction(radicado: string): Promise<ActionSta
   await dejarDeVigilar(user.id, radicado);
   revalidatePath("/dashboard/procesos");
   revalidatePath("/dashboard/estados");
-  return { ok: "Quitado de Publicaciones Procesales." };
+  return { ok: "Quitado de Estados electrónicos (Publicaciones Procesales)." };
 }
 
 export async function borrarMovimientoAction(id: number): Promise<ActionState> {

@@ -73,7 +73,7 @@ export function CargaToast({ inicial }: { inicial: Carga | null }) {
       : enProceso.length
         ? ["Estamos terminando de cargar tus procesos", "En unos momentos te notificamos cuando estén listos."]
         : enEstados.length
-          ? ["Lo vigilamos con Publicaciones Procesales", "Revisamos las publicaciones del juzgado y te avisamos."]
+          ? ["Lo vigilamos con Estados electrónicos (Publicaciones Procesales)", "Revisamos las publicaciones del juzgado y te avisamos."]
           : ["Estamos terminando de cargar tus procesos", "En unos momentos te notificamos cuando estén listos."];
   return (
     <div className={`carga-toast ${bien ? "listo" : errorPropio ? "falla" : "listo"}`} role="status">

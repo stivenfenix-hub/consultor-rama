@@ -55,7 +55,7 @@ export default async function EstadosPage({
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Publicaciones Procesales</h1>
+          <h1>Estados electrónicos (Publicaciones Procesales)</h1>
           <p className="muted small" style={{ margin: 0 }}>
             Publicaciones Procesales es el portal oficial de la Rama Judicial donde los juzgados publican sus
             estados, incluso de procesos que no aparecen en la Consulta de Procesos o son privados. Además de la
