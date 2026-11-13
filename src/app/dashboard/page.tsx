@@ -116,7 +116,7 @@ export default async function DashboardPage({
             </Link>
           </div>
           <p className="muted small" style={{ marginTop: 4 }}>
-            Publicaciones Procesales es el portal de la Rama donde los juzgados publican sus estados, aunque el
+            Es el portal de la Rama donde los juzgados publican sus estados, aunque el
             proceso no esté en la Rama o sea privado. Cada noche, con la tecnología de IA de Estradox, también buscamos ahí tus
             radicados y extraemos la información.
           </p>
