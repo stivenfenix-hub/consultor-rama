@@ -92,7 +92,8 @@ input[type="password"],
 input[type="number"],
 input[type="search"],
 input[type="tel"],
-input:not([type]) {
+input:not([type]),
+textarea {
   width: 100%;
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -101,11 +102,18 @@ input:not([type]) {
   padding: 10px 12px;
   font-size: 15px;
 }
-input:focus {
+textarea {
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+input:focus,
+textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--muted);
 }
 /* Evita el fondo blanco/amarillo del autocompletado de Chrome */
