@@ -178,8 +178,8 @@ export default async function ProcesosPage({
             {estados.sinVer > 0 && <span className="badge new">{estados.sinVer} nuevos</span>}
           </div>
           <div className="muted small" style={{ marginTop: 6 }}>
-            También buscamos tus radicados en los estados que publica cada juzgado, aunque no estén en la Rama o
-            sean privados.
+            También buscamos tus radicados en los estados que publica cada juzgado, con la tecnología de IA de
+            Estradox, aunque no estén en la Consulta Nacional o sean privados.
           </div>
           <div className="small" style={{ marginTop: 10, color: "var(--accent)", fontWeight: 600 }}>
             Ver dónde salieron tus procesos →
