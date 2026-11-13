@@ -78,7 +78,12 @@ export default async function DashboardPage({
       <div className="page-head wrap">
         <h1>Dashboard</h1>
         <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
-          <Link prefetch={false} href="/dashboard/procesos" className="btn">
+          {/* Sin procesos todavía: el botón late para invitar a agregar el primero. */}
+          <Link
+            prefetch={false}
+            href="/dashboard/procesos"
+            className={`btn ${stats.totalProcesos === 0 ? "btn-pulse" : ""}`}
+          >
             + Agregar proceso
           </Link>
         </div>
