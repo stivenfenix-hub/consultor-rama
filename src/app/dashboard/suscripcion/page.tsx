@@ -145,10 +145,18 @@ export default async function SuscripcionPage({
           <h2 style={{ marginBottom: 4 }}>
             {sub.estado === "vencida" ? "Elige un plan para reactivar tu cuenta" : "Elige tu plan"}
           </h2>
+          {sub.estado !== "vencida" && (
+            <p style={{ margin: "0 0 6px" }}>
+              <b>
+                {sub.estado === "prueba"
+                  ? `Si pagas antes, no pierdes tus días de prueba: tu plan empieza cuando terminan tus ${sub.diasRestantes} día(s) gratis que te quedan (el ${fecha(sub.accesoHasta)}).`
+                  : `Si pagas antes, no pierdes días: el tiempo se suma desde que termina tu plan actual (el ${fecha(sub.accesoHasta)}).`}
+              </b>
+            </p>
+          )}
           <p className="muted small" style={{ marginTop: 0 }}>
-            Precios en pesos colombianos, IVA y comisiones incluidas. El tiempo se suma desde que
-            termina tu acceso actual: si pagas antes, no pierdes días. Pagas con tarjeta, PSE,
-            Nequi o Botón Bancolombia a través de Bold.
+            Precios en pesos colombianos, IVA y comisiones incluidas. Pagas con tarjeta, PSE, Nequi o Botón
+            Bancolombia a través de Bold.
           </p>
           {boldConfigurado() ? (
             <PricingCards
