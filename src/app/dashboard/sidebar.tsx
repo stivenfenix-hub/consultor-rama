@@ -10,7 +10,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
 
-type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean };
+type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean; contador?: number };
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
@@ -23,10 +23,12 @@ const NAV: NavItem[] = [
   },
   { href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" },
   { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
+  { href: "/dashboard/soporte", label: "Soporte y PQRS", icon: "chat" },
 ];
 
-const ADMIN_NAV: { href: string; label: string; icon: IconName }[] = [
+const ADMIN_NAV: NavItem[] = [
   { href: "/dashboard/admin", label: "Panel admin", icon: "shield" },
+  { href: "/dashboard/admin/soporte", label: "Soporte y PQRS", icon: "chat" },
   { href: "/dashboard/admin/usuarios", label: "Usuarios", icon: "users" },
   { href: "/dashboard/admin/reportes", label: "Reportes", icon: "download" },
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "megaphone" },
@@ -54,6 +56,8 @@ export function AppShell({
   pedirWhatsapp = null,
   sospechoso = null,
   carga = null,
+  soporteSinLeer = 0,
+  soportePorResponder = 0,
   logoutAction,
   children,
 }: {
@@ -72,6 +76,10 @@ export function AppShell({
   sospechoso?: { nombreMal: boolean; correoMal: boolean } | null;
   /** Carga de procesos reciente (aviso flotante de escritorio al terminar). */
   carga?: { id: number; estado: "cargando" | "listo"; ok: string | null; error: string | null } | null;
+  /** Respuestas de soporte que el abogado no ha leído. */
+  soporteSinLeer?: number;
+  /** Root: casos de soporte sin leer (por responder). */
+  soportePorResponder?: number;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -96,6 +104,7 @@ export function AppShell({
           {item.label}
           {item.pronto && <span className="nav-pronto">Próximamente</span>}
         </span>
+        {!!item.contador && <span className="nav-contador">{item.contador}</span>}
       </Link>
     ));
 
@@ -117,7 +126,12 @@ export function AppShell({
         </div>
 
         <nav className="nav">
-          {renderNav(soloPago ? NAV.filter((n) => n.href === "/dashboard/suscripcion") : NAV)}
+          {renderNav(
+            (soloPago
+              ? NAV.filter((n) => n.href === "/dashboard/suscripcion" || n.href === "/dashboard/soporte")
+              : NAV
+            ).map((n) => (n.href === "/dashboard/soporte" ? { ...n, contador: soporteSinLeer } : n)),
+          )}
           {portalSocios && !soloPago && (
             <>
               <div className="nav-section">Sociedad</div>
@@ -127,7 +141,11 @@ export function AppShell({
           {isAdmin && !soloPago && (
             <>
               <div className="nav-section">Administración</div>
-              {renderNav(ADMIN_NAV)}
+              {renderNav(
+                ADMIN_NAV.map((n) =>
+                  n.href === "/dashboard/admin/soporte" ? { ...n, contador: soportePorResponder } : n,
+                ),
+              )}
             </>
           )}
         </nav>

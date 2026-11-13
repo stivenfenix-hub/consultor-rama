@@ -1,3 +1,4 @@
+import { conteosSoporte, soporteSinLeerUsuario } from "@/lib/soporte";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -47,7 +48,14 @@ export default async function AppLayout({
   if (sinWhatsapp) redirect("/completar-registro");
   const pathname = h.get("x-pathname") ?? "";
   const vencida = !tieneAcceso(sub);
-  if (vencida && !pathname.startsWith(PAGINA_PAGO)) redirect(PAGINA_PAGO);
+  // Con el acceso vencido solo puede pagar o escribir a soporte.
+  if (vencida && !pathname.startsWith(PAGINA_PAGO) && !pathname.startsWith("/dashboard/soporte")) {
+    redirect(PAGINA_PAGO);
+  }
+  const [soporteSinLeer, soportePorResponder] = await Promise.all([
+    user.role === "admin" ? 0 : soporteSinLeerUsuario(user.id),
+    user.role === "admin" ? conteosSoporte().then((c) => c.sinLeer) : 0,
+  ]);
 
   // Oferta relámpago del día 15 (reemplaza el aviso de días de prueba).
   const oferta =
@@ -98,6 +106,8 @@ export default async function AppLayout({
       pedirWhatsapp={user.role !== "admin" && waActuaciones === null ? whatsapp : null}
       sospechoso={sospechoso}
       carga={carga}
+      soporteSinLeer={soporteSinLeer}
+      soportePorResponder={soportePorResponder}
       logoutAction={logoutAction}
     >
       <NavProgress />
