@@ -173,14 +173,16 @@ export default async function ProcesosPage({
 
       {estados && (
         <Link prefetch={false} href="/dashboard/estados" className="case">
-          <div className="row wrap">
+          <div className="row wrap" style={{ gap: 8 }}>
             <b>📋 Estados electrónicos (Publicaciones Procesales)</b>
             {estados.sinVer > 0 && <span className="badge new">{estados.sinVer} nuevos</span>}
-            <div className="spacer" />
-            <span className="muted small">Ver dónde salieron tus procesos →</span>
           </div>
-          <div className="muted small" style={{ marginTop: 4 }}>
-            Buscamos tus radicados en los estados que publica cada juzgado, aunque no estén en la Consulta Nacional.
+          <div className="muted small" style={{ marginTop: 6 }}>
+            También buscamos tus radicados en los estados que publica cada juzgado, aunque no estén en la Rama o
+            sean privados.
+          </div>
+          <div className="small" style={{ marginTop: 10, color: "var(--accent)", fontWeight: 600 }}>
+            Ver dónde salieron tus procesos →
           </div>
         </Link>
       )}
