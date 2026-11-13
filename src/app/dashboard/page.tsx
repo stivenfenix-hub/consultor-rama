@@ -120,7 +120,7 @@ export default async function DashboardPage({
           </p>
           <div className="stat-grid">
             <StatTile label="Radicados vigilados" value={estados.vigilados} />
-            <StatTile label="Solo en estados (no en la Rama)" value={estados.soloEstados} />
+            <StatTile label="Solo en estados" value={estados.soloEstados} />
             <StatTile label="Salieron en un estado" value={estados.conHallazgo} accent="var(--accent)" />
             <StatTile
               label="Estados sin ver"
