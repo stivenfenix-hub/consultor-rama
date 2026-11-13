@@ -17,7 +17,13 @@ export function PricingCards({
   accion,
   extraMes = 0,
   adicionales = 0,
+  incluidos = null,
+  precioAdicional = 0,
 }: {
+  /** Procesos que cubre el plan (null: usuario sin límite, no se muestra). */
+  incluidos?: number | null;
+  /** Valor de cada proceso adicional por mes. */
+  precioAdicional?: number;
   paquetes: Paquete[];
   /** "Pagar" (renovar/suscribirse) o "Reactivar" cuando el acceso venció. */
   accion: string;
@@ -63,9 +69,13 @@ export function PricingCards({
               ) : (
                 <div className="muted small">Pago mes a mes</div>
               )}
-              {p.meses > 1 && (
-                <div className="muted small" style={{ marginTop: 6 }}>
-                  Cubre los procesos que tengas al pagar. Si después pasas de ellos, los de más se cobran mes a mes.
+              {incluidos != null && (
+                <div className="small" style={{ marginTop: 6 }}>
+                  ✓ Cubre hasta <b>{incluidos} procesos</b>.{" "}
+                  <span className="muted">
+                    Los adicionales de más se cobran mes a mes ({pesos(precioAdicional)} c/u
+                    {p.meses > 1 ? ", aunque pagues varios meses por adelantado" : ""}).
+                  </span>
                 </div>
               )}
               {extraMes > 0 && (

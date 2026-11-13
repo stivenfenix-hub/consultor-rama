@@ -156,6 +156,8 @@ export default async function SuscripcionPage({
               accion={sub.estado === "vencida" ? "Reactivar" : "Elegir plan"}
               extraMes={uso.valorMes}
               adicionales={uso.adicionales}
+              incluidos={uso.limitado ? uso.incluidos : null}
+              precioAdicional={uso.precioAdicional}
             />
           ) : (
             <p className="muted small">Los pagos en línea estarán disponibles muy pronto.</p>
