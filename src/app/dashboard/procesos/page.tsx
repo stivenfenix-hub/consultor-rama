@@ -258,9 +258,9 @@ export default async function ProcesosPage({
           <h2 style={{ margin: "18px 0 4px" }}>En Estados electrónicos (Publicaciones Procesales) · {estados.solo.length}</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
             Publicaciones Procesales es donde los juzgados publican sus estados, aunque el proceso no esté en la
-            Consulta de Procesos o sea privado. Cada noche, con la tecnología de IA de Estradox, buscamos ahí tus
-            radicados. Aquí están los que la Consulta
-            no tiene y los que salieron en un estado (a veces el juzgado no lo registra en la Consulta).
+            Rama o sea privado. Cada noche, con la tecnología de IA de Estradox, buscamos ahí tus
+            radicados. Aquí están los que no están en la Rama
+            y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).
           </p>
           {estados.solo.slice(pagE.desde, pagE.desde + POR_PAGINA).map((s) => (
             <div key={s.radicado} className="case">
