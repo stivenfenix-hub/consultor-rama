@@ -115,8 +115,8 @@ export function CargaAviso({
                       {noExisten.length === 1 ? "no está" : "no están"} en la Consulta Nacional porque el juzgado
                       no sube sus actuaciones a la Rama Judicial. No te preocupes: {noExisten.length === 1 ? "lo" : "los"}{" "}
                       vigilamos en <b>Publicaciones Procesales</b>, el portal donde los juzgados publican sus estados
-                      (aunque el proceso no esté en la Consulta o sea privado): cada noche revisamos el último estado
-                      del juzgado, extraemos la información y te avisamos cuando{" "}
+                      (aunque el proceso no esté en la Consulta o sea privado), con la tecnología de IA de Estradox:
+                      cada noche revisamos el último estado del juzgado, extraemos la información y te avisamos cuando{" "}
                       {noExisten.length === 1 ? "aparezca" : "aparezcan"}. {noExisten.length === 1 ? "Lo" : "Los"} ves
                       en <b>&quot;En Publicaciones Procesales&quot;</b>, más abajo.
                     </>
