@@ -7,6 +7,7 @@ import { AddCaseForm } from "./add-case-form";
 import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
+import { DesplegarAgregar } from "./desplegar-agregar";
 import { avisoProceso } from "@/lib/aviso-rama";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
 import { QuitarDeEstados } from "../estados/quitar-estado";
@@ -53,7 +54,7 @@ export default async function ProcesosPage({
   searchParams,
 }: {
   /** pe: página de la lista "En estados electrónicos" (de a 20). */
-  searchParams: Promise<{ filtro?: string; pagina?: string; pe?: string }>;
+  searchParams: Promise<{ filtro?: string; pagina?: string; pe?: string; agregar?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -111,7 +112,7 @@ export default async function ProcesosPage({
   }));
 
   // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
-  const { filtro: f, pagina: pg, pe } = await searchParams;
+  const { filtro: f, pagina: pg, pe, agregar } = await searchParams;
   const pagE = paginaDe(pe, estados?.solo.length ?? 0);
   const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
   const conNovedades = grupos.filter((g) => g.nuevas > 0);
@@ -150,14 +151,7 @@ export default async function ProcesosPage({
     { key: "aldia", label: "Al día", n: alDia.length },
   ];
 
-  return (
-    <div className="page">
-      <div className="page-head">
-        <h1>Procesos</h1>
-      </div>
-
-      {/* Las caídas de la Rama no se le muestran al abogado (solo al root, en Panel admin). */}
-
+  const formulario = (
       <div className="card">
         <h2>Agregar proceso por radicado</h2>
         <AddCaseForm max={MAX_RADICADOS_POR_ENVIO} />
@@ -188,7 +182,9 @@ export default async function ProcesosPage({
           </div>
         )}
       </div>
-
+  );
+  const tarjetaEstados = (
+    <>
       {estados && (
         <Link prefetch={false} href="/dashboard/estados" className="case">
           <div className="row wrap" style={{ gap: 8 }}>
@@ -204,6 +200,32 @@ export default async function ProcesosPage({
           </div>
         </Link>
       )}
+    </>
+  );
+  // Con estados nuevos sin ver, la tarjeta queda a la vista aunque el formulario esté oculto.
+  const estadosALaVista = todos.length > 0 && (estados?.sinVer ?? 0) > 0;
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Procesos</h1>
+      </div>
+
+      {/* Las caídas de la Rama no se le muestran al abogado (solo al root, en Panel admin). */}
+
+      {/* Con procesos ya cargados, el formulario y la tarjeta de estados van tras "+ Agregar proceso". */}
+      {todos.length === 0 ? (
+        <>
+          {formulario}
+          {tarjetaEstados}
+        </>
+      ) : (
+        <DesplegarAgregar abierto={agregar === "1" || cargas.length > 0 || reintentos.length > 0}>
+          {formulario}
+          {!estadosALaVista && tarjetaEstados}
+        </DesplegarAgregar>
+      )}
+      {estadosALaVista && tarjetaEstados}
 
       {todos.length > 0 && (
         <nav className="tabbar tabbar-3">

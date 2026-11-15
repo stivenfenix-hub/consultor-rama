@@ -81,7 +81,7 @@ export default async function DashboardPage({
           {/* Sin procesos todavía: el botón late para invitar a agregar el primero. */}
           <Link
             prefetch={false}
-            href="/dashboard/procesos"
+            href="/dashboard/procesos?agregar=1"
             className={`btn ${stats.totalProcesos === 0 ? "btn-pulse" : ""}`}
           >
             + Agregar proceso
