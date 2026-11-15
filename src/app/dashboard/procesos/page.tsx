@@ -207,20 +207,19 @@ export default async function ProcesosPage({
 
   return (
     <div className="page">
-      <div className="page-head">
-        <h1>Procesos</h1>
-      </div>
-
       {/* Las caídas de la Rama no se le muestran al abogado (solo al root, en Panel admin). */}
 
-      {/* Con procesos ya cargados, el formulario y la tarjeta de estados van tras "+ Agregar proceso". */}
+      {/* Con procesos ya cargados, el formulario y la tarjeta de estados van tras "+ Agregar proceso" (junto al título). */}
       {todos.length === 0 ? (
         <>
+          <div className="page-head">
+            <h1>Procesos</h1>
+          </div>
           {formulario}
           {tarjetaEstados}
         </>
       ) : (
-        <DesplegarAgregar abierto={agregar === "1" || cargas.length > 0 || reintentos.length > 0}>
+        <DesplegarAgregar titulo="Procesos" abierto={agregar === "1" || cargas.length > 0 || reintentos.length > 0}>
           {formulario}
           {!estadosALaVista && tarjetaEstados}
         </DesplegarAgregar>
