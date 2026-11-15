@@ -119,6 +119,10 @@ export default async function ProcesosPage({
   const filtrados = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : grupos;
   const pag = paginaDe(pg, filtrados.length);
   const lista = filtrados.slice(pag.desde, pag.desde + POR_PAGINA);
+  // Último estado electrónico de cada radicado (incluye los que también están en la Rama).
+  const estadoPorRadicado = new Map(
+    (estados?.solo ?? []).filter((s) => s.ultimo).map((s) => [s.radicado, s.ultimo!] as const),
+  );
   // Última actuación de cada tarjeta de esta página (para ver en qué va sin abrirlo).
   const ultimas = new Map(
     (lista.length
@@ -246,6 +250,13 @@ export default async function ProcesosPage({
 
       {lista.map(({ principal: c, registros, nuevas, privado }) => {
         const u = ultimas.get(c.id);
+        // Si salió en un estado electrónico el mismo día o después, ese es en realidad lo último.
+        const est = estadoPorRadicado.get(c.radicado);
+        const diaAct = c.lastActuacionDate
+          ? new Date(c.lastActuacionDate).toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
+          : "";
+        const diaEst = est?.fecha ? new Date(est.fecha).toISOString().slice(0, 10) : "";
+        const usarEstado = !!est && (!diaAct || (!!diaEst && diaEst >= diaAct));
         return (
         <Link prefetch={false} key={c.id} href={`/dashboard/procesos/${c.id}`} className="case case-con-ultima">
           <div className="case-info">
@@ -266,7 +277,15 @@ export default async function ProcesosPage({
             })()}
           </div>
           {/* En qué va: la última actuación, sin tener que abrir el proceso. */}
-          <div className="case-ultima" title={u?.anotacion ?? undefined}>
+          <div className="case-ultima" title={(usarEstado ? est?.extracto : u?.anotacion) ?? undefined}>
+            {usarEstado && est ? (
+              <>
+                <div className="muted small">Últ. estado electrónico · {fmtUTC(est.fecha)}</div>
+                <div className="case-ultima-nombre">{est.titulo}</div>
+                {est.extracto && <div className="muted small case-ultima-nota">{est.extracto}</div>}
+              </>
+            ) : (
+            <>
             <div className="muted small">Últ. actuación · {fmt(c.lastActuacionDate)}</div>
             {u?.actuacion ? (
               <>
@@ -275,6 +294,8 @@ export default async function ProcesosPage({
               </>
             ) : (
               <div className="muted small">Sin actuaciones aún</div>
+            )}
+            </>
             )}
           </div>
         </Link>
