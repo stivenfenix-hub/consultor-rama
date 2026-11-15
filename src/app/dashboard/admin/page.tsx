@@ -126,7 +126,9 @@ export default async function AdminDashboard() {
             </div>
           )}
           {sync.fallidos.length > 0 && (
-            <div className="table-wrap" style={{ marginTop: 10 }}>
+            <details className="acordeon" style={{ marginTop: 10 }}>
+            <summary>Ver radicados con error ({sync.fallidos.length})</summary>
+            <div className="table-wrap" style={{ marginTop: 8 }}>
               <table className="table">
                 <thead>
                   <tr>
@@ -148,6 +150,7 @@ export default async function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            </details>
           )}
         </section>
       )}

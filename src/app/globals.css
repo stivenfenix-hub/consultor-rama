@@ -2032,3 +2032,26 @@ span.aviso-rama {
 }
 .soporte-msg-autor { margin-bottom: 4px; font-weight: 600; }
 .soporte-msg-texto { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Acordeón (cerrado por defecto) para listas largas. */
+.acordeon > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  font-size: 0.9rem;
+  font-weight: 600;
+  user-select: none;
+}
+.acordeon > summary::-webkit-details-marker { display: none; }
+.acordeon > summary::before {
+  content: "▸";
+  transition: transform 0.15s;
+}
+.acordeon[open] > summary::before { transform: rotate(90deg); }
+.acordeon > summary:hover { border-color: var(--accent); }
