@@ -2055,3 +2055,48 @@ span.aviso-rama {
 }
 .acordeon[open] > summary::before { transform: rotate(90deg); }
 .acordeon > summary:hover { border-color: var(--accent); }
+
+/* Procesos: la última actuación a la derecha de cada tarjeta (abajo en móvil). */
+.case-con-ultima {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.case-con-ultima .case-info {
+  flex: 1;
+  min-width: 0;
+}
+.case-ultima {
+  flex: 0 0 34%;
+  max-width: 340px;
+  text-align: right;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+}
+.case-ultima-nombre {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+.case-ultima-nota {
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 720px) {
+  .case-con-ultima {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .case-ultima {
+    flex: none;
+    max-width: none;
+    width: 100%;
+    text-align: left;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding: 10px 0 0;
+  }
+}

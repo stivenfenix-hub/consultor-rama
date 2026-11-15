@@ -119,6 +119,20 @@ export default async function ProcesosPage({
   const filtrados = filtro === "novedades" ? conNovedades : filtro === "aldia" ? alDia : grupos;
   const pag = paginaDe(pg, filtrados.length);
   const lista = filtrados.slice(pag.desde, pag.desde + POR_PAGINA);
+  // Última actuación de cada tarjeta de esta página (para ver en qué va sin abrirlo).
+  const ultimas = new Map(
+    (lista.length
+      ? await prisma
+          .$queryRawUnsafe<{ caseId: string; actuacion: string | null; anotacion: string | null }[]>(
+            `SELECT DISTINCT ON ("caseId") "caseId", actuacion, anotacion FROM "Actuacion"
+             WHERE "caseId" = ANY($1::text[])
+             ORDER BY "caseId", "fechaActuacion" DESC NULLS LAST, "consActuacion" DESC NULLS LAST`,
+            lista.map((g) => g.principal.id),
+          )
+          .catch(() => [])
+      : []
+    ).map((a) => [a.caseId, a]),
+  );
   const hrefPagina = (p: number) => {
     const s = new URLSearchParams();
     if (filtro !== "todos") s.set("filtro", filtro);
@@ -230,27 +244,42 @@ export default async function ProcesosPage({
         </p>
       )}
 
-      {lista.map(({ principal: c, registros, nuevas, privado }) => (
-        <Link prefetch={false} key={c.id} href={`/dashboard/procesos/${c.id}`} className="case">
-          <div className="row wrap">
-            <span className="radicado">{c.radicado}</span>
-            {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
-            {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en Estados electrónicos (Publicaciones Procesales)">{estados ? "privado · en estados" : "privado"}</span>}
-            {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
-            <div className="spacer" />
-            <span className="muted small">Últ. actuación: {fmt(c.lastActuacionDate)}</span>
+      {lista.map(({ principal: c, registros, nuevas, privado }) => {
+        const u = ultimas.get(c.id);
+        return (
+        <Link prefetch={false} key={c.id} href={`/dashboard/procesos/${c.id}`} className="case case-con-ultima">
+          <div className="case-info">
+            <div className="row wrap">
+              <span className="radicado">{c.radicado}</span>
+              {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
+              {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en Estados electrónicos (Publicaciones Procesales)">{estados ? "privado · en estados" : "privado"}</span>}
+              {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
+            </div>
+            <div className="muted small" style={{ marginTop: 6 }}>
+              {c.despacho ?? "Despacho no disponible"}
+              {c.departamento ? ` · ${c.departamento}` : ""}
+            </div>
+            {(() => {
+              // Las fallas de la Rama no se muestran (se reintentan solas).
+              const a = avisoProceso(c.lastError, !!estados);
+              return a ? <div className="muted small" style={{ marginTop: 4 }}>{a.texto}</div> : null;
+            })()}
           </div>
-          <div className="muted small" style={{ marginTop: 6 }}>
-            {c.despacho ?? "Despacho no disponible"}
-            {c.departamento ? ` · ${c.departamento}` : ""}
+          {/* En qué va: la última actuación, sin tener que abrir el proceso. */}
+          <div className="case-ultima" title={u?.anotacion ?? undefined}>
+            <div className="muted small">Últ. actuación · {fmt(c.lastActuacionDate)}</div>
+            {u?.actuacion ? (
+              <>
+                <div className="case-ultima-nombre">{u.actuacion}</div>
+                {u.anotacion && <div className="muted small case-ultima-nota">{u.anotacion}</div>}
+              </>
+            ) : (
+              <div className="muted small">Sin actuaciones aún</div>
+            )}
           </div>
-          {(() => {
-            // Las fallas de la Rama no se muestran (se reintentan solas).
-            const a = avisoProceso(c.lastError, !!estados);
-            return a ? <div className="muted small" style={{ marginTop: 4 }}>{a.texto}</div> : null;
-          })()}
         </Link>
-      ))}
+        );
+      })}
 
       <Paginador pagina={pag.pagina} paginas={pag.paginas} hrefDe={hrefPagina} />
 
