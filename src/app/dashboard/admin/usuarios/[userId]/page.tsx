@@ -7,6 +7,8 @@ import { sinLimiteManual } from "@/lib/limits";
 import { esSocio } from "@/lib/subscription";
 import { Interruptor } from "./sin-limite";
 import { RevisarEstadosAhora } from "./revisar-estados";
+import { AgregarRadicados } from "./agregar-radicados";
+import { MAX_RADICADOS_POR_ENVIO } from "@/lib/validation";
 import { estadosActivo, hallazgosDelUsuario, totalHallazgos, vigiladosDelUsuario } from "@/lib/estados";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { explicacionCorta, separarEstados } from "@/lib/textos-estados";
@@ -83,6 +85,17 @@ export default async function CargasUsuario({
         <div style={{ height: 8 }} />
         <Interruptor userId={userId} valor={estados} tipo="estados" />
       </div>
+
+      {user.role !== "admin" && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Agregar radicados a esta cuenta</h2>
+          <AgregarRadicados
+            userId={userId}
+            nombre={user.firstName || user.email}
+            max={MAX_RADICADOS_POR_ENVIO}
+          />
+        </div>
+      )}
 
       {estados && (
         <div className="card">

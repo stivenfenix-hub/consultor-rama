@@ -442,6 +442,40 @@ export async function agregarProcesoAction(
   return { ok: "Cargando tus procesos." }; // no se muestra: limpia el formulario y aparece la barra
 }
 
+/**
+ * El root agrega radicados a la cuenta de un usuario (cuando se lo pide). Es la
+ * misma carga en segundo plano que hace el abogado: en su Procesos ve el avance
+ * y al terminar le llega la notificación. No se le cobra nada al root.
+ */
+export async function agregarProcesosAUsuarioAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const destino = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!destino) return { error: "Usuario no encontrado." };
+  const { validos, invalidos } = analizarRadicados(String(formData.get("radicado") ?? ""));
+  if (validos.length === 0) {
+    return {
+      error: invalidos.length
+        ? `El radicado debe tener 23 dígitos. Revisa: ${invalidos.join(", ")}.`
+        : "Ingresa uno o más radicados de 23 dígitos (separados por coma, espacio o línea).",
+    };
+  }
+  if (validos.length > MAX_RADICADOS_POR_ENVIO) {
+    return { error: `Máximo ${MAX_RADICADOS_POR_ENVIO} por vez (pegaste ${validos.length}). Agrégalos en tandas.` };
+  }
+  await iniciarCargaProcesos(userId, validos, invalidos);
+  revalidatePath(`/dashboard/admin/usuarios/${userId}`);
+  return {
+    ok:
+      `Cargando ${validos.length} radicado(s) en su cuenta. Al terminar le llega la notificación; ` +
+      `el resultado queda abajo en «Cargas».` +
+      (invalidos.length ? ` No válidos (no se agregaron): ${invalidos.join(", ")}.` : ""),
+  };
+}
+
 export async function cerrarCargaAction(id: number) {
   const user = await requireUser();
   await marcarCargaVista(user.id, id);
