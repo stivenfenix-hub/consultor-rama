@@ -104,16 +104,29 @@ export default async function ProcesosPage({
   const porRadicado = new Map<string, typeof todos>();
   for (const c of todos) porRadicado.set(c.radicado, [...(porRadicado.get(c.radicado) ?? []), c]);
   // Ya vienen ordenados por última actuación: el primero es el más al día.
-  const grupos = [...porRadicado.values()].map((g) => ({
+  const casos = [...porRadicado.values()].map((g) => ({
+    tipo: "caso" as const,
     principal: g[0],
     registros: g.length,
     nuevas: g.reduce((n, c) => n + c.unseenCount, 0),
     privado: g.every((c) => c.esPrivado),
+    fecha: g[0].lastActuacionDate ? new Date(g[0].lastActuacionDate).getTime() : null,
   }));
+  // Los que por ahora solo están en estados electrónicos (no en la Consulta Nacional) van en la misma lista.
+  const soloEstados = (estados?.solo ?? [])
+    .filter((s) => !s.caseId)
+    .map((s) => ({
+      tipo: "estado" as const,
+      s,
+      nuevas: 0,
+      fecha: s.ultimo?.fecha ? new Date(s.ultimo.fecha).getTime() : null,
+    }));
+  // Todo junto, del más reciente al más viejo (sin fecha al final).
+  const grupos = [...casos, ...soloEstados].sort((a, b) => (b.fecha ?? -Infinity) - (a.fecha ?? -Infinity));
+  const hayProcesos = grupos.length > 0;
 
   // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
-  const { filtro: f, pagina: pg, pe, agregar } = await searchParams;
-  const pagE = paginaDe(pe, estados?.solo.length ?? 0);
+  const { filtro: f, pagina: pg, agregar } = await searchParams;
   const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
   const conNovedades = grupos.filter((g) => g.nuevas > 0);
   const alDia = grupos.filter((g) => g.nuevas === 0);
@@ -132,7 +145,7 @@ export default async function ProcesosPage({
             `SELECT DISTINCT ON ("caseId") "caseId", actuacion, anotacion FROM "Actuacion"
              WHERE "caseId" = ANY($1::text[])
              ORDER BY "caseId", "fechaActuacion" DESC NULLS LAST, "consActuacion" DESC NULLS LAST`,
-            lista.map((g) => g.principal.id),
+            lista.flatMap((g) => (g.tipo === "caso" ? [g.principal.id] : [])),
           )
           .catch(() => [])
       : []
@@ -203,14 +216,14 @@ export default async function ProcesosPage({
     </>
   );
   // Con estados nuevos sin ver, la tarjeta queda a la vista aunque el formulario esté oculto.
-  const estadosALaVista = todos.length > 0 && (estados?.sinVer ?? 0) > 0;
+  const estadosALaVista = hayProcesos && (estados?.sinVer ?? 0) > 0;
 
   return (
     <div className="page">
       {/* Las caídas de la Rama no se le muestran al abogado (solo al root, en Panel admin). */}
 
       {/* Con procesos ya cargados, el formulario y la tarjeta de estados van tras "+ Agregar proceso" (junto al título). */}
-      {todos.length === 0 ? (
+      {!hayProcesos ? (
         <>
           <div className="page-head">
             <h1>Procesos</h1>
@@ -226,7 +239,7 @@ export default async function ProcesosPage({
       )}
       {estadosALaVista && tarjetaEstados}
 
-      {todos.length > 0 && (
+      {hayProcesos && (
         <nav className="tabbar tabbar-3">
           {pestanas.map((p) => (
             <Link prefetch={false}
@@ -242,7 +255,7 @@ export default async function ProcesosPage({
         </nav>
       )}
 
-      {todos.length === 0 && (
+      {!hayProcesos && (
         <div className="card empty-benefits">
           <h2>Agrega tus procesos y empieza a ahorrar tiempo</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
@@ -261,7 +274,7 @@ export default async function ProcesosPage({
           </div>
         </div>
       )}
-      {todos.length > 0 && lista.length === 0 && (
+      {hayProcesos && lista.length === 0 && (
         <p className="muted">
           {filtro === "novedades"
             ? "No hay novedades sin revisar. Todos tus procesos están al día."
@@ -269,7 +282,53 @@ export default async function ProcesosPage({
         </p>
       )}
 
-      {lista.map(({ principal: c, registros, nuevas, privado }) => {
+      {lista.map((g) => {
+        if (g.tipo === "estado") {
+          // Solo en estados: no está en la Consulta Nacional; se sigue por las publicaciones del juzgado.
+          const { s } = g;
+          return (
+            <div key={s.radicado} className="case case-con-ultima">
+              <div className="case-info">
+                <Link prefetch={false} href="/dashboard/estados" style={{ display: "block", color: "inherit", textDecoration: "none" }}>
+                  <div className="row wrap">
+                    <span className="radicado">{s.radicado}</span>
+                    <span className="badge" title="No está en la Consulta Nacional de la Rama: lo vigilamos en Estados electrónicos (Publicaciones Procesales)">
+                      solo en estados
+                    </span>
+                  </div>
+                  <div className="muted small" style={{ marginTop: 6 }}>
+                    {s.juzgado ?? `Juzgado ${s.despacho}`} · {s.radicado.slice(12, 16)}-{s.radicado.slice(16, 21)}
+                  </div>
+                </Link>
+                <div style={{ marginTop: 8 }}>
+                  <QuitarDeEstados radicado={s.radicado} enRama={false} />
+                </div>
+              </div>
+              <Link
+                prefetch={false}
+                href="/dashboard/estados"
+                className="case-ultima"
+                style={{ color: "inherit", textDecoration: "none" }}
+                title={s.ultimo?.extracto ?? undefined}
+              >
+                {s.ultimo ? (
+                  <>
+                    <div className="muted small">Últ. estado electrónico · {fmtUTC(s.ultimo.fecha)}</div>
+                    <div className="case-ultima-nombre">{s.ultimo.titulo}</div>
+                    {s.ultimo.extracto && <div className="muted small case-ultima-nota">{s.ultimo.extracto}</div>}
+                  </>
+                ) : (
+                  <div className="muted small">
+                    {s.revisadoAt
+                      ? "Aún no sale en los estados del juzgado."
+                      : "Lo revisamos esta noche (de 6 p. m. a 6:45 a. m.)."}
+                  </div>
+                )}
+              </Link>
+            </div>
+          );
+        }
+        const { principal: c, registros, nuevas, privado } = g;
         const u = ultimas.get(c.id);
         // Si salió en un estado electrónico el mismo día o después, ese es en realidad lo último.
         const est = estadoPorRadicado.get(c.radicado);
@@ -325,64 +384,6 @@ export default async function ProcesosPage({
 
       <Paginador pagina={pag.pagina} paginas={pag.paginas} hrefDe={hrefPagina} />
 
-      {/* No están en la Consulta Nacional: se siguen solo por los estados del juzgado (al final de la lista). */}
-      {filtro === "todos" && pag.pagina === pag.paginas && estados && estados.solo.length > 0 && (
-        <>
-          <h2 style={{ margin: "18px 0 4px" }}>En Estados electrónicos (Publicaciones Procesales) · {estados.solo.length}</h2>
-          <p className="muted small" style={{ marginTop: 0 }}>
-            Es donde los juzgados publican sus estados, aunque el proceso no esté en la
-            Rama o sea privado. Cada noche, con la tecnología de IA de Estradox, también buscamos ahí tus
-            radicados. Aquí están los que no están en la Rama
-            y los que salieron en un estado (a veces el juzgado no lo registra en la Rama).
-          </p>
-          {estados.solo.slice(pagE.desde, pagE.desde + POR_PAGINA).map((s) => (
-            <div key={s.radicado} className="case">
-            <Link prefetch={false}
-              href={s.caseId ? `/dashboard/procesos/${s.caseId}` : "/dashboard/estados"}
-              style={{ display: "block", color: "inherit", textDecoration: "none" }}
-            >
-              <div className="row wrap">
-                <span className="radicado">{s.radicado}</span>
-                <span className="badge">{s.caseId ? "también en la Rama" : "solo en estados"}</span>
-                <div className="spacer" />
-                <span className="muted small">
-                  {s.ultimo ? `Últ. estado: ${fmtUTC(s.ultimo.fecha)}` : "Sin estados encontrados aún"}
-                </span>
-              </div>
-              <div className="muted small" style={{ marginTop: 6 }}>
-                {s.juzgado ?? `Juzgado ${s.despacho}`} · {s.radicado.slice(12, 16)}-{s.radicado.slice(16, 21)}
-              </div>
-              {s.ultimo ? (
-                <div className="small" style={{ marginTop: 4 }}>
-                  <b>{s.ultimo.titulo}</b>
-                  {s.ultimo.extracto && <div className="muted">…{s.ultimo.extracto.slice(0, 220)}…</div>}
-                </div>
-              ) : (
-                <div className="muted small" style={{ marginTop: 4 }}>
-                  {s.revisadoAt
-                    ? "No salió en el último estado del juzgado."
-                    : "Lo revisamos esta noche (de 6 p. m. a 6:45 a. m.)."}
-                </div>
-              )}
-            </Link>
-            <div style={{ marginTop: 8 }}>
-              <QuitarDeEstados radicado={s.radicado} enRama={!!s.caseId} />
-            </div>
-            </div>
-          ))}
-          <Paginador
-            pagina={pagE.pagina}
-            paginas={pagE.paginas}
-            hrefDe={(p) => {
-              const s = new URLSearchParams();
-              if (pag.pagina > 1) s.set("pagina", String(pag.pagina));
-              if (p > 1) s.set("pe", String(p));
-              const t = s.toString();
-              return `/dashboard/procesos${t ? `?${t}` : ""}`;
-            }}
-          />
-        </>
-      )}
     </div>
   );
 }
