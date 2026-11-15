@@ -1027,3 +1027,42 @@ export async function enviarSinProcesosWaAction(fecha: string): Promise<ActionSt
         : `${n} en cola de WhatsApp; ${filas.length - n} ya lo habían recibido hoy.`,
   };
 }
+
+/** Root: WhatsApp (cola comercial) con mensaje editable a los elegidos que siguen con 0 radicados. */
+export async function enviarWaSinRadicadosAction(ids: string[], plantilla: string): Promise<ActionState> {
+  await requireAdmin();
+  const texto = plantilla.trim();
+  if (texto.length < 10) return { error: "Escribe el mensaje." };
+  if (texto.length > 3000) return { error: "El mensaje es muy largo (máximo 3000 caracteres)." };
+  if (!Array.isArray(ids) || ids.length === 0) return { error: "Elige al menos un usuario." };
+  const { usuariosSinRadicados, personalizarSinProcesos } = await import("@/lib/reporte-whatsapp");
+  const { encolarWhatsapp, estadoWhatsapp } = await import("@/lib/whatsapp");
+  const comercial = (await estadoWhatsapp()).find((e) => e.cuenta === "comercial");
+  if (!comercial?.numero) return { error: "El WhatsApp comercial no está vinculado: vincúlalo en WhatsApp primero." };
+  // Se vuelve a mirar: solo a quienes siguen con 0 radicados y tienen número.
+  const elegidos = new Set(ids);
+  const usuarios = (await usuariosSinRadicados()).filter((u) => elegidos.has(u.id) && u.telefono);
+  const nombres = await prisma.user.findMany({
+    where: { id: { in: usuarios.map((u) => u.id) } },
+    select: { id: true, lastName: true, name: true },
+  });
+  const porId = new Map(nombres.map((u) => [u.id, u]));
+  const n = await encolarWhatsapp(
+    usuarios.map((u) => ({
+      userId: u.id,
+      tipo: "sinProcesos",
+      telefono: u.telefono,
+      mensaje: personalizarSinProcesos(texto, porId.get(u.id)?.lastName ?? null, porId.get(u.id)?.name ?? null),
+    })),
+  );
+  revalidatePath("/dashboard/admin/usuarios/sin-radicados");
+  revalidatePath("/dashboard/admin/whatsapp");
+  const omitidos = ids.length - usuarios.length;
+  const repetidos = usuarios.length - n;
+  return {
+    ok:
+      `${n} mensaje(s) en la cola del WhatsApp comercial; salen despacio (máximo ${comercial.maxDia} al día).` +
+      (repetidos > 0 ? ` ${repetidos} ya habían recibido ese mismo mensaje en las últimas 20 horas.` : "") +
+      (omitidos > 0 ? ` ${omitidos} omitido(s): sin número o ya agregaron radicados.` : ""),
+  };
+}

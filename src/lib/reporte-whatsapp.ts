@@ -351,3 +351,68 @@ export async function avisarReporteSinProcesos() {
   );
   return { fecha: ayer, usuarios: filas.length, encoladosWhatsapp: encolados };
 }
+
+// ---------- Root: todos los que siguen sin radicados (envío manual) ----------
+
+/** El mensaje de "sin procesos" con {apellido} donde va el apellido de cada uno. */
+export const PLANTILLA_SIN_PROCESOS = textoAutomatico("sinProcesos", { apellido: "{apellido}" });
+
+/** Pone el apellido en la plantilla ("Dr(a). {apellido}" -> "Dr(a)." si no hay apellido). */
+export function personalizarSinProcesos(plantilla: string, lastName: string | null, name: string | null) {
+  const a = primerApellido(lastName, name);
+  return a ? plantilla.replace(/\{apellido\}/g, a) : plantilla.replace(/ ?\{apellido\}/g, "");
+}
+
+export type UsuarioSinRadicados = {
+  id: string;
+  nombre: string;
+  email: string;
+  telefono: string;
+  createdAt: Date;
+  /** Intentó cargar procesos pero ninguno quedó. */
+  intentoCarga: boolean;
+  /** Último mensaje "sin procesos" que se le encoló por WhatsApp. */
+  ultimoWa: Date | null;
+};
+
+/**
+ * Usuarios (no root) con 0 radicados: los que en Usuarios salen con "Procesos 0".
+ * Del más nuevo al más viejo.
+ */
+export async function usuariosSinRadicados(): Promise<UsuarioSinRadicados[]> {
+  const { asegurarTablasWa } = await import("./whatsapp");
+  await asegurarTablasWa();
+  const filas = await prisma.$queryRawUnsafe<
+    {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      name: string | null;
+      email: string;
+      whatsapp: string | null;
+      createdAt: Date;
+      intento: boolean;
+      ultimoWa: Date | null;
+    }[]
+  >(
+    `SELECT u.id, u."firstName", u."lastName", u.name, u.email, u."whatsapp", u."createdAt",
+            EXISTS (SELECT 1 FROM "CargaProcesos" cp WHERE cp."userId" = u.id) AS intento,
+            (SELECT max(m."createdAt") FROM "WaMensaje" m WHERE m."userId" = u.id AND m.tipo = 'sinProcesos') AS "ultimoWa"
+     FROM "User" u
+     WHERE u.role <> 'admin'
+       AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
+     ORDER BY u."createdAt" DESC`,
+  );
+  // Los vigilados solo en estados cuentan como radicados (el mismo conteo de Usuarios).
+  const { conteoProcesosPorUsuario } = await import("./estados");
+  const conteo = await conteoProcesosPorUsuario(filas.map((u) => u.id));
+  return filas.filter((u) => !conteo.get(u.id)).map((u) => ({
+    id: u.id,
+    nombre: [u.firstName, u.lastName].filter(Boolean).join(" ") || u.name || u.email,
+    email: u.email,
+    telefono: (u.whatsapp ?? "").replace(/\D/g, ""),
+    createdAt: u.createdAt,
+    intentoCarga: u.intento,
+    ultimoWa: u.ultimoWa,
+  }));
+}

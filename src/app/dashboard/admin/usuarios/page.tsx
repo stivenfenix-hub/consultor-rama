@@ -62,6 +62,9 @@ export default async function UsuariosAdmin({
     <div className="page">
       <div className="page-head">
         <h1>Usuarios</h1>
+        <Link prefetch={false} className="btn secondary" href="/dashboard/admin/usuarios/sin-radicados">
+          Con 0 radicados · WhatsApp
+        </Link>
       </div>
 
       <section className="stat-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
