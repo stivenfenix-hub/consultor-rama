@@ -10,7 +10,6 @@ import { CargaAviso } from "./carga-aviso";
 import { DesplegarAgregar } from "./desplegar-agregar";
 import { avisoProceso } from "@/lib/aviso-rama";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
-import { QuitarDeEstados } from "../estados/quitar-estado";
 import { usoProcesos } from "@/lib/subscription";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 
@@ -287,9 +286,8 @@ export default async function ProcesosPage({
           // Solo en estados: no está en la Consulta Nacional; se sigue por las publicaciones del juzgado.
           const { s } = g;
           return (
-            <div key={s.radicado} className="case case-con-ultima">
+            <Link prefetch={false} key={s.radicado} href={`/dashboard/estados/${s.radicado}`} className="case case-con-ultima">
               <div className="case-info">
-                <Link prefetch={false} href="/dashboard/estados" style={{ display: "block", color: "inherit", textDecoration: "none" }}>
                   <div className="row wrap">
                     <span className="radicado">{s.radicado}</span>
                     <span className="badge" title="No está en la Consulta Nacional de la Rama: lo vigilamos en Estados electrónicos (Publicaciones Procesales)">
@@ -299,18 +297,8 @@ export default async function ProcesosPage({
                   <div className="muted small" style={{ marginTop: 6 }}>
                     {s.juzgado ?? `Juzgado ${s.despacho}`} · {s.radicado.slice(12, 16)}-{s.radicado.slice(16, 21)}
                   </div>
-                </Link>
-                <div style={{ marginTop: 8 }}>
-                  <QuitarDeEstados radicado={s.radicado} enRama={false} />
-                </div>
               </div>
-              <Link
-                prefetch={false}
-                href="/dashboard/estados"
-                className="case-ultima"
-                style={{ color: "inherit", textDecoration: "none" }}
-                title={s.ultimo?.extracto ?? undefined}
-              >
+              <div className="case-ultima" title={s.ultimo?.extracto ?? undefined}>
                 {s.ultimo ? (
                   <>
                     <div className="muted small">Últ. estado electrónico · {fmtUTC(s.ultimo.fecha)}</div>
@@ -324,8 +312,8 @@ export default async function ProcesosPage({
                       : "Lo revisamos esta noche (de 6 p. m. a 6:45 a. m.)."}
                   </div>
                 )}
-              </Link>
-            </div>
+              </div>
+            </Link>
           );
         }
         const { principal: c, registros, nuevas, privado } = g;

@@ -1,11 +1,22 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { quitarDeEstadosAction } from "@/app/actions";
 
 /** Botón para dejar de vigilar un radicado en estados electrónicos. */
-export function QuitarDeEstados({ radicado, enRama }: { radicado: string; enRama: boolean }) {
+export function QuitarDeEstados({
+  radicado,
+  enRama,
+  volverA,
+}: {
+  radicado: string;
+  enRama: boolean;
+  /** A dónde ir después de quitarlo (p. ej. desde su propia página). */
+  volverA?: string;
+}) {
   const [pending, start] = useTransition();
+  const router = useRouter();
   return (
     <button
       type="button"
@@ -21,6 +32,7 @@ export function QuitarDeEstados({ radicado, enRama }: { radicado: string; enRama
         start(async () => {
           const r = await quitarDeEstadosAction(radicado);
           if (r.error) alert(r.error);
+          else if (volverA) router.push(volverA);
         });
       }}
     >
