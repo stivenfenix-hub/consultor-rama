@@ -89,14 +89,33 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
     where: { case: { userId }, fechaActuacion: { gte: startOfMonth } },
   });
 
+  // Último estado electrónico de cada radicado: si es más reciente, esa es su última actuación.
+  const ultimoEstado = new Map(
+    (
+      await prisma
+        .$queryRawUnsafe<{ radicado: string; f: Date | null }[]>(
+          `SELECT h.radicado, max(p.fecha) AS f
+           FROM "EstadoHallazgo" h JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
+           WHERE h."userId" = $1 GROUP BY h.radicado`,
+          userId,
+        )
+        .catch(() => [])
+    ).map((r) => [r.radicado, r.f ? new Date(r.f) : null] as const),
+  );
+  const masReciente = (a: Date | null, b: Date | null | undefined) => (!a ? b ?? null : !b ? a : a > b ? a : b);
+  const fechas = [
+    ...cases.map((c) => masReciente(c.lastActuacionDate, ultimoEstado.get(c.radicado))),
+    ...soloEstados.map((r) => ultimoEstado.get(r) ?? null),
+  ];
+
   const buckets = { b0_6: 0, b6_12: 0, b12: 0, sin: 0 };
   const MES = 1000 * 60 * 60 * 24 * 30.44;
-  for (const c of cases) {
-    if (!c.lastActuacionDate) {
+  for (const f of fechas) {
+    if (!f) {
       buckets.sin++;
       continue;
     }
-    const meses = (now.getTime() - c.lastActuacionDate.getTime()) / MES;
+    const meses = (now.getTime() - f.getTime()) / MES;
     if (meses <= 6) buckets.b0_6++;
     else if (meses <= 12) buckets.b6_12++;
     else buckets.b12++;
