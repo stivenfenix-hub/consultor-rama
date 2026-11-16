@@ -2128,3 +2128,80 @@ span.aviso-rama {
     font-size: 0.8rem;
   }
 }
+
+/* Firma electrónica (próximamente) */
+.firma-docs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.firma-doc {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.firma-doc:hover {
+  border-color: var(--accent);
+}
+.firma-doc.sel {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel-2));
+}
+.firma-veredicto {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid;
+  animation: cert-in 0.3s ease;
+}
+.firma-veredicto.si {
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+}
+.firma-veredicto.no {
+  border-color: color-mix(in srgb, var(--red) 55%, transparent);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+.firma-veredicto-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.firma-veredicto.si .firma-veredicto-icon {
+  background: var(--green);
+  color: #fff;
+}
+.firma-veredicto.no .firma-veredicto-icon {
+  background: var(--red);
+  color: #fff;
+}
+.firma-excepciones {
+  border-color: color-mix(in srgb, var(--red) 50%, var(--border));
+  background: color-mix(in srgb, var(--red) 7%, var(--panel));
+}
+.firma-excepciones h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red);
+}
+.firma-excepciones ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+}

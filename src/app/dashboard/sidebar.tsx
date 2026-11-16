@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
     icon: "certificado",
     pronto: true,
   },
+  { href: "/dashboard/firma-electronica", label: "Firma electrónica", icon: "firma", pronto: true },
   { href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" },
   { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
   { href: "/dashboard/soporte", label: "Soporte y PQRS", icon: "chat" },
