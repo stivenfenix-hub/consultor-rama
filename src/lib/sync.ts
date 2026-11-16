@@ -206,7 +206,7 @@ async function avisarCargaLista(userId: string, r: ResultadoAgregar) {
     body:
       (listos > 0 ? `Cargamos ${listos} proceso(s) de la Rama Judicial. Ya puedes revisarlos.` : "") +
       (r.privados && enEstadosUsuario
-        ? ` ${r.privados} es reservado en la Rama, pero tranquilo: con la tecnología de IA de Estradox lo seguimos en Estados electrónicos (Publicaciones Procesales) y te avisamos apenas salga.`
+        ? ` ${r.privados} es privado en la Rama, pero tranquilo: con la tecnología de IA de Estradox lo seguimos en Estados electrónicos (Publicaciones Procesales) y te avisamos apenas salga.`
         : "") +
       (r.yaEstaban ? ` ${r.yaEstaban} ya estaba(n) en tu lista.` : "") +
       (r.noEncontrados.length
@@ -488,7 +488,7 @@ export function mensajeAgregar(
   }
   if (r.privados) {
     ok.push(
-      `✅ ${r.privados} agregado(s). Es un proceso reservado en la Rama, pero tranquilo: con la tecnología de IA de Estradox lo seguimos en Estados electrónicos (Publicaciones Procesales). Cada noche revisamos las publicaciones del juzgado, extraemos la información y te avisamos apenas salga.`,
+      `✅ ${r.privados} agregado(s). Es un proceso privado en la Rama, pero tranquilo: con la tecnología de IA de Estradox lo seguimos en Estados electrónicos (Publicaciones Procesales). Cada noche revisamos las publicaciones del juzgado, extraemos la información y te avisamos apenas salga.`,
     );
   }
   if (r.enFondo) {
