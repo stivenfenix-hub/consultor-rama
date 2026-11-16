@@ -103,7 +103,7 @@ export default async function DashboardPage({
       soloEstados: true,
     });
   }
-  const recientes = filas.sort((a, b) => b.orden - a.orden).slice(0, 8);
+  const recientes = filas.sort((a, b) => b.orden - a.orden).slice(0, 5);
 
   return (
     <div className="page">
