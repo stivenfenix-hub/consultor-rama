@@ -188,7 +188,7 @@ export default async function DashboardPage({
           </p>
         ) : (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table tabla-recientes">
               <thead>
                 <tr>
                   <th>Radicado</th>
@@ -207,7 +207,7 @@ export default async function DashboardPage({
                         <span className="badge" style={{ marginLeft: 6 }}>solo en estados</span>
                       )}
                     </td>
-                    <td className="muted">{r.fecha}</td>
+                    <td className="muted reciente-fecha">{r.fecha}</td>
                     <td>
                       {r.texto}
                       {r.deEstado && <div className="muted small">Estado electrónico</div>}

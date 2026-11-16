@@ -2100,3 +2100,31 @@ span.aviso-rama {
     padding: 10px 0 0;
   }
 }
+
+/* Dashboard: en móvil la tabla de actuación reciente va como tarjetas apiladas (sin arrastrar). */
+@media (max-width: 640px) {
+  .tabla-recientes thead {
+    display: none;
+  }
+  .tabla-recientes,
+  .tabla-recientes tbody,
+  .tabla-recientes tr,
+  .tabla-recientes td {
+    display: block;
+    width: 100%;
+  }
+  .tabla-recientes tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tabla-recientes tr:last-child {
+    border-bottom: 0;
+  }
+  .tabla-recientes td {
+    padding: 2px 0;
+    border: 0;
+  }
+  .tabla-recientes td.reciente-fecha {
+    font-size: 0.8rem;
+  }
+}
