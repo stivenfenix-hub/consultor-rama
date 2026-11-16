@@ -5,6 +5,8 @@ import {
   DIAS_VIGENCIA,
   ESTADOS_DOC,
   ESTADOS_FIRMANTE,
+  NIVELES,
+  resumenIdentidad,
   EVENTOS,
   auditoriaDe,
   documentoDe,
@@ -37,6 +39,8 @@ const ICONO_EVENTO: Record<EventoFirma, IconName> = {
   REJECTED: "alert",
   REMINDER_SENT: "bell",
   SEALED_PDF_GENERATED: "sello",
+  IDENTITY_VERIFIED: "users",
+  IDENTITY_INCONCLUSIVE: "alert",
 };
 const CLASE_FIRMANTE: Record<EstadoFirmante, string> = { PENDING: "", VIEWED: "reciente", SIGNED: "new", REJECTED: "rojo" };
 const CLASE_DOC = { DRAFT: "", PENDING: "reciente", PARTIALLY_SIGNED: "warn", COMPLETED: "new", REJECTED: "rojo", EXPIRED: "" } as const;
@@ -73,6 +77,9 @@ export default async function DetalleFirma({ params }: { params: Promise<{ id: s
           <h1 style={{ marginTop: 4 }}>{doc.titulo}</h1>
           <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
             <span className={`badge ${CLASE_DOC[doc.estado]}`}>{ESTADOS_DOC[doc.estado]}</span>
+            <span className="badge" title={NIVELES[doc.verificacion].d}>
+              {NIVELES[doc.verificacion].t}
+            </span>
             {doc.radicado && <span className="radicado small">{doc.radicado}</span>}
             {abierto && <EnVivo />}
           </div>
@@ -163,6 +170,30 @@ export default async function DetalleFirma({ params }: { params: Promise<{ id: s
                         ? `No firmó: «${f.motivo}»`
                         : "Aún no abre el enlace"}
               </div>
+              {f.identidad && (
+                <>
+                  <div className={`small ${f.identidad.estado === "verificada" ? "ok" : "error"}`} style={{ marginTop: 4 }}>
+                    {f.identidad.estado === "verificada" ? "✓ " : "⚠ "}
+                    {resumenIdentidad(f.identidad)}
+                  </div>
+                  <div className="identidad-miniaturas">
+                    {(["frente", "reverso", "selfie"] as const)
+                      .filter((t) => (t === "frente" ? f.cedulaFrenteUrl : t === "reverso" ? f.cedulaReversoUrl : f.selfieUrl))
+                      .map((t) => {
+                        const src = `/api/firmas/${doc.id}/identidad?f=${f.id}&tipo=${t}`;
+                        return (
+                          <a key={t} href={src} target="_blank" rel="noopener noreferrer" title={t === "selfie" ? "Selfie" : `Cédula: ${t}`}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={src} alt={t} />
+                          </a>
+                        );
+                      })}
+                  </div>
+                </>
+              )}
+              {!f.identidad && doc.verificacion !== "otp" && f.estado !== "REJECTED" && (
+                <div className="muted small">Aún no verifica su identidad ({NIVELES[doc.verificacion].t.toLowerCase()}).</div>
+              )}
             </div>
             {abierto && f.estado !== "SIGNED" && <CopiarEnlace url={enlaceFirma(f.token)} />}
           </div>

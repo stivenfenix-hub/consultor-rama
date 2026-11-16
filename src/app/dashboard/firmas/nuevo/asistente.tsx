@@ -27,6 +27,15 @@ const TIPOS_DOC: [string, string][] = [
   ["NIT", "NIT"],
   ["PAS", "Pasaporte"],
 ];
+const NIVELES_VISTA: { k: "otp" | "cedula" | "biometrica"; t: string; d: string }[] = [
+  { k: "otp", t: "Solo código", d: "Código de 6 dígitos al correo o WhatsApp. Lo más rápido para el cliente." },
+  { k: "cedula", t: "Código + cédula", d: "Además toma fotos de su cédula por ambos lados; leemos el número y lo comparamos." },
+  {
+    k: "biometrica",
+    t: "Código + cédula + rostro",
+    d: "Además una selfie con prueba de vida (parpadear y girar la cabeza) que se compara con la foto de la cédula.",
+  },
+];
 const ANCHO = 0.3;
 const ALTO = 0.075;
 const vacio = (): FirmanteForm => ({ nombre: "", tipoDoc: "CC", numDoc: "", email: "", telefono: "", posicion: null });
@@ -64,6 +73,7 @@ export function Asistente({
   // Paso 4
   const [otpCorreo, setOtpCorreo] = useState(true);
   const [otpWhatsapp, setOtpWhatsapp] = useState(false);
+  const [verificacion, setVerificacion] = useState<"otp" | "cedula" | "biometrica">("otp");
   const [enviando, enviar] = useTransition();
 
   const cambiar = (i: number, c: Partial<FirmanteForm>) =>
@@ -164,7 +174,7 @@ export function Asistente({
     if (!doc) return;
     setError(null);
     enviar(async () => {
-      const r = await enviarDocumentoAction(doc.id, firmantes, { otpCorreo, otpWhatsapp });
+      const r = await enviarDocumentoAction(doc.id, firmantes, { otpCorreo, otpWhatsapp, verificacion });
       if (r.error) return setError(r.error);
       router.push(`/dashboard/firmas/${doc.id}`);
     });
@@ -429,6 +439,22 @@ export function Asistente({
             <input type="checkbox" checked={otpWhatsapp} onChange={(e) => setOtpWhatsapp(e.target.checked)} />
             <span>Enviar el código por <b>WhatsApp</b></span>
           </label>
+          <h3 style={{ marginBottom: 6 }}>Verificación de identidad</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Elige cuánto debe probar cada firmante que es quien dice ser. Para un pagaré o un contrato de valor alto,
+            pide la cédula y el rostro.
+          </p>
+          <div className="identidad-nivel">
+            {NIVELES_VISTA.map((n) => (
+              <label key={n.k} className={verificacion === n.k ? "sel" : ""}>
+                <input type="radio" name="verificacion" checked={verificacion === n.k} onChange={() => setVerificacion(n.k)} />
+                <span>
+                  <b>{n.t}</b>
+                  <span className="muted small" style={{ display: "block" }}>{n.d}</span>
+                </span>
+              </label>
+            ))}
+          </div>
           <p className="muted small">
             El enlace para firmar vence en 30 días. Cuando firmen todos, cada uno recibe el PDF sellado con su
             certificado de auditoría.

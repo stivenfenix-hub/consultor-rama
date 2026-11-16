@@ -7,6 +7,7 @@ import {
   firmantesDe,
   marcarCompletado,
   nombreAbogado,
+  resumenIdentidad,
   soltarSello,
   tomarParaSellar,
 } from "@/lib/firmas";
@@ -24,6 +25,11 @@ import { anexarCertificado, estamparFirmas, sha256Hex, type FirmaParaSellar } fr
  */
 
 export { sha256Hex } from "./sello";
+
+const fechaIdentidad = (d: Date | null) =>
+  d
+    ? new Date(d).toLocaleString("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "-";
 export { applyDigitalSignatureAndTSA, configSello, planSello } from "./firma-digital";
 export { PLANTILLAS, plantillaPorId, renderizarPlantilla, camposFaltantes } from "./plantillas";
 
@@ -62,6 +68,9 @@ export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
         firmadoAt: f.firmadoAt,
         otpVerificadoAt: f.otpVerificadoAt,
         ip: ipFirma.get(f.id) ?? null,
+        identidad: f.identidad
+          ? `${resumenIdentidad(f.identidad)} (${fechaIdentidad(f.identidadAt)}; comparación ${f.identidad.motor === "estradox" ? "automática en el dispositivo del firmante" : `de ${f.identidad.motor}`}).`
+          : null,
       });
     }
 
@@ -103,6 +112,13 @@ export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
                 "confirmó con un código de un solo uso (OTP) enviado a su correo o WhatsApp.",
                 "Integridad: huellas SHA-256 del original y del firmado; cualquier cambio posterior se detecta.",
                 "Autenticidad: escanee el QR o compare la huella del archivo en la página de verificación.",
+                ...(doc.verificacion === "otp"
+                  ? []
+                  : [
+                      doc.verificacion === "biometrica"
+                        ? "Identidad: cédula (frente y reverso) y selfie con prueba de vida, comparadas automáticamente."
+                        : "Identidad: cédula (frente y reverso) con lectura automática del número.",
+                    ]),
               ],
       },
       hashFirmado,

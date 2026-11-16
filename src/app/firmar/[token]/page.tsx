@@ -51,6 +51,9 @@ export default async function Firmar({ params }: { params: Promise<{ token: stri
                 bloqueo={bloqueo(doc, f)}
                 yaFirmo={f.estado === "SIGNED"}
                 completado={doc.estado === "COMPLETED"}
+                verificacion={doc.verificacion}
+                identidadHecha={!!f.identidadAt}
+                numDoc={f.numDoc}
                 posicion={f.posicion}
                 aceptacion={ACEPTACION}
               />

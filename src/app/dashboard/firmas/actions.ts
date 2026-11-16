@@ -7,6 +7,7 @@ import {
   TIPOS_DOC,
   documentoDe,
   eliminarBorrador,
+  esNivel,
   firmantesDe,
   guardarFirmantes,
   marcarEnviado,
@@ -35,7 +36,7 @@ const entre = (n: unknown, min: number, max: number) => typeof n === "number" &&
 export async function enviarDocumentoAction(
   id: string,
   firmantes: FirmanteForm[],
-  opciones: { otpCorreo: boolean; otpWhatsapp: boolean },
+  opciones: { otpCorreo: boolean; otpWhatsapp: boolean; verificacion?: string },
 ): Promise<Resultado> {
   const user = await requireUser();
   const doc = await documentoDe(user.id, id);
@@ -92,7 +93,8 @@ export async function enviarDocumentoAction(
   }
 
   await guardarFirmantes(doc.id, limpios);
-  await marcarEnviado(doc.id, opciones.otpCorreo, opciones.otpWhatsapp);
+  const nivel = esNivel(opciones.verificacion) ? opciones.verificacion : "otp";
+  await marcarEnviado(doc.id, opciones.otpCorreo, opciones.otpWhatsapp, nivel);
   const [enviado, guardados, abogado] = await Promise.all([
     documentoDe(user.id, id),
     firmantesDe(doc.id),

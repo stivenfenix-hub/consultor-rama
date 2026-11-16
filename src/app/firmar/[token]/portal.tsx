@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { PdfPaginas } from "@/components/pdf-paginas";
+import { PasoIdentidad } from "./identidad";
 
 type Canales = { correo: string | null; whatsapp: string | null };
 type Pos = { page: number; x: number; y: number; width: number; height: number } | null;
-type Paso = "otp" | "leer" | "firmar" | "listo" | "rechazado";
+type Paso = "otp" | "identidad" | "leer" | "firmar" | "listo" | "rechazado";
 
 const FUENTES = [
   { n: "Dancing Script", t: "Clásica" },
@@ -35,6 +36,9 @@ export function PortalFirma({
   bloqueo,
   yaFirmo,
   completado,
+  verificacion,
+  identidadHecha,
+  numDoc,
   posicion,
   aceptacion,
 }: {
@@ -48,11 +52,16 @@ export function PortalFirma({
   bloqueo: string | null;
   yaFirmo: boolean;
   completado: boolean;
+  verificacion: "otp" | "cedula" | "biometrica";
+  identidadHecha: boolean;
+  numDoc: string;
   posicion: Pos;
   aceptacion: string;
 }) {
   const api = `/api/firmar/${token}`;
-  const [paso, setPaso] = useState<Paso>(yaFirmo ? "listo" : verificado ? "leer" : "otp");
+  // Después del código, si el abogado pidió verificar la identidad y aún no se hizo, va ese paso.
+  const pideIdentidad = verificacion !== "otp" && !identidadHecha;
+  const [paso, setPaso] = useState<Paso>(yaFirmo ? "listo" : verificado ? (pideIdentidad ? "identidad" : "leer") : "otp");
   const [todos, setTodos] = useState(completado);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -105,7 +114,7 @@ export function PortalFirma({
       setCodigo("");
       return setError(String(r.j?.error ?? "Código incorrecto."));
     }
-    setPaso("leer");
+    setPaso(pideIdentidad ? "identidad" : "leer");
     window.scrollTo({ top: 0 });
   }
 
@@ -144,7 +153,12 @@ export function PortalFirma({
     setPaso("rechazado");
   }
 
-  const pasos: [Paso, string][] = [["otp", "Verificar"], ["leer", "Leer"], ["firmar", "Firmar"]];
+  const pasos: [Paso, string][] = [
+    ["otp", "Código"],
+    ...(verificacion !== "otp" ? ([["identidad", "Identidad"]] as [Paso, string][]) : []),
+    ["leer", "Leer"],
+    ["firmar", "Firmar"],
+  ];
   const indice = pasos.findIndex(([p]) => p === paso);
 
   return (
@@ -232,6 +246,20 @@ export function PortalFirma({
             No comparta el código con nadie: equivale a su firma.
           </p>
         </div>
+      )}
+
+      {/* ---------- Identidad (si el abogado la pidió) ---------- */}
+      {paso === "identidad" && verificacion !== "otp" && (
+        <PasoIdentidad
+          api={api}
+          nivel={verificacion}
+          numDoc={numDoc}
+          alTerminar={() => {
+            setError(null);
+            setPaso("leer");
+            window.scrollTo({ top: 0 });
+          }}
+        />
       )}
 
       {/* ---------- 2. Leer ---------- */}

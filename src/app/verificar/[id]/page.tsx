@@ -10,6 +10,7 @@ import {
   firmantesDe,
   nombreAbogado,
   ocultarDoc,
+  resumenIdentidad,
 } from "@/lib/firmas";
 import { Comparar } from "./comparar";
 
@@ -71,7 +72,7 @@ export default async function Verificar({ params }: { params: Promise<{ id: stri
             const sello = (visible.sello ?? {}) as { modo?: string; certificado?: string | null; tsa?: { url?: string; token?: string; huella?: string } | null };
             // En público solo los hechos principales de la bitácora (sin IP).
             const hitos = auditoria.filter((a) =>
-              ["CREATED", "OTP_VERIFIED", "SIGNED", "REJECTED", "SEALED_PDF_GENERATED"].includes(a.evento),
+              ["CREATED", "OTP_VERIFIED", "IDENTITY_VERIFIED", "IDENTITY_INCONCLUSIVE", "SIGNED", "REJECTED", "SEALED_PDF_GENERATED"].includes(a.evento),
             );
             return (
               <>
@@ -150,6 +151,7 @@ export default async function Verificar({ params }: { params: Promise<{ id: stri
                         {f.otpVerificadoAt && (
                           <div className="muted small">Identidad confirmada con código de un solo uso (OTP).</div>
                         )}
+                        {f.identidad && <div className="muted small">{resumenIdentidad(f.identidad)}.</div>}
                       </div>
                     </div>
                   ))}

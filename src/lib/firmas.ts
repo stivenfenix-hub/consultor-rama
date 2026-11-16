@@ -28,7 +28,9 @@ export type EventoFirma =
   | "SIGNED"
   | "REJECTED"
   | "REMINDER_SENT"
-  | "SEALED_PDF_GENERATED";
+  | "SEALED_PDF_GENERATED"
+  | "IDENTITY_VERIFIED"
+  | "IDENTITY_INCONCLUSIVE";
 export type TipoDoc = "CC" | "CE" | "NIT" | "PAS";
 export const TIPOS_DOC: Record<TipoDoc, string> = {
   CC: "Cédula de ciudadanía",
@@ -67,7 +69,60 @@ export const EVENTOS: Record<EventoFirma, string> = {
   REJECTED: "Rechazó el documento",
   REMINDER_SENT: "Recordatorio enviado",
   SEALED_PDF_GENERATED: "PDF sellado y certificado generado",
+  IDENTITY_VERIFIED: "Identidad verificada (cédula y rostro)",
+  IDENTITY_INCONCLUSIVE: "Verificación de identidad no concluyente",
 };
+
+/**
+ * Cuánto se le pide al firmante para probar quién es (lo elige el abogado):
+ *   otp         código de 6 dígitos al correo o WhatsApp
+ *   cedula      + fotos de la cédula (frente y reverso) y lectura del número
+ *   biometrica  + selfie con prueba de vida comparada con la foto de la cédula
+ */
+export type NivelVerificacion = "otp" | "cedula" | "biometrica";
+export const NIVELES: Record<NivelVerificacion, { t: string; d: string }> = {
+  otp: { t: "Solo código", d: "Código de 6 dígitos al correo o WhatsApp." },
+  cedula: { t: "Código + cédula", d: "Además, fotos de la cédula por ambos lados; leemos el número y lo comparamos." },
+  biometrica: {
+    t: "Código + cédula + rostro",
+    d: "Además, una selfie con prueba de vida que se compara con la foto de la cédula.",
+  },
+};
+export const esNivel = (n: unknown): n is NivelVerificacion => n === "otp" || n === "cedula" || n === "biometrica";
+
+/** Resultado de la verificación de identidad (lo que queda como evidencia). */
+export type ResultadoIdentidad = {
+  nivel: NivelVerificacion;
+  /** verificada = todo coincide; no_concluyente = alguna comprobación automática no coincidió. */
+  estado: "verificada" | "no_concluyente";
+  /** Dónde se hizo la comparación: "estradox" (en el dispositivo) o el proveedor externo. */
+  motor: string;
+  numeroLeido: string | null;
+  numeroCoincide: boolean | null;
+  /** Similitud facial 0-1 (1 = idéntico) y si supera el umbral. */
+  similitud: number | null;
+  rostroCoincide: boolean | null;
+  vida: { parpadeo: boolean; giro: boolean } | null;
+  intentos: number;
+  huellas: Record<string, string>;
+};
+
+/** Resumen en una línea (detalle del abogado y certificado). */
+export function resumenIdentidad(r: ResultadoIdentidad | null): string | null {
+  if (!r) return null;
+  const partes = [
+    r.numeroCoincide === null ? "cédula aportada" : r.numeroCoincide ? "número de cédula coincide" : "número de cédula no legible o distinto",
+  ];
+  if (r.nivel === "biometrica") {
+    partes.push(
+      r.similitud === null
+        ? "comparación facial sin resultado"
+        : `rostro ${r.rostroCoincide ? "coincide" : "no coincide"} con la cédula (${Math.round(r.similitud * 100)} %)`,
+    );
+    if (r.vida) partes.push(r.vida.parpadeo && r.vida.giro ? "prueba de vida superada" : "prueba de vida incompleta");
+  }
+  return `${r.estado === "verificada" ? "Identidad verificada" : "Identidad no concluyente"}: ${partes.join(" · ")}`;
+}
 
 /** El enlace de firma vence a los 30 días. */
 export const DIAS_VIGENCIA = 30;
@@ -138,6 +193,19 @@ export function asegurarTablasFirma() {
     await prisma.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "FirmaAuditoria_doc" ON "FirmaAuditoria" ("documentoId", "createdAt")`,
     );
+    // Verificación de identidad (cédula y reconocimiento facial).
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "FirmaDocumento" ADD COLUMN IF NOT EXISTS verificacion TEXT NOT NULL DEFAULT 'otp'`,
+    );
+    for (const col of [
+      `"cedulaFrenteUrl" TEXT`,
+      `"cedulaReversoUrl" TEXT`,
+      `"selfieUrl" TEXT`,
+      `identidad JSONB`,
+      `"identidadAt" TIMESTAMPTZ`,
+    ]) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "FirmaFirmante" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
   })().catch((e) => {
     listo = null;
     throw e;
@@ -199,6 +267,7 @@ export type Documento = {
   firmadoSha256: string | null;
   otpCorreo: boolean;
   otpWhatsapp: boolean;
+  verificacion: NivelVerificacion;
   sello: Record<string, unknown> | null;
   createdAt: Date;
   enviadoAt: Date | null;
@@ -224,6 +293,11 @@ export type Firmante = {
   estado: EstadoFirmante;
   motivo: string | null;
   firmadoAt: Date | null;
+  cedulaFrenteUrl: string | null;
+  cedulaReversoUrl: string | null;
+  selfieUrl: string | null;
+  identidad: ResultadoIdentidad | null;
+  identidadAt: Date | null;
 };
 export type Auditoria = {
   id: string;
@@ -406,13 +480,37 @@ export async function guardarFirmantes(documentoId: string, firmantes: FirmanteN
   });
 }
 
-export async function marcarEnviado(documentoId: string, otpCorreo: boolean, otpWhatsapp: boolean) {
+/** Guarda la verificación de identidad del firmante (fotos + resultado). */
+export async function guardarIdentidad(
+  firmanteId: string,
+  d: { frente: string; reverso: string; selfie: string | null; resultado: ResultadoIdentidad },
+) {
   await prisma.$executeRawUnsafe(
-    `UPDATE "FirmaDocumento" SET estado = 'PENDING', "enviadoAt" = now(), "otpCorreo" = $2, "otpWhatsapp" = $3
+    `UPDATE "FirmaFirmante" SET "cedulaFrenteUrl" = $2, "cedulaReversoUrl" = $3, "selfieUrl" = $4,
+            identidad = $5::jsonb, "identidadAt" = now()
+     WHERE id = $1::uuid AND estado IN ('PENDING', 'VIEWED')`,
+    firmanteId,
+    d.frente,
+    d.reverso,
+    d.selfie,
+    JSON.stringify(d.resultado),
+  );
+}
+
+export async function marcarEnviado(
+  documentoId: string,
+  otpCorreo: boolean,
+  otpWhatsapp: boolean,
+  verificacion: NivelVerificacion = "otp",
+) {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "FirmaDocumento" SET estado = 'PENDING', "enviadoAt" = now(), "otpCorreo" = $2, "otpWhatsapp" = $3,
+            verificacion = $4
      WHERE id = $1::uuid`,
     documentoId,
     otpCorreo,
     otpWhatsapp,
+    verificacion,
   );
 }
 

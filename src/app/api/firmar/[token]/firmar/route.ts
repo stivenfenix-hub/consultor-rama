@@ -27,6 +27,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     );
   }
 
+  if (doc.verificacion !== "otp" && !f.identidadAt) {
+    return NextResponse.json({ error: "Antes de firmar, complete la verificación de su identidad." }, { status: 400 });
+  }
+
   const body = await req.json().catch(() => null);
   if (body?.acepta !== true) {
     return NextResponse.json({ error: "Debe aceptar la declaración legal para firmar." }, { status: 400 });

@@ -24,6 +24,8 @@ export type FirmaParaSellar = {
   firmadoAt: Date;
   otpVerificadoAt: Date | null;
   ip: string | null;
+  /** Resumen de la verificación de identidad (cédula / rostro), si el documento la pidió. */
+  identidad?: string | null;
 };
 
 export type EventoCertificado = {
@@ -167,7 +169,9 @@ export async function anexarCertificado(doc: PDFDocument, d: DatosCertificado, h
   // --- Firmantes ---
   titulo(`Firmantes (${d.firmas.length})`);
   for (const [i, f] of d.firmas.entries()) {
-    const ALTO = 74;
+    // Con verificación de identidad, el resumen va en renglones extra (en morado).
+    const ident = f.identidad ? partir(f.identidad, normal, 8, util - 120 - 34).slice(0, 3) : [];
+    const ALTO = 74 + ident.length * 11;
     cabe(ALTO + 8);
     pagina.drawRectangle({ x: M, y: y - ALTO + 10, width: util, height: ALTO, color: FONDO, borderColor: LINEA, borderWidth: 0.7 });
     const png = await doc.embedPng(f.imagen);
@@ -194,6 +198,10 @@ export async function anexarCertificado(doc: PDFDocument, d: DatosCertificado, h
     ];
     for (const t of filas) {
       pagina.drawText(partir(t, normal, 8, ancho)[0] ?? "", { x, y: yy, size: 8, font: normal, color: GRIS });
+      yy -= 11;
+    }
+    for (const t of ident) {
+      pagina.drawText(t, { x, y: yy, size: 8, font: normal, color: MORADO });
       yy -= 11;
     }
     y -= ALTO + 6;
