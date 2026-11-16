@@ -1,11 +1,6 @@
-import { FirmaElectronica } from "./firma";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Firma electrónica" };
-
-export default function FirmaElectronicaPage() {
-  return (
-    <div className="page">
-      <FirmaElectronica />
-    </div>
-  );
+// La página de "Próximamente" dio paso al módulo real.
+export default function FirmaElectronicaAntes() {
+  redirect("/dashboard/firmas");
 }

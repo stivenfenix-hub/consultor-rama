@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // El cliente de Prisma no debe empaquetarse en el bundle del servidor.
-  serverExternalPackages: ["@prisma/client", "prisma", "web-push", "unpdf"],
+  serverExternalPackages: [
+    "@prisma/client",
+    "prisma",
+    "web-push",
+    "unpdf",
+    // Firma digital .p12 del módulo de Firma Electrónica.
+    "node-forge",
+    "@signpdf/signpdf",
+    "@signpdf/placeholder-pdf-lib",
+    "@signpdf/signer-p12",
+  ],
   // Hostinger limita los procesos/hilos del plan (120, compartidos con la app
   // en marcha y otros sitios): compilar con un solo trabajador evita que el
   // build falle con "uv_thread_create" (SIGABRT).

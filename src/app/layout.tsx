@@ -4,6 +4,7 @@ import { LOGOS } from "@/lib/marca";
 import { IosInstallBubble } from "@/components/ios-install-bubble";
 import { MetaPixel } from "@/components/meta-pixel";
 import "./globals.css";
+import "./firma.css";
 
 const BASE_METADATA: Metadata = {
   title: "Estradox",

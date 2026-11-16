@@ -8,12 +8,12 @@ import { Icon } from "./icon";
 // de la página, así que cada hoja se dibuja en un <canvas>.
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168";
 
-type PdfJs = {
+export type PdfJs = {
   GlobalWorkerOptions: { workerSrc: string };
   getDocument: (src: { data: ArrayBuffer }) => { promise: Promise<PdfDoc> };
 };
-type PdfDoc = { numPages: number; getPage: (n: number) => Promise<PdfPage> };
-type PdfPage = {
+export type PdfDoc = { numPages: number; getPage: (n: number) => Promise<PdfPage> };
+export type PdfPage = {
   getViewport: (o: { scale: number }) => { width: number; height: number };
   render: (o: {
     canvasContext: CanvasRenderingContext2D;
@@ -22,7 +22,7 @@ type PdfPage = {
 };
 
 let pdfjsPromise: Promise<PdfJs> | null = null;
-function loadPdfJs(): Promise<PdfJs> {
+export function loadPdfJs(): Promise<PdfJs> {
   if (!pdfjsPromise) {
     pdfjsPromise = import(/* webpackIgnore: true */ `${PDFJS}/pdf.min.mjs`).then(
       (m: PdfJs) => {

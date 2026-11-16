@@ -7,3 +7,6 @@ out
 .DS_Store
 next-env.d.ts
 *.tsbuildinfo
+
+# Archivos de Firma Electrónica en desarrollo (PDF y firmas)
+.firmas-storage

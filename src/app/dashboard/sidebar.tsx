@@ -12,7 +12,7 @@ import { Icon, type IconName } from "@/components/icon";
 import { TemaToggle } from "@/components/tema-toggle";
 import { LOGOS } from "@/lib/marca";
 
-type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean; contador?: number };
+type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean; nuevo?: boolean; contador?: number };
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
@@ -23,7 +23,7 @@ const NAV: NavItem[] = [
     icon: "certificado",
     pronto: true,
   },
-  { href: "/dashboard/firma-electronica", label: "Firma electrónica", icon: "firma", pronto: true },
+  { href: "/dashboard/firmas", label: "Firma electrónica", icon: "firma", nuevo: true },
   { href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" },
   { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
   { href: "/dashboard/soporte", label: "Soporte y PQRS", icon: "chat" },
@@ -106,6 +106,7 @@ export function AppShell({
         <span className="nav-label">
           {item.label}
           {item.pronto && <span className="nav-pronto">Próximamente</span>}
+          {item.nuevo && <span className="nav-pronto nav-nuevo">Nuevo</span>}
         </span>
         {!!item.contador && <span className="nav-contador">{item.contador}</span>}
       </Link>
