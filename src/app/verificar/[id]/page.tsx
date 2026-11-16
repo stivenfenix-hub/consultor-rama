@@ -184,7 +184,7 @@ export default async function Verificar({ params }: { params: Promise<{ id: stri
                     <p className="small" style={{ margin: 0 }}>
                       {sello.modo === "p12"
                         ? `El PDF lleva la firma digital del certificado «${sello.certificado ?? "Estradox"}»: un lector de PDF (como Adobe Acrobat) avisa si fue modificado después de sellarlo.`
-                        : "El PDF está sellado con la trazabilidad de Estradox (huellas SHA-256 y bitácora de eventos)."}
+                        : "Firma electrónica conforme a la Ley 527 de 1999 y el Decreto 2364 de 2012: cada firmante confirmó su identidad con un código de un solo uso, y las huellas SHA-256 permiten detectar cualquier cambio en el documento."}
                     </p>
                     {sello.tsa?.token && (
                       <details className="acordeon" style={{ marginTop: 10 }}>

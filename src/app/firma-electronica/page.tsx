@@ -54,8 +54,8 @@ const RESPALDO: { icon: IconName; t: string; d: string }[] = [
   },
   {
     icon: "certificado",
-    t: "Firma digital y estampado cronológico (TSA)",
-    d: "El PDF final se sella con firma digital y estampa cronológica RFC 3161 de una entidad de certificación acreditada por la ONAC.",
+    t: "Certificado de auditoría y evidencia digital",
+    d: "Cada documento termina con un certificado: firmantes, fechas, IP, huellas y la bitácora completa, listo para aportar al proceso.",
   },
 ];
 

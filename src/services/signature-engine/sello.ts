@@ -224,7 +224,7 @@ export async function anexarCertificado(doc: PDFDocument, d: DatosCertificado, h
   cabe(ALTO_SELLO + 70);
   y -= 6;
   pagina.drawRectangle({ x: M, y: y - ALTO_SELLO + 8, width: util, height: ALTO_SELLO, borderColor: MORADO, borderWidth: 1, color: rgb(1, 1, 1) });
-  pagina.drawText(limpiar("SELLO CRIPTOGRÁFICO"), { x: M + 10, y: y - 6, size: 8.5, font: negrita, color: MORADO });
+  pagina.drawText(limpiar("SELLO DE INTEGRIDAD ESTRADOX"), { x: M + 10, y: y - 6, size: 8.5, font: negrita, color: MORADO });
   let ys = y - 19;
   for (const l of d.selloTexto) {
     pagina.drawText(partir(l, normal, 8, util - 20)[0] ?? "", { x: M + 10, y: ys, size: 8, font: normal, color: TINTA });

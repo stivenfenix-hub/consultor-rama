@@ -20,7 +20,7 @@ import { anexarCertificado, estamparFirmas, sha256Hex, type FirmaParaSellar } fr
  *
  *   sha256Hex                    huella del PDF (al subirlo y al sellarlo)
  *   sellarSiCompleto             cuando firma el último: estampa, certifica, sella
- *   applyDigitalSignatureAndTSA  firma digital .p12 + estampa cronológica (o modo desarrollo)
+ *   applyDigitalSignatureAndTSA  opcional: firma digital .p12 + estampa cronológica
  */
 
 export { sha256Hex } from "./sello";
@@ -96,14 +96,13 @@ export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
             ? [
                 "Este archivo lleva la firma digital del certificado de Estradox: cualquier lector de PDF",
                 "(Adobe Acrobat, etc.) avisa si fue modificado después de sellarlo.",
-                plan.tsa
-                  ? "Estampa cronológica RFC 3161 de entidad acreditada: consulte el token en la página de verificación."
-                  : "Estampa cronológica de entidad acreditada: no configurada.",
+                ...(plan.tsa ? ["Estampa cronológica RFC 3161: consulte el token en la página de verificación."] : []),
               ]
             : [
-                "Trazabilidad Estradox: huellas SHA-256 y bitácora de eventos (este certificado).",
-                "Firma digital y estampa cronológica de entidad acreditada (ONAC): pendientes de activar.",
-                "La autenticidad se comprueba comparando la huella del archivo en la página de verificación.",
+                "Firma electrónica (Ley 527 de 1999 y Decreto 2364 de 2012): la identidad de cada firmante se",
+                "confirmó con un código de un solo uso (OTP) enviado a su correo o WhatsApp.",
+                "Integridad: huellas SHA-256 del original y del firmado; cualquier cambio posterior se detecta.",
+                "Autenticidad: escanee el QR o compare la huella del archivo en la página de verificación.",
               ],
       },
       hashFirmado,
@@ -111,7 +110,7 @@ export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
     estampado.setProducer("Estradox - Firma Electrónica");
     estampado.setModificationDate(new Date());
 
-    // 3) Firma digital .p12 + TSA (o modo desarrollo) -> huella final.
+    // 3) Sello Estradox (y, si se configura, firma digital .p12 + TSA) -> huella final.
     const sello = await applyDigitalSignatureAndTSA(await estampado.save({ useObjectStreams: false }));
     const final = Buffer.from(sello.pdf);
     const firmadoSha256 = sha256Hex(final);

@@ -105,8 +105,8 @@ export default async function DetalleFirma({ params }: { params: Promise<{ id: s
             </p>
             <p className="muted small" style={{ margin: "6px 0 0" }}>
               {sello.modo === "p12"
-                ? `Sellado con la firma digital de ${sello.certificado ?? "Estradox"}${sello.tsa ? " y estampa cronológica de entidad acreditada" : ""}.`
-                : "Sellado con la trazabilidad de Estradox (huellas SHA-256 y bitácora). La firma digital y la estampa cronológica de entidad acreditada aún no están activas."}
+                ? `Sellado con la firma digital de ${sello.certificado ?? "Estradox"}${sello.tsa ? " y estampa cronológica" : ""}.`
+                : "Sellado por Estradox: identidad de cada firmante confirmada con código OTP, huellas SHA-256 y bitácora completa. Tiene plena validez como firma electrónica (Ley 527 de 1999 y Decreto 2364 de 2012)."}
             </p>
           </div>
         </div>

@@ -3,24 +3,24 @@ import { readFile } from "node:fs/promises";
 import { PDFDocument } from "pdf-lib";
 
 /**
- * Firma digital corporativa (.p12) y estampa cronológica (TSA RFC 3161).
+ * Capa OPCIONAL de firma digital (.p12) y estampa cronológica (TSA RFC 3161).
  *
- * Es el punto de conexión con la entidad de certificación acreditada por la
- * ONAC (Andes SCD, GSE, etc.). Todo se configura con variables de entorno:
+ * La firma electrónica de Estradox no la necesita: es válida por sí sola
+ * (Ley 527 de 1999 y Decreto 2364 de 2012) porque identifica a cada firmante
+ * con un código OTP y deja detectar cualquier alteración (huellas SHA-256 y
+ * bitácora). La entidad acreditada por la ONAC es para la firma DIGITAL y el
+ * correo certificado (Notificaciones certificadas), no para este módulo.
  *
- *   CERT_P12_PATH, CERT_P12_PASSWORD   certificado de firma digital de Estradox
+ * Si algún día se quiere la firma digital encima, se configura aquí:
+ *   CERT_P12_PATH, CERT_P12_PASSWORD      certificado .p12 de Estradox
  *   TSA_URL, TSA_USERNAME, TSA_PASSWORD   servidor de estampa cronológica
- *
- * Si no están configuradas, funciona en MODO DESARROLLO: el PDF queda con las
- * firmas, el certificado de auditoría y sus huellas SHA-256 (la trazabilidad
- * propia de Estradox), pero sin firma digital ni estampa de una entidad
- * acreditada. Así el flujo completo se puede probar sin certificado.
+ * Sin esas variables el PDF sale con el sello Estradox (modo "estradox").
  */
 
 export type ResultadoSello = {
   pdf: Uint8Array;
-  /** "p12" = firmado digitalmente con el certificado; "desarrollo" = sin certificado. */
-  modo: "p12" | "desarrollo";
+  /** "estradox" = sello propio (OTP + SHA-256 + bitácora); "p12" = además firma digital con certificado. */
+  modo: "p12" | "estradox";
   /** Sujeto del certificado usado (CN), si hubo firma digital. */
   certificado: string | null;
   /** Estampa cronológica de la entidad (token RFC 3161 en base64), si hubo TSA. */
@@ -40,20 +40,20 @@ export function configSello() {
 }
 
 /** Qué se va a aplicar con la configuración actual (para pintarlo en el certificado antes de sellar). */
-export function planSello(): { modo: "p12" | "desarrollo"; tsa: boolean } {
+export function planSello(): { modo: "p12" | "estradox"; tsa: boolean } {
   const c = configSello();
-  return { modo: c.p12 ? "p12" : "desarrollo", tsa: !!c.tsaUrl };
+  return { modo: c.p12 ? "p12" : "estradox", tsa: !!c.tsaUrl };
 }
 
 /**
- * Aplica la firma digital del .p12 al PDF y pide la estampa cronológica.
- * Sin configuración devuelve el mismo PDF (modo desarrollo).
+ * Si hay .p12 configurado, le aplica la firma digital al PDF y, si hay TSA,
+ * pide la estampa cronológica. Sin configuración devuelve el mismo PDF.
  */
 export async function applyDigitalSignatureAndTSA(pdfBuffer: Uint8Array): Promise<ResultadoSello> {
   const c = configSello();
   const avisos: string[] = [];
   let pdf = pdfBuffer;
-  let modo: ResultadoSello["modo"] = "desarrollo";
+  let modo: ResultadoSello["modo"] = "estradox";
   let certificado: string | null = null;
 
   if (c.p12) {
@@ -61,8 +61,6 @@ export async function applyDigitalSignatureAndTSA(pdfBuffer: Uint8Array): Promis
     pdf = r.pdf;
     certificado = r.sujeto;
     modo = "p12";
-  } else {
-    avisos.push("Sin CERT_P12_PATH: no se aplicó firma digital (modo desarrollo).");
   }
 
   let tsa: ResultadoSello["tsa"] = null;
@@ -76,8 +74,6 @@ export async function applyDigitalSignatureAndTSA(pdfBuffer: Uint8Array): Promis
     } catch (e) {
       avisos.push(`La estampa cronológica falló: ${e instanceof Error ? e.message : String(e)}`);
     }
-  } else {
-    avisos.push("Sin TSA_URL: no se pidió estampa cronológica (modo desarrollo).");
   }
 
   return { pdf, modo, certificado, tsa, avisos };
