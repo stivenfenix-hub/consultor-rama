@@ -108,7 +108,11 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
     actuacionesEsteMes,
     sinVer,
     buckets,
-    porClase: groupCount(cases.map((c) => c.claseProceso)),
+    // Los que solo están en estados no tienen clase en la Rama: van en su propia categoría.
+    porClase: groupCount([
+      ...cases.map((c) => c.claseProceso),
+      ...soloEstados.map(() => "Publicaciones Procesales"),
+    ]),
     // Los que solo están en estados también suman: el departamento sale del código del radicado.
     porDepartamento: groupCount([
       ...cases.map((c) => c.departamento ?? departamentoDeRadicado(c.radicado)),
