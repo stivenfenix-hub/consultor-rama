@@ -131,6 +131,9 @@ type Resultado = {
   rostroCoincide: boolean | null;
 };
 
+/** Pantallas del paso de identidad, una cosa a la vez. */
+type Pantalla = "autorizar" | "no-autoriza" | "frente" | "reverso" | "rostro" | "comprobando" | "resultado";
+
 export function PasoIdentidad({
   api,
   nivel,
@@ -143,7 +146,9 @@ export function PasoIdentidad({
   alTerminar: () => void;
 }) {
   const biometrica = nivel === "biometrica";
-  const [consiente, setConsiente] = useState(false);
+  const [pantalla, setPantalla] = useState<Pantalla>("autorizar");
+  // Al repetir una sola foto se vuelve directo a comprobar.
+  const [repitiendo, setRepitiendo] = useState(false);
   const [frente, setFrente] = useState<Blob | null>(null);
   const [reverso, setReverso] = useState<Blob | null>(null);
   const [selfie, setSelfie] = useState<{ foto: Blob; descriptor: Float32Array } | null>(null);
@@ -155,48 +160,76 @@ export function PasoIdentidad({
   const [ocupado, setOcupado] = useState(false);
   const digitos = numDoc.replace(/\D/g, "");
 
-  const listo = consiente && frente && reverso && (!biometrica || selfie);
+  // Pasos visibles para la barrita de avance.
+  const pasos: { k: Pantalla; t: string }[] = [
+    { k: "autorizar", t: "Autorizar" },
+    { k: "frente", t: "Cédula frente" },
+    { k: "reverso", t: "Cédula reverso" },
+    ...(biometrica ? [{ k: "rostro" as Pantalla, t: "Rostro" }] : []),
+    { k: "resultado", t: "Listo" },
+  ];
+  const indice = Math.max(
+    0,
+    pasos.findIndex((p) => p.k === (pantalla === "comprobando" ? "resultado" : pantalla === "no-autoriza" ? "autorizar" : pantalla)),
+  );
 
-  async function comprobar() {
-    if (!frente || !reverso) return;
+  const ir = (p: Pantalla) => {
     setError(null);
-    setOcupado(true);
-    setResultado(null);
-    try {
-      setEstado("Leyendo el número de la cédula…");
-      const numeroLeido = await leerNumero([frente, reverso], digitos).catch(() => null);
-      let similitud: number | null = null;
-      let rostroCoincide: boolean | null = null;
-      if (biometrica && selfie) {
-        setEstado("Comparando su rostro con la foto de la cédula…");
-        const fa = await cargarFaceApi();
-        const img = await imagenDe(frente);
-        const caras = await fa
-          .detectAllFaces(img, new fa.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 }))
-          .withFaceLandmarks()
-          .withFaceDescriptors();
-        // La foto de la cédula: el rostro más grande que se encuentre.
-        const cara = caras.sort((a: Any, b: Any) => b.detection.box.area - a.detection.box.area)[0];
-        if (cara) {
-          const d = fa.euclideanDistance(cara.descriptor, selfie.descriptor);
-          similitud = Math.max(0, Math.min(1, 1 - d));
-          rostroCoincide = d <= UMBRAL_ROSTRO;
+    setPantalla(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const siguienteDe = (p: "frente" | "reverso" | "rostro"): Pantalla => {
+    if (repitiendo) return "comprobando";
+    if (p === "frente") return "reverso";
+    if (p === "reverso") return biometrica ? "rostro" : "comprobando";
+    return "comprobando";
+  };
+
+  // Al llegar a "comprobando" se revisa todo solo.
+  useEffect(() => {
+    if (pantalla !== "comprobando" || !frente || !reverso) return;
+    let vivo = true;
+    (async () => {
+      setOcupado(true);
+      setResultado(null);
+      try {
+        setEstado("Leyendo el número de su cédula…");
+        const numeroLeido = await leerNumero([frente, reverso], digitos).catch(() => null);
+        let similitud: number | null = null;
+        let rostroCoincide: boolean | null = null;
+        if (biometrica && selfie) {
+          setEstado("Comparando su rostro con la foto de la cédula…");
+          const fa = await cargarFaceApi();
+          const img = await imagenDe(frente);
+          const caras = await fa
+            .detectAllFaces(img, new fa.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 }))
+            .withFaceLandmarks()
+            .withFaceDescriptors();
+          // La foto de la cédula: el rostro más grande que se encuentre.
+          const cara = caras.sort((a: Any, b: Any) => b.detection.box.area - a.detection.box.area)[0];
+          if (cara) {
+            const d = fa.euclideanDistance(cara.descriptor, selfie.descriptor);
+            similitud = Math.max(0, Math.min(1, 1 - d));
+            rostroCoincide = d <= UMBRAL_ROSTRO;
+          }
+        }
+        if (!vivo) return;
+        setIntentos((n) => n + 1);
+        setResultado({ numeroLeido, numeroCoincide: numeroParecido(numeroLeido, digitos), similitud, rostroCoincide });
+        setPantalla("resultado");
+      } catch (e) {
+        if (vivo) setError(e instanceof Error ? e.message : "No pudimos comprobar su identidad. Intente de nuevo.");
+      } finally {
+        if (vivo) {
+          setEstado(null);
+          setOcupado(false);
         }
       }
-      setIntentos((n) => n + 1);
-      setResultado({
-        numeroLeido,
-        numeroCoincide: numeroParecido(numeroLeido, digitos),
-        similitud,
-        rostroCoincide,
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos comprobar su identidad. Intente de nuevo.");
-    } finally {
-      setEstado(null);
-      setOcupado(false);
-    }
-  }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [pantalla, frente, reverso, selfie, biometrica, digitos]);
 
   async function enviar() {
     if (!frente || !reverso || !resultado) return;
@@ -222,138 +255,291 @@ export function PasoIdentidad({
     }
   }
 
-  const todoCoincide =
-    resultado && resultado.numeroCoincide && (!biometrica || (resultado.rostroCoincide && vida.giro));
+  const numeroOk = !!resultado?.numeroCoincide;
+  const rostroOk = !biometrica || (!!resultado?.rostroCoincide && vida.giro);
+  const todoCoincide = !!resultado && numeroOk && rostroOk;
 
   return (
-    <div className="card">
-      <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>Verifique su identidad</h1>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Su abogado pidió confirmar que es usted quien firma
-        {biometrica ? ": fotos de su cédula y una selfie." : ": fotos de su cédula."}
-      </p>
-
-      <label className="check firmar-acepta" style={{ marginTop: 6 }}>
-        <input type="checkbox" checked={consiente} onChange={(e) => setConsiente(e.target.checked)} />
+    <div className="card identidad-paso">
+      <div className="identidad-avance">
         <span>
-          Autorizo a Estradox a tratar las fotos de mi documento de identidad
-          {biometrica ? " y mis datos biométricos (rostro)" : ""} con la única finalidad de verificar mi identidad en
-          este documento y conservarlas como evidencia de la firma (Ley 1581 de 2012). Entiendo que son datos sensibles
-          y que no estoy obligado a suministrarlos, pero sin ellos no puedo firmar este documento.
+          Paso {indice + 1} de {pasos.length}
         </span>
-      </label>
-
-      <div className="identidad-fotos">
-        <FotoCedula titulo="Cédula: frente" foto={frente} alElegir={async (f) => { setResultado(null); setFrente(await prepararFoto(f)); }} />
-        <FotoCedula titulo="Cédula: reverso" foto={reverso} alElegir={async (f) => { setResultado(null); setReverso(await prepararFoto(f)); }} />
+        <div className="identidad-avance-barra">
+          <div style={{ width: `${((indice + 1) / pasos.length) * 100}%` }} />
+        </div>
       </div>
-      <p className="muted small" style={{ margin: "6px 0 0" }}>
-        Ponga la cédula sobre una superficie oscura, con buena luz y sin reflejos. Que se lean bien el número y la foto.
-      </p>
 
-      {biometrica && (
-        <div style={{ marginTop: 16 }}>
-          <b>Selfie con prueba de vida</b>
-          {selfie ? (
-            <div className="identidad-selfie-lista">
-              <img src={URL.createObjectURL(selfie.foto)} alt="Su selfie" />
-              <div>
-                <div className="ok small">✓ Prueba de vida superada</div>
-                <button type="button" className="firmar-enlace" onClick={() => { setSelfie(null); setResultado(null); setVida({ parpadeo: false, giro: false }); }}>
-                  Repetir la selfie
-                </button>
-              </div>
-            </div>
-          ) : (
-            <Camara
-              alTerminar={(s, v) => {
-                setSelfie(s);
-                setVida(v);
-                setResultado(null);
-              }}
-            />
+      {/* ---------- 1. Autorización ---------- */}
+      {pantalla === "autorizar" && (
+        <>
+          <div className="identidad-icono">
+            <Icon name="shield" size={30} />
+          </div>
+          <h1 className="identidad-titulo">Vamos a confirmar que es usted</h1>
+          <p className="identidad-texto">
+            Le vamos a pedir una foto de su cédula por los dos lados
+            {biometrica ? " y una foto de su cara" : ""}. Solo toma un minuto.
+          </p>
+          <div className="identidad-legal">
+            ¿Autoriza a Estradox a usar las fotos de su cédula{biometrica ? " y de su rostro" : ""} solo para confirmar
+            su identidad en este documento y guardarlas como prueba de su firma? (Ley 1581 de 2012). Son datos sensibles:
+            usted decide si los entrega, pero sin ellos no puede firmar este documento.
+          </div>
+          <div className="identidad-decision">
+            <button type="button" className="btn identidad-si" onClick={() => ir("frente")}>
+              <Icon name="check" size={20} /> Sí, autorizo
+            </button>
+            <button type="button" className="btn secondary identidad-no" onClick={() => ir("no-autoriza")}>
+              No
+            </button>
+          </div>
+        </>
+      )}
+
+      {pantalla === "no-autoriza" && (
+        <>
+          <h1 className="identidad-titulo">Sin autorización no podemos seguir</h1>
+          <p className="identidad-texto">
+            Su abogado pidió confirmar su identidad para este documento. Si no desea entregar las fotos, comuníquese con
+            él para buscar otra forma de firmar.
+          </p>
+          <div className="identidad-decision">
+            <button type="button" className="btn identidad-si" onClick={() => ir("autorizar")}>
+              ← Volver
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ---------- 2 y 3. Cédula ---------- */}
+      {pantalla === "frente" && (
+        <FotoConCamara
+          titulo="Foto del frente de su cédula"
+          ayuda="Ponga el lado de la foto y el número dentro del recuadro."
+          alListo={(b) => {
+            setFrente(b);
+            ir(siguienteDe("frente"));
+          }}
+        />
+      )}
+      {pantalla === "reverso" && (
+        <FotoConCamara
+          titulo="Ahora la parte de atrás"
+          ayuda="Voltee la cédula y póngala dentro del recuadro."
+          alListo={(b) => {
+            setReverso(b);
+            ir(siguienteDe("reverso"));
+          }}
+        />
+      )}
+
+      {/* ---------- 4. Rostro ---------- */}
+      {pantalla === "rostro" && (
+        <>
+          <h1 className="identidad-titulo">Ahora su cara</h1>
+          <p className="identidad-texto">Mire a la cámara y siga la instrucción que aparece en la pantalla.</p>
+          <Camara
+            alTerminar={(s, v) => {
+              setSelfie(s);
+              setVida(v);
+              ir(siguienteDe("rostro"));
+            }}
+          />
+        </>
+      )}
+
+      {/* ---------- Revisión ---------- */}
+      {pantalla === "comprobando" && (
+        <div className="identidad-comprobando">
+          <div className="identidad-cargando" />
+          <h1 className="identidad-titulo">Revisando…</h1>
+          <p className="identidad-texto">{estado ?? "Un momento, por favor."}</p>
+          {error && (
+            <>
+              <div className="error" style={{ marginTop: 12 }}>{error}</div>
+              <button type="button" className="btn firmar-boton" style={{ marginTop: 12 }} onClick={() => { setPantalla("resultado"); setTimeout(() => setPantalla("comprobando"), 0); }}>
+                Intentar de nuevo
+              </button>
+            </>
           )}
         </div>
       )}
 
-      {resultado && (
-        <div className={`firma-veredicto ${todoCoincide ? "si" : "no"}`}>
-          <div className="firma-veredicto-icon">
-            <Icon name={todoCoincide ? "check" : "alert"} size={22} />
+      {pantalla === "resultado" && resultado && (
+        <>
+          <div className={`identidad-icono ${todoCoincide ? "ok" : "mal"}`}>
+            <Icon name={todoCoincide ? "check" : "alert"} size={30} />
           </div>
-          <div className="small">
-            <b>{todoCoincide ? "Identidad verificada" : "No pudimos confirmar todo"}</b>
-            <div>
-              {resultado.numeroCoincide
-                ? "✓ El número de la cédula coincide."
-                : "✗ No logramos leer el número de su cédula. Tome la foto más cerca y con más luz."}
-            </div>
+          <h1 className="identidad-titulo">{todoCoincide ? "¡Listo, es usted!" : "Casi listo"}</h1>
+          <ul className="identidad-lista">
+            <li className={numeroOk ? "ok" : "mal"}>
+              {numeroOk ? "✓ Leímos el número de su cédula." : "✗ No logramos leer bien el número de su cédula."}
+            </li>
             {biometrica && (
-              <div>
+              <li className={rostroOk ? "ok" : "mal"}>
                 {resultado.rostroCoincide === null
-                  ? "✗ No encontramos el rostro en la foto de la cédula."
-                  : resultado.rostroCoincide
-                    ? `✓ Su rostro coincide con la cédula (${Math.round((resultado.similitud ?? 0) * 100)} %).`
-                    : `✗ El rostro no coincide lo suficiente con la cédula (${Math.round((resultado.similitud ?? 0) * 100)} %).`}
-              </div>
+                  ? "✗ No encontramos la foto de la cara en su cédula."
+                  : rostroOk
+                    ? `✓ Su cara coincide con la de la cédula (${Math.round((resultado.similitud ?? 0) * 100)} %).`
+                    : `✗ Su cara no coincide lo suficiente con la cédula (${Math.round((resultado.similitud ?? 0) * 100)} %).`}
+              </li>
             )}
-          </div>
-        </div>
-      )}
+          </ul>
 
-      {estado && <div className="muted small" style={{ marginTop: 12 }}>⏳ {estado}</div>}
-      {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
-
-      <div style={{ marginTop: 14 }}>
-        {!resultado ? (
-          <button type="button" className="btn firmar-boton" disabled={!listo || ocupado} onClick={comprobar}>
-            <Icon name="shield" size={18} /> {ocupado ? "Comprobando…" : "Verificar mi identidad"}
-          </button>
-        ) : todoCoincide ? (
-          <button type="button" className="btn firmar-boton" disabled={ocupado} onClick={enviar}>
-            Continuar a leer el documento →
-          </button>
-        ) : (
-          <>
-            <button type="button" className="btn firmar-boton" disabled={ocupado} onClick={() => { setResultado(null); setFrente(null); setReverso(null); }}>
-              Tomar las fotos de nuevo
+          {todoCoincide ? (
+            <button type="button" className="btn firmar-boton" disabled={ocupado} onClick={enviar}>
+              {ocupado ? "Guardando…" : "Continuar →"}
             </button>
-            {intentos >= 2 && (
-              <button type="button" className="firmar-enlace" style={{ display: "block", margin: "12px auto 0" }} disabled={ocupado} onClick={enviar}>
-                Continuar así (su abogado verá que la verificación no fue concluyente)
-              </button>
-            )}
-          </>
-        )}
-      </div>
+          ) : (
+            <div className="identidad-reintentos">
+              {(!numeroOk || (biometrica && resultado.rostroCoincide === null)) && (
+                <button type="button" className="btn firmar-boton" onClick={() => { setRepitiendo(true); ir("frente"); }}>
+                  📸 Tomar otra vez la foto del frente
+                </button>
+              )}
+              {biometrica && !rostroOk && resultado.rostroCoincide !== null && (
+                <button type="button" className="btn firmar-boton" onClick={() => { setRepitiendo(true); ir("rostro"); }}>
+                  🙂 Repetir la foto de su cara
+                </button>
+              )}
+              <p className="muted small" style={{ textAlign: "center", margin: "6px 0 0" }}>
+                Consejo: buena luz, sin reflejos y la cédula bien cerca de la cámara.
+              </p>
+              {intentos >= 2 && (
+                <button type="button" className="firmar-enlace" style={{ display: "block", margin: "12px auto 0" }} disabled={ocupado} onClick={enviar}>
+                  Continuar así (su abogado verá que la verificación no fue concluyente)
+                </button>
+              )}
+            </div>
+          )}
+          {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
+        </>
+      )}
     </div>
   );
 }
 
-function FotoCedula({ titulo, foto, alElegir }: { titulo: string; foto: Blob | null; alElegir: (f: File) => void }) {
-  const [url, setUrl] = useState<string | null>(null);
+/**
+ * Foto de la cédula con la cámara (la de atrás en el celular), con un recuadro
+ * del tamaño de la cédula. Se recorta solo ese recuadro. Si no hay cámara, se
+ * puede subir una foto.
+ */
+function FotoConCamara({ titulo, ayuda, alListo }: { titulo: string; ayuda: string; alListo: (b: Blob) => void }) {
+  const caja = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const [lista, setLista] = useState(false);
+  const [foto, setFoto] = useState<{ blob: Blob; url: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const apagar = () => {
+    stream.current?.getTracks().forEach((t) => t.stop());
+    stream.current = null;
+    setLista(false);
+  };
+
+  async function encender() {
+    setError(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      stream.current = s;
+      const v = video.current!;
+      v.srcObject = s;
+      await v.play().catch(() => {});
+      setLista(true);
+      caja.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+      setError("No pudimos abrir la cámara. Permita el acceso a la cámara, o suba una foto de su cédula.");
+    }
+  }
+
   useEffect(() => {
-    if (!foto) return setUrl(null);
-    const u = URL.createObjectURL(foto);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [foto]);
+    encender();
+    return apagar;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => () => { if (foto) URL.revokeObjectURL(foto.url); }, [foto]);
+
+  // Recorta del video exactamente lo que se ve dentro del recuadro.
+  async function tomar() {
+    const v = video.current;
+    const c0 = caja.current?.querySelector(".identidad-cam") as HTMLElement | null;
+    const marco = caja.current?.querySelector(".identidad-marco") as HTMLElement | null;
+    if (!v || !c0 || !marco || !v.videoWidth) return;
+    const cw = c0.clientWidth;
+    const ch = c0.clientHeight;
+    const escala = Math.max(cw / v.videoWidth, ch / v.videoHeight);
+    const offX = (cw - v.videoWidth * escala) / 2;
+    const offY = (ch - v.videoHeight * escala) / 2;
+    const rc = c0.getBoundingClientRect();
+    const rm = marco.getBoundingClientRect();
+    const sx = Math.max(0, (rm.left - rc.left - offX) / escala);
+    const sy = Math.max(0, (rm.top - rc.top - offY) / escala);
+    const sw = Math.min(v.videoWidth - sx, rm.width / escala);
+    const sh = Math.min(v.videoHeight - sy, rm.height / escala);
+    const c = document.createElement("canvas");
+    c.width = Math.round(sw);
+    c.height = Math.round(sh);
+    c.getContext("2d")!.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    const blob: Blob = await new Promise((ok) => c.toBlob((b) => ok(b!), "image/jpeg", 0.92));
+    setFoto({ blob, url: URL.createObjectURL(blob) });
+    apagar();
+  }
+
   return (
-    <label className={`identidad-foto ${foto ? "lista" : ""}`}>
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) alElegir(f);
-          e.target.value = "";
-        }}
-      />
-      {url ? <img src={url} alt={titulo} /> : <Icon name="card" size={28} />}
-      <b className="small">{titulo}</b>
-      <span className="muted small">{foto ? "Toque para cambiarla" : "Toque para tomar la foto"}</span>
-    </label>
+    <div ref={caja}>
+      <h1 className="identidad-titulo">{titulo}</h1>
+      <p className="identidad-texto">{ayuda}</p>
+
+      {foto ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="identidad-vista" src={foto.url} alt={titulo} />
+          <p className="identidad-texto" style={{ marginTop: 10 }}>¿Se ven bien el número y la foto?</p>
+          <div className="identidad-decision">
+            <button type="button" className="btn identidad-si" onClick={() => alListo(foto.blob)}>
+              <Icon name="check" size={20} /> Sí, usar esta foto
+            </button>
+            <button type="button" className="btn secondary identidad-no" onClick={() => { setFoto(null); encender(); }}>
+              Tomar otra
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="identidad-cam">
+            <video ref={video} playsInline muted />
+            <div className="identidad-marco" />
+            {!lista && !error && <div className="identidad-instruccion">Abriendo la cámara…</div>}
+          </div>
+          {lista && (
+            <button type="button" className="btn firmar-boton" style={{ marginTop: 12 }} onClick={tomar}>
+              📸 Tomar foto
+            </button>
+          )}
+          {error && <div className="error small" style={{ marginTop: 10 }}>{error}</div>}
+          <label className="identidad-subir">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                const b = await prepararFoto(f);
+                apagar();
+                setFoto({ blob: b, url: URL.createObjectURL(b) });
+              }}
+            />
+            ¿No le funciona la cámara? <u>Suba una foto</u>
+          </label>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -371,7 +557,11 @@ function Camara({ alTerminar }: { alTerminar: (s: { foto: Blob; descriptor: Floa
   const [error, setError] = useState<string | null>(null);
   const detener = useRef<() => void>(() => {});
 
-  useEffect(() => () => detener.current(), []);
+  useEffect(() => {
+    iniciar();
+    return () => detener.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function iniciar() {
     setError(null);

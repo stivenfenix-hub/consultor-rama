@@ -993,3 +993,162 @@ input.firmar-codigo {
 .identidad-ovalo.hecho {
   border-style: solid;
 }
+
+/* ===== Identidad y aceptación paso a paso (grande y simple) ===== */
+.identidad-paso {
+  text-align: center;
+}
+.identidad-avance {
+  text-align: left;
+  margin-bottom: 14px;
+}
+.identidad-avance span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.identidad-avance-barra {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.identidad-avance-barra div {
+  height: 100%;
+  background: var(--brand-grad);
+  border-radius: 999px;
+  transition: width 0.35s;
+}
+.identidad-icono {
+  width: 66px;
+  height: 66px;
+  margin: 4px auto 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--brand-grad);
+}
+.identidad-icono.ok {
+  background: var(--green);
+}
+.identidad-icono.mal {
+  background: var(--amber);
+}
+.identidad-titulo {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0 0 8px;
+}
+.identidad-texto {
+  font-size: 16.5px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.identidad-legal {
+  text-align: left;
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  margin: 6px 0 16px;
+}
+.identidad-decision {
+  display: grid;
+  gap: 10px;
+}
+.identidad-decision .btn {
+  width: 100%;
+  justify-content: center;
+  padding: 15px;
+  font-size: 17px;
+}
+.identidad-cam {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0d0b24;
+}
+.identidad-cam video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Recuadro del tamaño de una cédula (85,6 x 54 mm). */
+.identidad-marco {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 86%;
+  aspect-ratio: 85.6 / 54;
+  transform: translate(-50%, -50%);
+  border: 3px solid #fff;
+  border-radius: 12px;
+  box-shadow: 0 0 0 999px rgba(10, 8, 32, 0.5);
+  pointer-events: none;
+}
+.identidad-vista {
+  width: 100%;
+  border-radius: 12px;
+  border: 3px solid var(--green);
+}
+.identidad-subir {
+  display: block;
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.identidad-subir input {
+  display: none;
+}
+.identidad-comprobando {
+  padding: 18px 0 8px;
+}
+.identidad-cargando {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  border: 5px solid var(--panel-2);
+  border-top-color: var(--accent);
+  animation: identidad-gira 0.9s linear infinite;
+}
+@keyframes identidad-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.identidad-lista {
+  list-style: none;
+  text-align: left;
+  padding: 0;
+  margin: 8px 0 16px;
+  display: grid;
+  gap: 8px;
+  font-size: 16px;
+}
+.identidad-lista li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.identidad-lista li.ok {
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+.identidad-lista li.mal {
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+}
+.identidad-reintentos {
+  display: grid;
+  gap: 10px;
+}

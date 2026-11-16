@@ -120,7 +120,7 @@ export function PortalFirma({
 
   async function firmar() {
     setError(null);
-    if (!acepta) return setError("Marque la casilla de aceptación para poder firmar.");
+    if (!acepta) return setError("Primero acepte firmar el documento.");
     let imagen: string | null = null;
     if (modo === "dibujar") {
       imagen = lienzo.current?.exportar() ?? null;
@@ -300,10 +300,40 @@ export function PortalFirma({
       )}
 
       {/* ---------- 3. Firmar ---------- */}
-      {paso === "firmar" && (
+      {/* 3a. Primero acepta (o no) firmar electrónicamente, con botones grandes. */}
+      {paso === "firmar" && !acepta && !rechazando && (
+        <div className="card identidad-paso">
+          <div className="identidad-icono">
+            <Icon name="firma" size={30} />
+          </div>
+          <h1 className="identidad-titulo">¿Acepta firmar este documento?</h1>
+          <p className="identidad-texto">
+            <b>{titulo}</b>
+          </p>
+          <div className="identidad-legal">{aceptacion}</div>
+          <div className="identidad-decision">
+            <button type="button" className="btn identidad-si" onClick={() => { setError(null); setAcepta(true); window.scrollTo({ top: 0 }); }}>
+              <Icon name="check" size={20} /> Sí, acepto firmar
+            </button>
+            <button type="button" className="btn secondary identidad-no" onClick={() => { setError(null); setRechazando(true); }}>
+              No voy a firmar
+            </button>
+          </div>
+          <button type="button" className="firmar-enlace" style={{ display: "block", margin: "14px auto 0" }} onClick={() => { setError(null); setPaso("leer"); }}>
+            ← Volver a leer el documento
+          </button>
+        </div>
+      )}
+
+      {paso === "firmar" && (acepta || rechazando) && (
         <div className="card">
-          <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>Su firma</h1>
+          <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>{rechazando ? "No voy a firmar" : "Su firma"}</h1>
           <p className="muted small" style={{ marginTop: 0 }}>{nombre} · {documento}</p>
+          {!rechazando && (
+          <>
+          <p className="identidad-texto" style={{ textAlign: "left", margin: "0 0 10px" }}>
+            Haga su firma con el dedo (o el mouse) en el recuadro blanco, o elija <b>Escribir</b>.
+          </p>
           <div className="firmar-tabs">
             <button type="button" className={modo === "dibujar" ? "sel" : ""} onClick={() => setModo("dibujar")}>
               <Icon name="firma" size={16} /> Dibujar
@@ -329,22 +359,17 @@ export function PortalFirma({
             </>
           )}
 
-          <label className="check firmar-acepta">
-            <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} />
-            <span>{aceptacion}</span>
-          </label>
+          </>
+          )}
 
           {!rechazando ? (
             <>
-              <button type="button" className="btn firmar-boton" disabled={ocupado} onClick={firmar}>
+              <button type="button" className="btn firmar-boton" style={{ marginTop: 14 }} disabled={ocupado} onClick={firmar}>
                 <Icon name="firma" size={18} /> {ocupado ? "Firmando…" : "Firmar documento"}
               </button>
               <div className="row wrap" style={{ gap: 14, marginTop: 12, justifyContent: "center" }}>
-                <button type="button" className="firmar-enlace" onClick={() => { setError(null); setPaso("leer"); }}>
-                  ← Volver a leer
-                </button>
-                <button type="button" className="firmar-enlace" onClick={() => { setError(null); setRechazando(true); }}>
-                  No voy a firmar
+                <button type="button" className="firmar-enlace" onClick={() => { setError(null); setAcepta(false); }}>
+                  ← Atrás
                 </button>
               </div>
             </>
