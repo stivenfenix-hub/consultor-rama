@@ -48,9 +48,16 @@ export default async function RootLayout({
     --brand-grad:linear-gradient(135deg, ${s.colorAccent} 0%, ${s.colorAccent2} 100%) !important;
   }`;
   return (
-    <html lang="es">
+    // suppressHydrationWarning: el script de abajo pone data-tema antes de que React cargue.
+    <html lang="es" suppressHydrationWarning>
       <head>
         <style dangerouslySetInnerHTML={{ __html: theme }} />
+        {/* Modo día/noche guardado en este dispositivo: se aplica antes de pintar (sin parpadeo). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("estradox-tema")==="claro"){document.documentElement.dataset.tema="claro";}}catch(e){}`,
+          }}
+        />
       </head>
       <body>
         {children}

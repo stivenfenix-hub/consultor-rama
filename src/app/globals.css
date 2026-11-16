@@ -2247,3 +2247,101 @@ span.aviso-rama {
     height: 12px;
   }
 }
+
+/* ===================== Modo día (tema claro) =====================
+ * Se activa con <html data-tema="claro"> (botón "Día / Noche" del menú).
+ * Va con !important y más especificidad que :root para ganarle a los
+ * colores del tema que inyecta el admin (layout.tsx).
+ */
+html[data-tema="claro"] {
+  --bg: #f3f2fa !important;
+  --panel: #ffffff !important;
+  --panel-2: #f0eefb !important;
+  --border: #dcd8f0 !important;
+  --text: #1a1640 !important;
+  --muted: #5d5884 !important;
+  --green: #17914c !important;
+  --red: #d6334c !important;
+  --amber: #b7791f !important;
+  color-scheme: light;
+}
+html[data-tema="claro"] .nav-icon,
+html[data-tema="claro"] .bottom-icon,
+html[data-tema="claro"] .hamburger,
+html[data-tema="claro"] .close,
+html[data-tema="claro"] .sidebar-brand .close {
+  color: var(--text);
+}
+html[data-tema="claro"] .nav-item.active .nav-icon {
+  color: var(--accent);
+}
+html[data-tema="claro"] .cert-chip {
+  background: var(--panel-2);
+}
+html[data-tema="claro"] .cert-plantilla.sel {
+  color: var(--text);
+}
+html[data-tema="claro"] .cert-hero {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(162, 89, 255, 0.16), transparent 55%),
+    radial-gradient(circle at 90% 100%, rgba(58, 27, 216, 0.12), transparent 55%),
+    var(--panel);
+}
+html[data-tema="claro"] .card,
+html[data-tema="claro"] .case,
+html[data-tema="claro"] .stat {
+  box-shadow: 0 1px 3px rgba(26, 22, 64, 0.06);
+}
+/* Logo: letra clara de noche, letra oscura de día. */
+.logo-dia {
+  display: none !important;
+}
+html[data-tema="claro"] .logo-noche {
+  display: none !important;
+}
+html[data-tema="claro"] .logo-dia {
+  display: block !important;
+}
+
+/* Botón Día / Noche del menú */
+.tema-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.tema-toggle button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tema-toggle button:hover {
+  color: var(--text);
+}
+.tema-toggle button.on {
+  background: var(--brand-grad);
+  color: #fff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.tema-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: -4px;
+}

@@ -9,6 +9,8 @@ import { CargaToast } from "@/components/carga-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
+import { TemaToggle } from "@/components/tema-toggle";
+import { LOGOS } from "@/lib/marca";
 
 type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean; contador?: number };
 
@@ -115,7 +117,9 @@ export function AppShell({
         <div className="sidebar-brand">
           <span className="logo-chip">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt="logo" className="brand-logo" />
+            <img src={logoUrl} alt="logo" className="brand-logo logo-noche" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={LOGOS.correo} alt="logo" className="brand-logo logo-dia" />
           </span>
           <button
             className="close"
@@ -152,6 +156,7 @@ export function AppShell({
         </nav>
 
         <div className="sidebar-foot">
+          <TemaToggle />
           <div className="user small muted">{userLabel}</div>
           <form action={logoutAction}>
             <button className="btn secondary small" type="submit">
@@ -184,7 +189,9 @@ export function AppShell({
           </button>
           <span className="logo-chip">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt="logo" className="brand-logo" />
+            <img src={logoUrl} alt="logo" className="brand-logo logo-noche" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={LOGOS.correo} alt="logo" className="brand-logo logo-dia" />
           </span>
           <div className="spacer" />
           {!soloPago && <NotificationBell />}
