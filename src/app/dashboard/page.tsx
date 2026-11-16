@@ -5,13 +5,7 @@ import { prisma } from "@/lib/db";
 import { getDashboardStats } from "@/lib/dashboard";
 import { Donut, StatTile, BucketBar } from "@/components/charts";
 import { OpenInChrome } from "./open-in-chrome";
-import {
-  estadosActivo,
-  hallazgosDelUsuario,
-  hallazgosSinVer,
-  soloEnEstados,
-  vigiladosDelUsuario,
-} from "@/lib/estados";
+import { estadosActivo, soloEnEstados } from "@/lib/estados";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -22,6 +16,23 @@ function fmt(d: Date | null | undefined) {
     timeZone: "America/Bogota",
   });
 }
+
+// Las fechas de los estados se guardan como día (sin hora).
+function fmtUTC(d: Date | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/** Una fila de "Procesos con actuación reciente": de la Rama o de un estado electrónico. */
+type Reciente = {
+  radicado: string;
+  href: string;
+  fecha: string;
+  orden: number;
+  texto: string;
+  deEstado: boolean;
+  soloEstados: boolean;
+};
 
 export default async function DashboardPage({
   searchParams,
@@ -34,25 +45,9 @@ export default async function DashboardPage({
 
   const stats = await getDashboardStats(user.id);
 
-  // Estados electrónicos (solo usuarios en la prueba).
-  const estados = (await estadosActivo(user.id))
-    ? await vigiladosDelUsuario(user.id)
-        .then(async (vigilados) => {
-          const [solo, ultimos, sinVer] = await Promise.all([
-            soloEnEstados(user.id, vigilados),
-            hallazgosDelUsuario(user.id, 5),
-            hallazgosSinVer(user.id),
-          ]);
-          return { vigilados, solo, ultimos, sinVer };
-        })
-        .then(({ vigilados, solo, ultimos, sinVer }) => ({
-        vigilados: vigilados.length,
-        soloEstados: solo.filter((s) => !s.caseId).length,
-        conHallazgo: solo.filter((s) => s.ultimo).length,
-        ultimos,
-        sinVer,
-      }))
-    : null;
+  // Último estado electrónico de cada radicado (también los que no están en la Rama).
+  const solo = (await estadosActivo(user.id).catch(() => false)) ? await soloEnEstados(user.id).catch(() => []) : [];
+  const estadoDe = new Map(solo.filter((s) => s.ultimo).map((s) => [s.radicado, s.ultimo!] as const));
 
   // Una fila por radicado: de sus registros (uno por sistema de la Rama) se
   // muestra el de la actuación más reciente.
@@ -65,7 +60,50 @@ export default async function DashboardPage({
     },
   });
   const vistos = new Set<string>();
-  const recientes = registros.filter((c) => !vistos.has(c.radicado) && !!vistos.add(c.radicado)).slice(0, 8);
+  const filas: Reciente[] = registros
+    .filter((c) => !vistos.has(c.radicado) && !!vistos.add(c.radicado))
+    .map((c) => {
+      // Si salió en un estado el mismo día o después, ese es en realidad lo último (como en Procesos).
+      const est = estadoDe.get(c.radicado);
+      const diaAct = c.lastActuacionDate
+        ? new Date(c.lastActuacionDate).toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
+        : "";
+      const diaEst = est?.fecha ? new Date(est.fecha).toISOString().slice(0, 10) : "";
+      const usarEstado = !!est && (!diaAct || (!!diaEst && diaEst >= diaAct));
+      return usarEstado
+        ? {
+            radicado: c.radicado,
+            href: `/dashboard/procesos/${c.id}`,
+            fecha: fmtUTC(est!.fecha),
+            orden: est!.fecha ? new Date(est!.fecha).getTime() : 0,
+            texto: est!.titulo,
+            deEstado: true,
+            soloEstados: false,
+          }
+        : {
+            radicado: c.radicado,
+            href: `/dashboard/procesos/${c.id}`,
+            fecha: fmt(c.lastActuacionDate),
+            orden: c.lastActuacionDate ? new Date(c.lastActuacionDate).getTime() : 0,
+            texto: c.actuaciones[0]?.actuacion ?? "—",
+            deEstado: false,
+            soloEstados: false,
+          };
+    });
+  // Los que por ahora solo están en estados electrónicos (no en la Consulta Nacional).
+  for (const s of solo) {
+    if (s.caseId) continue;
+    filas.push({
+      radicado: s.radicado,
+      href: `/dashboard/estados/${s.radicado}`,
+      fecha: s.ultimo ? fmtUTC(s.ultimo.fecha) : "—",
+      orden: s.ultimo?.fecha ? new Date(s.ultimo.fecha).getTime() : 0,
+      texto: s.ultimo?.titulo ?? "Aún no sale en los estados del juzgado",
+      deEstado: !!s.ultimo,
+      soloEstados: true,
+    });
+  }
+  const recientes = filas.sort((a, b) => b.orden - a.orden).slice(0, 8);
 
   return (
     <div className="page">
@@ -105,70 +143,6 @@ export default async function DashboardPage({
         />
       </section>
 
-      {/* Publicaciones Procesales */}
-      {estados && (
-        <section className="card">
-          <div className="row">
-            <h2 style={{ margin: 0 }}>Estados electrónicos (Publicaciones Procesales)</h2>
-            <div className="spacer" />
-            <Link prefetch={false} href="/dashboard/estados" className="small">
-              Ver todo
-            </Link>
-          </div>
-          <p className="muted small" style={{ marginTop: 4 }}>
-            Es el portal de la Rama donde los juzgados publican sus estados, aunque el
-            proceso no esté en la Rama o sea privado. Cada noche, con la tecnología de IA de Estradox, también buscamos ahí tus
-            radicados y extraemos la información.
-          </p>
-          <div className="stat-grid">
-            <StatTile label="Radicados vigilados" value={estados.vigilados} />
-            <StatTile label="Solo en estados" value={estados.soloEstados} />
-            <StatTile label="Salieron en un estado" value={estados.conHallazgo} accent="var(--accent)" />
-            <StatTile
-              label="Estados sin ver"
-              value={estados.sinVer}
-              accent={estados.sinVer > 0 ? "var(--green)" : undefined}
-            />
-          </div>
-          {estados.ultimos.length > 0 && (
-            <div className="table-wrap" style={{ marginTop: 10 }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Radicado</th>
-                    <th>Fecha</th>
-                    <th>Publicación</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {estados.ultimos.map((h) => (
-                    <tr key={h.id}>
-                      <td>
-                        <Link prefetch={false} href="/dashboard/estados" className="radicado">
-                          {h.radicado}
-                        </Link>
-                        {!h.visto && <span className="badge new" style={{ marginLeft: 6 }}>nuevo</span>}
-                      </td>
-                      <td className="muted">
-                        {h.fecha
-                          ? new Date(h.fecha).toLocaleDateString("es-CO", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              timeZone: "UTC",
-                            })
-                          : "—"}
-                      </td>
-                      <td>{h.titulo}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
       {/* Antigüedad de la última actuación */}
       <section className="card">
         <h2>Antigüedad de la última actuación</h2>
@@ -197,7 +171,8 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      {/* Tabla de recientes */}
+
+      {/* Tabla de recientes: actuaciones de la Rama y estados electrónicos, todo junto. */}
       <section className="card">
         <div className="row">
           <h2 style={{ margin: 0 }}>Procesos con actuación reciente</h2>
@@ -209,7 +184,7 @@ export default async function DashboardPage({
         {recientes.length === 0 ? (
           <p className="muted small" style={{ marginTop: 12 }}>
             Aún no sigues procesos.{" "}
-            <Link prefetch={false} href="/dashboard/procesos">Agrega el primero</Link>.
+            <Link prefetch={false} href="/dashboard/procesos?agregar=1">Agrega el primero</Link>.
           </p>
         ) : (
           <div className="table-wrap">
@@ -217,23 +192,26 @@ export default async function DashboardPage({
               <thead>
                 <tr>
                   <th>Radicado</th>
-                  <th>Fecha última actuación</th>
+                  <th>Fecha</th>
                   <th>Última actuación</th>
                 </tr>
               </thead>
               <tbody>
-                {recientes.map((c) => (
-                  <tr key={c.id}>
+                {recientes.map((r) => (
+                  <tr key={r.radicado}>
                     <td>
-                      <Link prefetch={false}
-                        href={`/dashboard/procesos/${c.id}`}
-                        className="radicado"
-                      >
-                        {c.radicado}
+                      <Link prefetch={false} href={r.href} className="radicado">
+                        {r.radicado}
                       </Link>
+                      {r.soloEstados && (
+                        <span className="badge" style={{ marginLeft: 6 }}>solo en estados</span>
+                      )}
                     </td>
-                    <td className="muted">{fmt(c.lastActuacionDate)}</td>
-                    <td>{c.actuaciones[0]?.actuacion ?? "—"}</td>
+                    <td className="muted">{r.fecha}</td>
+                    <td>
+                      {r.texto}
+                      {r.deEstado && <div className="muted small">Estado electrónico</div>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
