@@ -174,9 +174,14 @@ export async function dejarDeVigilar(userId: string, radicado: string) {
  * la Rama). Cuentan para los procesos incluidos del plan y los adicionales.
  */
 export async function contarSoloEstados(userId: string): Promise<number> {
-  if (!(await estadosActivo(userId))) return 0;
-  const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-    `SELECT count(DISTINCT x.rad) AS n FROM (
+  return (await radicadosSoloEstados(userId)).length;
+}
+
+/** Radicados del usuario que solo están en estados electrónicos (no en la Consulta Nacional). */
+export async function radicadosSoloEstados(userId: string): Promise<string[]> {
+  if (!(await estadosActivo(userId))) return [];
+  const filas = await prisma.$queryRawUnsafe<{ rad: string }[]>(
+    `SELECT DISTINCT x.rad FROM (
        SELECT (regexp_matches(
          coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1] AS rad
        FROM "CargaProcesos" cp WHERE cp."userId" = $1
@@ -185,7 +190,7 @@ export async function contarSoloEstados(userId: string): Promise<number> {
        AND NOT EXISTS (SELECT 1 FROM "EstadoQuitado" q WHERE q."userId" = $1 AND q.radicado = x.rad)`,
     userId,
   );
-  return Number(r?.n ?? 0);
+  return filas.map((f) => f.rad);
 }
 
 /**
