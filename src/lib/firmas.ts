@@ -119,7 +119,7 @@ export function resumenIdentidad(r: ResultadoIdentidad | null): string | null {
         ? "comparación facial sin resultado"
         : `rostro ${r.rostroCoincide ? "coincide" : "no coincide"} con la cédula (${Math.round(r.similitud * 100)} %)`,
     );
-    if (r.vida) partes.push(r.vida.parpadeo && r.vida.giro ? "prueba de vida superada" : "prueba de vida incompleta");
+    if (r.vida) partes.push(r.vida.giro ? "prueba de vida superada" : "prueba de vida incompleta");
   }
   return `${r.estado === "verificada" ? "Identidad verificada" : "Identidad no concluyente"}: ${partes.join(" · ")}`;
 }

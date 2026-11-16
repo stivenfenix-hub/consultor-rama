@@ -9,6 +9,7 @@ import {
 import { accesoFirmante, bloqueo } from "@/lib/firma-portal";
 import { guardarArchivo } from "@/lib/firma-storage";
 import { verificarConProveedor } from "@/lib/identidad-proveedor";
+import { numeroParecido } from "@/lib/firma-textos";
 
 // Paso de identidad del portal: recibe las fotos de la cédula (y la selfie si
 // el nivel es biométrico) más lo que midió el dispositivo, y lo guarda como
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const numeroLeido = typeof m.numeroLeido === "string" ? m.numeroLeido.replace(/\D/g, "").slice(0, 15) || null : null;
   const digitos = f.numDoc.replace(/\D/g, "");
   // El servidor vuelve a comparar el número leído con el del firmante.
-  const numeroCoincide = numeroLeido ? numeroLeido.includes(digitos) && digitos.length >= 5 : false;
+  const numeroCoincide = numeroParecido(numeroLeido, digitos);
   let resultado: ResultadoIdentidad = {
     nivel: doc.verificacion,
     estado: "no_concluyente",
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   resultado.estado =
     resultado.numeroCoincide === true &&
-    (!biometrica || (resultado.rostroCoincide === true && resultado.vida?.parpadeo === true && resultado.vida?.giro === true))
+    (!biometrica || (resultado.rostroCoincide === true && resultado.vida?.giro === true))
       ? "verificada"
       : "no_concluyente";
 

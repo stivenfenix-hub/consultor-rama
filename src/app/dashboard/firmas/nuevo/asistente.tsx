@@ -33,7 +33,7 @@ const NIVELES_VISTA: { k: "otp" | "cedula" | "biometrica"; t: string; d: string 
   {
     k: "biometrica",
     t: "Código + cédula + rostro",
-    d: "Además una selfie con prueba de vida (parpadear y girar la cabeza) que se compara con la foto de la cédula.",
+    d: "Además una selfie con prueba de vida (girar la cabeza) que se compara con la foto de la cédula.",
   },
 ];
 const ANCHO = 0.3;

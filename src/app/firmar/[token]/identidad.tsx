@@ -2,20 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
+import { numeroParecido } from "@/lib/firma-textos";
 
 /**
  * Verificación de identidad del firmante (motor "estradox"):
  *   1. Fotos de la cédula por ambos lados -> se lee el número (OCR).
- *   2. Si el nivel es biométrico: selfie con prueba de vida (parpadear y girar
- *      la cabeza) y comparación del rostro con la foto de la cédula.
+ *   2. Si el nivel es biométrico: selfie con prueba de vida (girar la cabeza y
+ *      volver al centro) y comparación del rostro con la foto de la cédula.
  * Todo se calcula en el dispositivo con librerías libres (face-api y Tesseract,
  * desde CDN); al servidor llegan las fotos y el resultado como evidencia.
  */
 
 const FACEAPI = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15";
 const TESSERACT = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-/** Distancia máxima entre rostros para considerarlos la misma persona (face-api: 0.6 es el estándar). */
-const UMBRAL_ROSTRO = 0.6;
+/**
+ * Distancia máxima entre rostros para considerarlos la misma persona. El
+ * estándar de face-api es 0.6; se usa 0.65 (similitud mínima 35 %) porque la
+ * foto de la cédula suele ser vieja, pequeña y con reflejos.
+ */
+const UMBRAL_ROSTRO = 0.65;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -73,32 +78,50 @@ async function imagenDe(b: Blob): Promise<HTMLImageElement> {
   return img;
 }
 
-/** Lee los números de una foto de cédula y devuelve el que coincide (o el más largo). */
+/** Gris, más contraste y más grande: el lector acierta mucho más así. */
+async function realzar(foto: Blob): Promise<Blob> {
+  const img = await createImageBitmap(foto);
+  const k = Math.max(1, 2000 / img.width);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * k);
+  c.height = Math.round(img.height * k);
+  const ctx = c.getContext("2d")!;
+  ctx.filter = "grayscale(1) contrast(1.6) brightness(1.05)";
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((ok) => c.toBlob((b) => ok(b!), "image/png"));
+}
+
+/**
+ * Lee el texto de las fotos de la cédula y devuelve el número que más se
+ * parece al del firmante (o el más largo que encuentre).
+ */
 async function leerNumero(fotos: Blob[], esperado: string): Promise<string | null> {
   const T = await cargarTesseract();
   const worker = await T.createWorker("eng");
   try {
-    await worker.setParameters({ tessedit_char_whitelist: "0123456789. " });
+    // 11 = texto suelto (una cédula no es un párrafo).
+    await worker.setParameters({ tessedit_pageseg_mode: "11" });
     let mejor: string | null = null;
     for (const foto of fotos) {
-      const { data } = await worker.recognize(foto);
-      const candidatos = String(data.text ?? "")
-        .replace(/(\d)[.\s](?=\d{3}\b)/g, "$1")
-        .match(/\d{5,12}/g) ?? [];
-      const exacto = candidatos.find((c) => c.includes(esperado));
-      if (exacto) return exacto;
+      const { data } = await worker.recognize(await realzar(foto));
+      const texto = String(data.text ?? "");
+      // Números con puntos o espacios en medio: 1.042.093.184 -> 1042093184.
+      const candidatos = (texto.match(/\d[\d.,\s]{3,18}\d/g) ?? [])
+        .map((c) => c.replace(/\D/g, ""))
+        .filter((c) => c.length >= 5);
+      const bueno = candidatos.find((c) => numeroParecido(c, esperado));
+      if (bueno) return bueno;
+      // Último recurso: todos los dígitos de cada renglón juntos.
+      for (const linea of texto.split(/\r?\n/)) {
+        const d = linea.replace(/\D/g, "");
+        if (numeroParecido(d, esperado)) return d;
+      }
       for (const c of candidatos) if (!mejor || c.length > mejor.length) mejor = c;
     }
     return mejor;
   } finally {
     await worker.terminate();
   }
-}
-
-const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
-/** Qué tan abierto está un ojo (6 puntos del modelo de 68). */
-function aperturaOjo(p: { x: number; y: number }[]) {
-  return (dist(p[1], p[5]) + dist(p[2], p[4])) / (2 * dist(p[0], p[3]));
 }
 
 type Resultado = {
@@ -163,7 +186,7 @@ export function PasoIdentidad({
       setIntentos((n) => n + 1);
       setResultado({
         numeroLeido,
-        numeroCoincide: !!numeroLeido && numeroLeido.includes(digitos),
+        numeroCoincide: numeroParecido(numeroLeido, digitos),
         similitud,
         rostroCoincide,
       });
@@ -200,7 +223,7 @@ export function PasoIdentidad({
   }
 
   const todoCoincide =
-    resultado && resultado.numeroCoincide && (!biometrica || (resultado.rostroCoincide && vida.parpadeo && vida.giro));
+    resultado && resultado.numeroCoincide && (!biometrica || (resultado.rostroCoincide && vida.giro));
 
   return (
     <div className="card">
@@ -334,20 +357,18 @@ function FotoCedula({ titulo, foto, alElegir }: { titulo: string; foto: Blob | n
   );
 }
 
-type Reto = "parpadeo" | "giro";
-const TEXTO_RETO: Record<Reto, string> = {
-  parpadeo: "Parpadee despacio dos veces",
-  giro: "Gire la cabeza hacia un lado y vuelva al centro",
-};
-
-/** Cámara frontal con prueba de vida: parpadear y girar la cabeza, en orden aleatorio. */
+/**
+ * Cámara frontal con prueba de vida: girar la cabeza hacia un lado y volver al
+ * centro. La instrucción va encima del video, debajo del óvalo, para que la
+ * persona no tenga que bajar a leer.
+ */
 function Camara({ alTerminar }: { alTerminar: (s: { foto: Blob; descriptor: Float32Array }, v: { parpadeo: boolean; giro: boolean }) => void }) {
+  const caja = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const [activa, setActiva] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [hecho, setHecho] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retos] = useState<Reto[]>(() => (Math.random() < 0.5 ? ["parpadeo", "giro"] : ["giro", "parpadeo"]));
-  const [hechos, setHechos] = useState<Reto[]>([]);
   const detener = useRef<() => void>(() => {});
 
   useEffect(() => () => detener.current(), []);
@@ -366,9 +387,11 @@ function Camara({ alTerminar }: { alTerminar: (s: { foto: Blob; descriptor: Floa
     v.srcObject = stream;
     await v.play().catch(() => {});
     setActiva(true);
+    // La cámara completa a la vista (en el celular queda centrada en la pantalla).
+    caja.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     let fa: Any;
     try {
-      setAviso("Cargando el reconocimiento facial (solo la primera vez tarda un poco)…");
+      setAviso("Cargando el reconocimiento facial…");
       fa = await cargarFaceApi();
     } catch {
       stream.getTracks().forEach((t) => t.stop());
@@ -383,40 +406,37 @@ function Camara({ alTerminar }: { alTerminar: (s: { foto: Blob; descriptor: Floa
       stream.getTracks().forEach((t) => t.stop());
     };
     const opciones = new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
-    const hechosLocal: Reto[] = [];
-    let ojoCerrado = false;
-    let parpadeos = 0;
     let girado = false;
+    let listo = false;
 
     while (vivo) {
-      const r = await fa.detectSingleFace(v, opciones).withFaceLandmarks().catch(() => null);
+      // Las tareas de face-api son "thenables", no promesas: Promise.resolve las vuelve promesas.
+      const r = await Promise.resolve(fa.detectSingleFace(v, opciones).withFaceLandmarks()).catch(() => null);
       if (!vivo) break;
-      const actual = retos.find((x) => !hechosLocal.includes(x));
       if (!r) {
-        setAviso("Ponga su rostro dentro del óvalo, con buena luz.");
+        setAviso("Ponga su rostro dentro del óvalo");
       } else {
         const p = r.landmarks.positions as { x: number; y: number }[];
-        const ojos = (aperturaOjo(p.slice(36, 42)) + aperturaOjo(p.slice(42, 48))) / 2;
         // Giro: posición de la nariz entre los dos bordes de la mandíbula (0.5 = de frente).
         const giro = (p[30].x - p[0].x) / Math.max(1, p[16].x - p[0].x);
-        const deFrente = giro > 0.38 && giro < 0.62;
+        const deFrente = giro > 0.4 && giro < 0.6;
 
-        if (actual === "parpadeo") {
-          if (ojos < 0.2) ojoCerrado = true;
-          else if (ojoCerrado && ojos > 0.25) {
-            ojoCerrado = false;
-            parpadeos++;
+        if (!listo) {
+          if (giro < 0.35 || giro > 0.65) {
+            girado = true;
+            setAviso("Bien. Ahora vuelva a mirar de frente");
+          } else if (girado && deFrente) {
+            listo = true;
+            setHecho(true);
+          } else {
+            setAviso("Gire la cabeza hacia un lado");
           }
-          if (parpadeos >= 2) hechosLocal.push("parpadeo");
-        } else if (actual === "giro") {
-          if (giro < 0.3 || giro > 0.7) girado = true;
-          else if (girado && deFrente) hechosLocal.push("giro");
         }
-        setHechos([...hechosLocal]);
 
-        if (!actual) {
-          // Retos superados: se toma la selfie con el rostro de frente y los ojos abiertos.
-          if (deFrente && ojos > 0.24) {
+        if (listo) {
+          // Prueba superada: se toma la selfie con el rostro de frente.
+          setAviso("¡Muy bien! Quédese quieto un momento…");
+          if (deFrente) {
             const c = document.createElement("canvas");
             c.width = v.videoWidth;
             c.height = v.videoHeight;
@@ -426,40 +446,28 @@ function Camara({ alTerminar }: { alTerminar: (s: { foto: Blob; descriptor: Floa
               const foto: Blob = await new Promise((ok) => c.toBlob((b) => ok(b!), "image/jpeg", 0.9));
               detener.current();
               setActiva(false);
-              alTerminar({ foto, descriptor: cara.descriptor }, { parpadeo: true, giro: true });
+              alTerminar({ foto, descriptor: cara.descriptor }, { parpadeo: false, giro: true });
               return;
             }
           }
-          setAviso("¡Listo! Mire de frente a la cámara…");
-        } else {
-          setAviso(TEXTO_RETO[actual]);
         }
       }
-      await new Promise((ok) => setTimeout(ok, 90));
+      await new Promise((ok) => setTimeout(ok, 30));
     }
   }
 
   return (
-    <div className="identidad-camara">
+    <div className="identidad-camara" ref={caja}>
       <div className={`identidad-video ${activa ? "activa" : ""}`}>
         <video ref={video} playsInline muted />
-        {activa && <div className="identidad-ovalo" />}
+        {activa && <div className={`identidad-ovalo ${hecho ? "hecho" : ""}`} />}
+        {activa && aviso && <div className={`identidad-instruccion ${hecho ? "hecho" : ""}`}>{aviso}</div>}
         {!activa && (
           <button type="button" className="btn" onClick={iniciar}>
             <Icon name="eye" size={16} /> Abrir la cámara
           </button>
         )}
       </div>
-      {activa && (
-        <ol className="identidad-retos">
-          {retos.map((r) => (
-            <li key={r} className={hechos.includes(r) ? "hecho" : ""}>
-              {hechos.includes(r) ? "✓" : "○"} {TEXTO_RETO[r]}
-            </li>
-          ))}
-        </ol>
-      )}
-      {aviso && activa && <div className="identidad-aviso">{aviso}</div>}
       {error && <div className="error small" style={{ marginTop: 8 }}>{error}</div>}
     </div>
   );

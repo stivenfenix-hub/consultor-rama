@@ -966,3 +966,30 @@ input.firmar-codigo {
     font-size: 10.5px;
   }
 }
+
+/* Instrucción de la prueba de vida sobre el video, debajo del óvalo. */
+.identidad-instruccion {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 12px;
+  z-index: 1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(10, 8, 32, 0.78);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+.identidad-instruccion.hecho,
+.identidad-ovalo.hecho {
+  border-color: var(--green);
+}
+.identidad-instruccion.hecho {
+  background: rgba(23, 145, 76, 0.88);
+}
+.identidad-ovalo.hecho {
+  border-style: solid;
+}
