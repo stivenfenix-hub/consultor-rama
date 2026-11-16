@@ -2205,3 +2205,45 @@ span.aviso-rama {
   gap: 6px;
   font-size: 0.9rem;
 }
+
+/* Portadas "Próximamente" (firma y notificaciones): más compactas en móvil para ver el resto sin bajar. */
+@media (max-width: 640px) {
+  .cert-hero {
+    padding: 16px 14px 14px;
+    margin-bottom: 12px;
+  }
+  .cert-hero-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+  .cert-hero-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .cert-pronto {
+    margin-top: 8px;
+    font-size: 10px;
+  }
+  .cert-hero h1 {
+    margin: 6px 0 4px;
+    font-size: 21px;
+  }
+  .cert-hero p {
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .cert-chips {
+    gap: 5px;
+    margin-top: 10px;
+  }
+  .cert-chip {
+    font-size: 11.5px;
+    padding: 4px 9px;
+    gap: 4px;
+  }
+  .cert-chip svg {
+    width: 12px;
+    height: 12px;
+  }
+}
