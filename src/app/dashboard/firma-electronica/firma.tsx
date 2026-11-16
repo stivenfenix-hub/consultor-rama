@@ -5,7 +5,7 @@ import { Icon, type IconName } from "@/components/icon";
 
 const CHIPS: { icon: IconName; t: string }[] = [
   { icon: "firma", t: "Firma desde el celular" },
-  { icon: "phone", t: "Código por SMS o WhatsApp" },
+  { icon: "phone", t: "Código por SMS, WhatsApp o correo" },
   { icon: "clock", t: "Fecha y hora exactas" },
   { icon: "sello", t: "Documento sellado" },
   { icon: "file", t: "Certificado de firma en PDF" },
@@ -28,7 +28,7 @@ const PASOS: { icon: IconName; t: string; d: string }[] = [
   {
     icon: "send",
     t: "Tu cliente firma desde el celular",
-    d: "Le llega el enlace por correo o WhatsApp. Confirma su identidad con un código y firma en segundos, sin imprimir ni ir a notaría.",
+    d: "Le llega el enlace por correo o WhatsApp. Confirma su identidad con un código (por SMS, WhatsApp o correo) y firma en segundos, sin imprimir ni ir a notaría.",
   },
   {
     icon: "sello",
