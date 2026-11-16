@@ -331,7 +331,7 @@ export default async function ProcesosPage({
             <div className="row wrap">
               <span className="radicado">{c.radicado}</span>
               {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
-              {privado && <span className="badge" title="La Rama no publica sus actuaciones; lo vigilamos en Estados electrónicos (Publicaciones Procesales)">{estados ? "privado · en estados" : "privado"}</span>}
+              {privado && <span className="badge" title="Reservado en la Rama: lo seguimos con la tecnología de IA de Estradox en Estados electrónicos (Publicaciones Procesales)">{estados ? "✓ lo seguimos en estados" : "privado"}</span>}
               {registros > 1 && <span className="badge reciente">{registros} fuentes</span>}
             </div>
             <div className="muted small" style={{ marginTop: 6 }}>

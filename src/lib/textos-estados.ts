@@ -50,9 +50,9 @@ export function textoSegundoPlano(radicados: string[]) {
  */
 export function textoPrivado(enEstados = true) {
   return enEstados
-    ? "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones en la Consulta Nacional. Pero con Estados " +
-        "electrónicos, la nueva tecnología de Estradox, revisamos cada noche las publicaciones públicas del juzgado " +
-        "y te avisamos cuando tu proceso salga en un estado."
+    ? "✅ Tranquilo, lo tenemos cubierto: este proceso es reservado en la Consulta Nacional de la Rama, pero con " +
+        "la tecnología de IA de Estradox lo seguimos en Estados electrónicos (Publicaciones Procesales). Cada noche " +
+        "revisamos las publicaciones del juzgado, extraemos la información y te avisamos apenas salga en un estado."
     : "🔒 Proceso privado: la Rama Judicial no publica sus actuaciones.";
 }
 
