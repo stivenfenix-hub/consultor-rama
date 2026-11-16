@@ -6,7 +6,17 @@ import { Icon } from "./icon";
 
 // Páginas donde no se muestra la burbuja (en medio de registro o recuperación).
 // En /login sí: es lo primero que ve quien entra desde el navegador del celular.
-const SIN_BURBUJA = ["/register", "/forgot", "/reset", "/verify", "/completar-registro"];
+// Tampoco en las páginas públicas de Firma Electrónica: quien firma o verifica no es usuario de Estradox.
+const SIN_BURBUJA = [
+  "/register",
+  "/forgot",
+  "/reset",
+  "/verify",
+  "/completar-registro",
+  "/firmar",
+  "/verificar",
+  "/firma-electronica",
+];
 // Si Chrome no ofrece su instalación en este tiempo, se dan instrucciones manuales.
 const ESPERA_PROMPT_MS = 4000;
 const OCULTAR_MS = 24 * 60 * 60 * 1000; // "Cerrar" la oculta 1 día

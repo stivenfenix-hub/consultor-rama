@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auditar, origenDe } from "@/lib/firmas";
+import { auditar, auditoriaDe, origenDe } from "@/lib/firmas";
 import { accesoFirmante } from "@/lib/firma-portal";
 import { leerArchivo } from "@/lib/firma-storage";
 
@@ -30,8 +30,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const datos = clave ? await leerArchivo(clave).catch(() => null) : null;
   if (!datos) return NextResponse.json({ error: "Archivo no disponible." }, { status: 404 });
 
+  // "Leyó el documento" se anota una sola vez por firmante (aunque recargue la página).
   if (!firmado && req.nextUrl.searchParams.get("leer") === "1") {
-    await auditar(doc.id, "DOCUMENT_VIEWED", { firmanteId: f.id, ...origenDe(req.headers) });
+    const yaLeyo = (await auditoriaDe(doc.id)).some((x) => x.evento === "DOCUMENT_VIEWED" && x.firmanteId === f.id);
+    if (!yaLeyo) await auditar(doc.id, "DOCUMENT_VIEWED", { firmanteId: f.id, ...origenDe(req.headers) });
   }
   const base = doc.titulo.replace(/[^\p{L}\p{N} ._-]/gu, "").slice(0, 80) || "documento";
   const nombre = encodeURIComponent(`${base}${firmado ? " (firmado)" : ""}.pdf`);

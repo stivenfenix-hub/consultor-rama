@@ -10,3 +10,6 @@ next-env.d.ts
 
 # Archivos de Firma Electrónica en desarrollo (PDF y firmas)
 .firmas-storage
+
+# Base de datos local de desarrollo (PGlite)
+.pglite-local

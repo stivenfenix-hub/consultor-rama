@@ -419,7 +419,7 @@ function Lienzo({ ref }: { ref: React.Ref<LienzoRef> }) {
 
   // Lo que usa el padre: la imagen PNG (fondo transparente) o null si no hay firma.
   useEffect(() => {
-    const r = { exportar: () => (tinta.current > 40 && canvas.current ? canvas.current.toDataURL("image/png") : null) };
+    const r = { exportar: () => (tinta.current > 40 && canvas.current ? recortar(canvas.current) : null) };
     if (typeof ref === "function") ref(r);
     else if (ref) (ref as React.RefObject<LienzoRef | null>).current = r;
   }, [ref]);
@@ -464,6 +464,38 @@ function Lienzo({ ref }: { ref: React.Ref<LienzoRef> }) {
       </button>
     </div>
   );
+}
+
+/**
+ * PNG solo con la parte dibujada (más un margen): así la firma llena su
+ * recuadro en el documento en vez de quedar pequeña entre el espacio vacío.
+ */
+function recortar(c: HTMLCanvasElement): string {
+  const ctx = c.getContext("2d");
+  if (!ctx) return c.toDataURL("image/png");
+  const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+  let x0 = width, y0 = height, x1 = -1, y1 = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > 8) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return c.toDataURL("image/png");
+  const m = 12;
+  x0 = Math.max(0, x0 - m);
+  y0 = Math.max(0, y0 - m);
+  x1 = Math.min(width - 1, x1 + m);
+  y1 = Math.min(height - 1, y1 + m);
+  const r = document.createElement("canvas");
+  r.width = x1 - x0 + 1;
+  r.height = y1 - y0 + 1;
+  r.getContext("2d")?.drawImage(c, x0, y0, r.width, r.height, 0, 0, r.width, r.height);
+  return r.toDataURL("image/png");
 }
 
 /** Dibuja el nombre con la fuente elegida y devuelve el PNG. */
