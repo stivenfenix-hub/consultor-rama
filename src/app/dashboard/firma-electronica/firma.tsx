@@ -74,6 +74,10 @@ const CATEGORIAS: { icon: IconName; t: string; norma: string; docs: Doc[] }[] = 
       { t: "Pagarés y cartas de instrucciones", d: "Válidos para iniciar procesos ejecutivos, siempre que se garantice su integridad e inalterabilidad." },
       { t: "Arrendamientos", d: "De vivienda urbana o local comercial, incluida la firma de los codeudores." },
       { t: "Compraventa de bienes muebles", d: "Vehículos, maquinaria, mercancía o cesión de derechos económicos." },
+      {
+        t: "Promesa de compraventa de inmuebles",
+        d: "Lotes, casas, fincas o apartamentos, también cuando se pagan a cuotas: la promesa es un contrato privado y se firma electrónicamente. Solo la escritura pública que transfiere la propiedad se hace después en notaría.",
+      },
       { t: "Contratos laborales", d: "Para las empresas que asesoras." },
     ],
   },
@@ -85,14 +89,19 @@ const VERIFICADOR: { t: string; ok: boolean; d: string }[] = [
   { t: "Contrato de honorarios", ok: true, d: "Sí. Ley 527 de 1999 y Decreto 2364 de 2012 (equivalencia funcional)." },
   { t: "Pagaré", ok: true, d: "Sí, para iniciar un ejecutivo, si se garantiza que no fue alterado. Para negociarlo en el mercado de valores necesita anotación en cuenta (p. ej. Deceval)." },
   { t: "Contrato de arrendamiento", ok: true, d: "Sí, de vivienda urbana o local comercial, también para los codeudores." },
-  { t: "Compraventa de una casa o lote", ok: false, d: "No. Exige escritura pública ante notario, igual que las hipotecas y las sucesiones por notaría." },
+  {
+    t: "Promesa de compraventa de lote, casa o finca",
+    ok: true,
+    d: "Sí. La promesa (aunque sea a cuotas) es un contrato privado. La escritura pública que transfiere la propiedad se firma después en notaría.",
+  },
+  { t: "Escritura de compraventa de una casa o lote", ok: false, d: "No. La transferencia del inmueble exige escritura pública ante notario, igual que las hipotecas y las sucesiones por notaría." },
   { t: "Poder general", ok: false, d: "No. Un poder amplio para administrar todos los negocios de una persona sigue exigiendo escritura pública." },
   { t: "Testamento", ok: false, d: "No. Requiere solemnidades notariales estrictas, igual que las capitulaciones matrimoniales." },
   { t: "Constitución de sociedad con inmuebles", ok: false, d: "No. Si se aportan inmuebles, exige escritura pública." },
 ];
 
 const EXCEPCIONES: { t: string; d: string }[] = [
-  { t: "Lo que exige escritura pública", d: "Compraventa de inmuebles, hipotecas, sociedades que aportan inmuebles y sucesiones por notaría." },
+  { t: "Lo que exige escritura pública", d: "La escritura de compraventa de inmuebles (la promesa sí se firma electrónicamente), hipotecas, sociedades que aportan inmuebles y sucesiones por notaría." },
   { t: "Poderes generales", d: "Para administrar todos los negocios de una persona." },
   { t: "Testamentos y capitulaciones matrimoniales", d: "Requieren solemnidades notariales estrictas." },
   { t: "Títulos para el mercado de valores", d: "Un pagaré electrónico es válido, pero para negociarlo requiere anotación en cuenta (p. ej. Deceval)." },
