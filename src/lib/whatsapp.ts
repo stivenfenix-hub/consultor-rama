@@ -15,7 +15,8 @@ export const CUENTAS_WA: CuentaWa[] = ["avisos", "comercial"];
 
 /** A qué WhatsApp va cada tipo de aviso. */
 export function cuentaDeTipo(tipo: string): CuentaWa {
-  return tipo === "sinProcesos" || tipo === "promo" ? "comercial" : "avisos";
+  // "firma" (enlace para firmar y código OTP) también va por el comercial.
+  return tipo === "sinProcesos" || tipo === "promo" || tipo === "firma" ? "comercial" : "avisos";
 }
 
 let listo: Promise<void> | null = null;
