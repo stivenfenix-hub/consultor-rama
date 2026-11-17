@@ -1492,3 +1492,16 @@ html:has(#que-puedo-firmar) {
   from { transform: translateX(-10%); }
   to { transform: translateX(200%); }
 }
+
+/* Estado del documento (detalle) */
+.firma-estado.listo {
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+}
+.firma-estado.malo {
+  border-color: color-mix(in srgb, #ef4444 50%, transparent);
+}
+.firma-estado .cert-stage.parcial .cert-dot {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent);
+}

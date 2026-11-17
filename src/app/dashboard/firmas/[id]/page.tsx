@@ -76,6 +76,36 @@ export default async function DetalleFirma({
   const abierto = doc.estado === "PENDING" || doc.estado === "PARTIALLY_SIGNED";
   const sello = (doc.sello ?? {}) as { modo?: string; certificado?: string | null; tsa?: unknown };
 
+  // Estado actual en palabras (va con la línea de tiempo, arriba de la trazabilidad).
+  const primero = (e: EventoFirma) => auditoria.find((a) => a.evento === e)?.createdAt ?? null;
+  const ultimo = (e: EventoFirma) => auditoria.filter((a) => a.evento === e).pop()?.createdAt ?? null;
+  const abrio = auditoria.some((a) => a.evento === "LINK_OPENED");
+  const faltan = firmantes.filter((f) => f.estado !== "SIGNED" && f.estado !== "REJECTED").map((f) => f.nombre);
+  const infoEstado: { titulo: string; texto: string } =
+    doc.estado === "COMPLETED"
+      ? {
+          titulo: "Firmado y sellado",
+          texto: "Todos firmaron. El PDF sellado con su certificado está listo para descargar, radicar o archivar.",
+        }
+      : doc.estado === "REJECTED"
+        ? { titulo: "Rechazado", texto: "Un firmante decidió no firmar. Revisa el motivo y envía un documento corregido." }
+        : doc.estado === "EXPIRED"
+          ? { titulo: "Vencido", texto: `Pasaron ${DIAS_VIGENCIA} días sin que firmaran todos. Envía un documento nuevo.` }
+          : firmados > 0
+            ? {
+                titulo: `Firmado en parte (${firmados} de ${firmantes.length})`,
+                texto: `Falta que firme${faltan.length > 1 ? "n" : ""}: ${faltan.join(", ")}. Puedes enviarle${faltan.length > 1 ? "s" : ""} un recordatorio.`,
+              }
+            : abrio
+              ? {
+                  titulo: "Abierto, esperando la firma",
+                  texto: "El enlace ya se abrió. Falta que confirme su identidad y firme.",
+                }
+              : {
+                  titulo: "Enviado, esperando que lo abran",
+                  texto: "Los enlaces ya salieron por correo o WhatsApp. Si no lo abren pronto, envía un recordatorio.",
+                };
+
   return (
     <div className="page">
       <div className="page-head wrap">
@@ -219,6 +249,22 @@ export default async function DetalleFirma({
         ))}
       </div>
 
+      <EstadoActual
+        etapas={[
+          { icon: "send", t: "Enviado", hora: doc.enviadoAt },
+          { icon: "eye", t: "Abierto", hora: primero("LINK_OPENED") },
+          {
+            icon: "firma",
+            t: firmantes.length > 1 ? `Firmado (${firmados} de ${firmantes.length})` : "Firmado",
+            hora: firmados === firmantes.length && firmantes.length ? ultimo("SIGNED") : null,
+            parcial: firmados > 0 && firmados < firmantes.length,
+          },
+          { icon: "sello", t: "Sellado", hora: ultimo("SEALED_PDF_GENERATED") ?? (doc.estado === "COMPLETED" ? doc.completedAt : null) },
+        ]}
+        estado={doc.estado}
+        info={infoEstado}
+      />
+
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Trazabilidad</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
@@ -259,6 +305,47 @@ export default async function DetalleFirma({
         <p className="muted small" style={{ marginBottom: 0 }}>
           La huella es como la cédula del archivo: si alguien le cambia una sola letra, ya no coincide.
         </p>
+      </div>
+    </div>
+  );
+}
+
+const hora = (d: Date) =>
+  new Date(d).toLocaleString("es-CO", { timeZone: "America/Bogota", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+/** Línea de tiempo real del documento (Enviado → Abierto → Firmado → Sellado) con su estado en palabras. */
+function EstadoActual({
+  etapas,
+  estado,
+  info,
+}: {
+  etapas: { icon: IconName; t: string; hora: Date | null; parcial?: boolean }[];
+  estado: string;
+  info: { titulo: string; texto: string };
+}) {
+  const hechas = etapas.filter((e) => e.hora).length;
+  const actual = hechas - 1;
+  const malo = estado === "REJECTED" || estado === "EXPIRED";
+  return (
+    <div className={`card firma-estado ${malo ? "malo" : estado === "COMPLETED" ? "listo" : ""}`}>
+      <div className="row wrap" style={{ gap: 8, marginBottom: 4 }}>
+        <h2 style={{ margin: 0 }}>Estado del documento</h2>
+        <span className={`badge ${malo ? "rojo" : estado === "COMPLETED" ? "new" : "reciente"}`}>{info.titulo}</span>
+      </div>
+      <p className="small" style={{ margin: "0 0 4px" }}>{info.texto}</p>
+      <div className="cert-track">
+        {etapas.map((e, i) => (
+          <div key={e.t} className={`cert-stage ${e.hora ? "on" : ""} ${i === actual && !malo ? "now" : ""} ${e.parcial ? "parcial" : ""}`}>
+            <div className="cert-dot">
+              <Icon name={e.icon} size={18} />
+            </div>
+            <div className="cert-stage-t">{e.t}</div>
+            <div className="cert-stage-h">{e.hora ? hora(e.hora) : e.parcial ? "en curso" : "—"}</div>
+          </div>
+        ))}
+        <div className="cert-line">
+          <div className="cert-line-fill" style={{ width: `${(Math.max(actual, 0) / (etapas.length - 1)) * 100}%` }} />
+        </div>
       </div>
     </div>
   );
