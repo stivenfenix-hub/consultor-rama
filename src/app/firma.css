@@ -1484,3 +1484,11 @@ html:has(#que-puedo-firmar) {
     animation: none;
   }
 }
+.firma-lector-barra.indeterminada > div {
+  width: 35%;
+  animation: firma-va-y-viene 1.1s ease-in-out infinite alternate;
+}
+@keyframes firma-va-y-viene {
+  from { transform: translateX(-10%); }
+  to { transform: translateX(200%); }
+}

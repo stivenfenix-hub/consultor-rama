@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { buscarPersonas, leerTextoDocumento, type Avance, type Persona } from "./extraer";
+import { ubicarFirmas } from "./ubicar";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { PdfPaginas } from "@/components/pdf-paginas";
@@ -102,6 +103,9 @@ export function Asistente({
   const [buscando, setBuscando] = useState(false);
   const [avance, setAvance] = useState<Avance>({ etapa: "Abriendo el documento…", pct: 0 });
   const leido = useRef<string | null>(null);
+  // Firmantes cuya firma ya se ubicó sola (para no volver a moverla).
+  const ubicados = useRef(new Set<string>());
+  const [ubicando, setUbicando] = useState(false);
   const delDocumento = new Set((personas ?? []).map((p) => p.numDoc));
   const usados = new Set(firmantes.map((f) => f.numDoc.replace(/\D/g, "")).filter(Boolean));
   const siguiente = (personas ?? []).find((p) => !usados.has(p.numDoc)) ?? null;
@@ -211,20 +215,40 @@ export function Asistente({
       if (e) return setError(e);
     }
     if (n === 2 && doc) {
-      // Quien no tenga sitio todavía queda al final de la última página, uno al lado del otro.
-      setFirmantes((fs) => {
-        let k = 0;
-        return fs.map((f) => {
-          if (f.posicion) return f;
-          const col = k % 2;
-          const fila = Math.floor(k / 2);
-          k++;
-          return {
-            ...f,
-            posicion: { page: doc.paginas, x: col ? 0.58 : 0.12, y: limite(0.8 - fila * 0.11, 0.05, 0.9), width: ANCHO, height: ALTO },
-          };
-        });
+      // Primero un sitio provisional (al final de la última página)…
+      let k = 0;
+      const conSitio = firmantes.map((f) => {
+        if (f.posicion) return f;
+        const col = k % 2;
+        const fila = Math.floor(k / 2);
+        k++;
+        return {
+          ...f,
+          posicion: { page: doc.paginas, x: col ? 0.58 : 0.12, y: limite(0.8 - fila * 0.11, 0.05, 0.9), width: ANCHO, height: ALTO },
+        };
       });
+      setFirmantes(conSitio);
+      // …y luego el lugar limpio encima de su nombre, sin tapar letras ni líneas.
+      const clave = (f: FirmanteForm) => `${doc.id}|${f.numDoc}|${f.nombre}`;
+      const pendientes = conSitio.filter((f) => !ubicados.current.has(clave(f)));
+      if (pendientes.length) {
+        pendientes.forEach((f) => ubicados.current.add(clave(f)));
+        setUbicando(true);
+        ubicarFirmas(doc.id, conSitio, { width: ANCHO, height: ALTO })
+          .then((sugeridas) =>
+            setFirmantes((fs) =>
+              fs.map((f, i) => {
+                const s = sugeridas[i];
+                const antes = conSitio[i];
+                // Solo si el abogado no la ha movido mientras tanto, y si es alguien pendiente.
+                if (!s || !antes || f.posicion !== antes.posicion || !pendientes.includes(antes)) return f;
+                return { ...f, posicion: s };
+              }),
+            ),
+          )
+          .catch(() => {})
+          .finally(() => setUbicando(false));
+      }
     }
     if (n === 3) {
       if (firmantes.some((f) => !f.posicion)) return setError("Ubica la firma de todos los firmantes.");
@@ -473,9 +497,20 @@ export function Asistente({
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Ubica la firma de cada uno</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Elige un firmante y <b>toca el documento</b> donde debe quedar su firma. Después puedes arrastrar el recuadro
-            o cambiarle el tamaño desde la esquina.
+            Ya ubicamos cada firma en un espacio en blanco, encima del nombre de cada firmante. Si quieres cambiarla,
+            elige un firmante y <b>toca el documento</b>, o arrastra el recuadro.
           </p>
+          {ubicando && (
+            <div className="firma-lector buscando small" role="status" style={{ marginBottom: 10 }}>
+              <div className="row" style={{ gap: 8 }}>
+                <span className="firma-lector-lupa">📐</span>
+                <span>Buscando el mejor espacio en blanco para cada firma…</span>
+              </div>
+              <div className="firma-lector-barra indeterminada" aria-hidden>
+                <div />
+              </div>
+            </div>
+          )}
           <div className="firma-chips">
             {firmantes.map((f, i) => (
               <button
