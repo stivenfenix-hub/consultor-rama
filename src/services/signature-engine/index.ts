@@ -75,7 +75,8 @@ export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
     }
 
     // 1) Firmas estampadas -> huella "con firmas".
-    const estampado = await estamparFirmas(original, firmas);
+    // El código corto del documento va en la marca de agua de cada firma.
+    const estampado = await estamparFirmas(original, firmas, doc.id.slice(0, 8).toUpperCase());
     const hashFirmado = sha256Hex(await estampado.save());
 
     // 2) Certificado de auditoría como última(s) página(s).

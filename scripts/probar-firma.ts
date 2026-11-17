@@ -19,7 +19,7 @@ for (const p of PLANTILLAS) {
   const img = new Uint8Array(await QRCode.toBuffer("firma de prueba", { width: 240 }));
   const ahora = new Date();
   const firmas = r.firmas.map((f:any, i:number) => ({ nombre: f.nombre, tipoDoc: "CC", numDoc: f.doc, email: i ? "carlos@bufete.com" : "maria@correo.com", telefono: i ? null : "573001234567", imagen: img, tipoFirma: i ? "tipografica" : "dibujada", posicion: f, firmadoAt: ahora, otpVerificadoAt: ahora, ip: "190.25.10." + (i+7) }));
-  const doc = await estamparFirmas(r.pdf, firmas);
+  const doc = await estamparFirmas(r.pdf, firmas, "3F2B8C1E");
   const h = sha256Hex(await doc.save());
   const eventos = Array.from({length: 14}, (_, i) => ({ fecha: new Date(ahora.getTime() + i*61000), evento: ["Documento creado","Enlace enviado por correo","Abrió el enlace","Código de verificación enviado","Código verificado (identidad confirmada)","Leyó el documento","Firmó el documento"][i%7], quien: i%2 ? firmas[0].nombre : "Dr. Carlos Andrés Pérez Mejía", ip: i%3 ? "190.25.10.7" : null }));
   await anexarCertificado(doc, { id: "3f2b8c1e-9a44-4d07-b1c2-5e6f7a8b9c0d", titulo: r.titulo, radicado: "05001310302120240028100", abogado: "Carlos Andrés Pérez Mejía", creado: ahora, originalSha256: sha256Hex(r.pdf), urlVerificar: "http://localhost:3000/verificar/3f2b8c1e-9a44-4d07-b1c2-5e6f7a8b9c0d", firmas, eventos, selloTexto: ["Trazabilidad Estradox: huellas SHA-256 y bitácora de eventos (este certificado).", "Firma digital y estampa cronológica de entidad acreditada (ONAC): pendientes de activar."] }, h);
