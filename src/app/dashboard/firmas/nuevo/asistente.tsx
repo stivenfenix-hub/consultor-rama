@@ -455,7 +455,7 @@ export function Asistente({
               <div className="firma-campos">
                 <label>
                   <span className="small">Nombre completo</span>
-                  <input type="text" value={f.nombre} maxLength={120} onChange={(e) => cambiar(i, { nombre: e.target.value })} placeholder="María Fernanda Gómez Ríos" />
+                  <input type="text" value={f.nombre} maxLength={120} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
                 </label>
                 <label className="medio">
                   <span className="small">Tipo de documento</span>
@@ -467,15 +467,15 @@ export function Asistente({
                 </label>
                 <label className="medio">
                   <span className="small">Número de documento</span>
-                  <input type="text" value={f.numDoc} maxLength={30} onChange={(e) => cambiar(i, { numDoc: e.target.value })} placeholder="43123456" />
+                  <input type="text" value={f.numDoc} maxLength={30} onChange={(e) => cambiar(i, { numDoc: e.target.value })} />
                 </label>
                 <label className="medio">
                   <span className="small">Correo</span>
-                  <input type="email" value={f.email} maxLength={160} onChange={(e) => cambiar(i, { email: e.target.value })} placeholder="maria@correo.com" />
+                  <input type="email" value={f.email} maxLength={160} onChange={(e) => cambiar(i, { email: e.target.value })} />
                 </label>
                 <label className="medio">
                   <span className="small">WhatsApp</span>
-                  <input type="tel" inputMode="numeric" value={f.telefono} maxLength={15} onChange={(e) => cambiar(i, { telefono: e.target.value })} placeholder="3001234567" />
+                  <input type="tel" inputMode="numeric" value={f.telefono} maxLength={15} onChange={(e) => cambiar(i, { telefono: e.target.value })} />
                 </label>
               </div>
             </div>
