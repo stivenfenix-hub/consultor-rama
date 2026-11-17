@@ -54,9 +54,6 @@ export function Asistente({
     gratis: boolean;
     motivo: "primera" | "admin" | null;
     precios: Record<"otp" | "cedula" | "biometrica", number>;
-    /** Procesos que lleva si su regalo aún está bloqueado (null si no aplica). */
-    procesosParaRegalo: number | null;
-    meta: number;
   };
   /** Borrador que se está retomando (entra directo al paso 2). */
   borrador: Borrador | null;
@@ -491,12 +488,6 @@ export function Asistente({
                 Pagas con Bold (tarjeta, PSE, Nequi o Botón Bancolombia). Apenas se confirme el pago, enviamos los
                 enlaces a los firmantes.
               </span>
-              {cobro.procesosParaRegalo !== null && (
-                <span className="small" style={{ gridColumn: "1 / -1" }}>
-                  🎁 ¿Sabías que tu primera firma puede ser gratis? Carga {cobro.meta} procesos en Estradox (llevas{" "}
-                  {cobro.procesosParaRegalo}) y vuelve: este documento queda guardado como borrador.
-                </span>
-              )}
             </div>
           )}
           <p className="muted small">

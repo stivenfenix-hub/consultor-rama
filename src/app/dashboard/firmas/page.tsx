@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { ESTADOS_DOC, PRECIOS_FIRMA, listarDocumentos, type EstadoDocumento } from "@/lib/firmas";
-import { PROCESOS_PARA_GRATIS, cotizar } from "@/lib/firma-cobro";
+import { cotizar } from "@/lib/firma-cobro";
 import { RegaloPrimeraFirma } from "./regalo";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { Icon } from "@/components/icon";
@@ -50,11 +50,7 @@ export default async function Firmas({
   const pag = paginaDe(sp.pagina, previo.total);
   const { docs, total, porEstado } = await listarDocumentos(user.id, { estado, q, limite: POR_PAGINA, desde: pag.desde });
   const todos = Object.values(porEstado).reduce((a, b) => a + b, 0);
-  const cobro = await cotizar(user.id, "otp");
-  const primeraGratis = cobro.motivo === "primera";
-  // Aún sin enviar nada pero con menos de 3 procesos: el regalo está bloqueado.
-  const bloqueado = cobro.procesosParaRegalo;
-  const hayRegalo = primeraGratis || bloqueado !== null;
+  const primeraGratis = todos === 0 && (await cotizar(user.id, "otp")).motivo === "primera";
 
   const href = (o: { estado?: string; pagina?: number }) => {
     const s = new URLSearchParams();
@@ -85,29 +81,10 @@ export default async function Firmas({
         </div>
       </div>
 
-      {primeraGratis && todos > 0 && (
-        <Link prefetch={false} href="/dashboard/firmas/nuevo" className="regalo-aviso">
-          <span className="regalo-aviso-icono">🎁</span>
-          <span>
-            <b>Tu primera firma es gratis.</b> Aún no has enviado ningún documento: el primero no tiene costo, incluso
-            con cédula y rostro.
-          </span>
-          <span className="regalo-aviso-ir">Usarla →</span>
-        </Link>
-      )}
-      {bloqueado !== null && todos > 0 && (
-        <Link prefetch={false} href="/dashboard/procesos" className="regalo-aviso">
-          <span className="regalo-aviso-icono">🎁</span>
-          <span>
-            <b>Desbloquea tu primera firma gratis:</b> carga {PROCESOS_PARA_GRATIS} procesos en Estradox (llevas{" "}
-            {bloqueado}).
-          </span>
-          <span className="regalo-aviso-ir">Agregar procesos →</span>
-        </Link>
-      )}
-
-      {todos === 0 && hayRegalo ? (
-        <RegaloPrimeraFirma precioMax={PRECIOS_FIRMA.biometrica} procesos={bloqueado} meta={PROCESOS_PARA_GRATIS} />
+      {/* El regalo solo sale mientras no tenga ni borradores ni envíos, y solo
+          si ya tiene los procesos mínimos; si no, la presentación de siempre. */}
+      {todos === 0 && primeraGratis ? (
+        <RegaloPrimeraFirma precioMax={PRECIOS_FIRMA.biometrica} />
       ) : todos === 0 ? (
         <div className="card firma-vacio">
           <div className="cert-hero-icon">
