@@ -79,8 +79,9 @@ export function Asistente({
   const [activo, setActivo] = useState(0);
 
   // Paso 4
-  const [otpCorreo, setOtpCorreo] = useState(true);
-  const [otpWhatsapp, setOtpWhatsapp] = useState(false);
+  // Por defecto el código va por WhatsApp; el correo, desmarcado.
+  const [otpCorreo, setOtpCorreo] = useState(false);
+  const [otpWhatsapp, setOtpWhatsapp] = useState(true);
   const [verificacion, setVerificacion] = useState<"otp" | "cedula" | "biometrica">("otp");
   const [enviando, enviar] = useTransition();
 
@@ -93,7 +94,7 @@ export function Asistente({
     fd.set("titulo", titulo);
     fd.set("radicado", radicado);
     if (modo === "pdf") {
-      if (!archivo) return setError("Elige el PDF que quieres enviar a firmar.");
+      if (!archivo) return setError("Elige el PDF o Word que quieres enviar a firmar.");
       fd.set("archivo", archivo);
     } else {
       if (!plantilla) return setError("Elige una plantilla.");
@@ -168,11 +169,11 @@ export function Asistente({
     }
     if (n === 3) {
       if (firmantes.some((f) => !f.posicion)) return setError("Ubica la firma de todos los firmantes.");
-      // Por defecto se usan los medios que todos tienen.
-      const todosCorreo = firmantes.every((f) => f.email.trim());
+      // WhatsApp marcado por defecto; el correo solo si a alguien le falta el WhatsApp.
+      const algunWa = firmantes.some((f) => f.telefono.replace(/\D/g, ""));
       const todosWa = firmantes.every((f) => f.telefono.replace(/\D/g, ""));
-      setOtpCorreo(todosCorreo || !todosWa);
-      setOtpWhatsapp(!todosCorreo && todosWa);
+      setOtpWhatsapp(algunWa);
+      setOtpCorreo(!todosWa);
     }
     setPaso(n);
     window.scrollTo({ top: 0 });
@@ -211,7 +212,7 @@ export function Asistente({
           <div className="firma-opciones">
             <button type="button" className={`firma-opcion ${modo === "pdf" ? "sel" : ""}`} onClick={() => setModo("pdf")}>
               <Icon name="file" size={22} />
-              <b>Subir un PDF</b>
+              <b>Subir un PDF o Word</b>
               <span className="muted small">Un documento que ya tienes listo.</span>
             </button>
             <button type="button" className={`firma-opcion ${modo === "plantilla" ? "sel" : ""}`} onClick={() => setModo("plantilla")}>
@@ -226,17 +227,19 @@ export function Asistente({
               <label className="firma-subir">
                 <input
                   type="file"
-                  accept="application/pdf,.pdf"
+                  accept="application/pdf,.pdf,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
                   onChange={(e) => {
                     const f = e.target.files?.[0] ?? null;
                     setArchivo(f);
-                    if (f && !titulo) setTitulo(f.name.replace(/\.pdf$/i, ""));
+                    if (f && !titulo) setTitulo(f.name.replace(/\.(pdf|docx|doc)$/i, ""));
                   }}
                 />
                 <Icon name="download" size={26} />
-                <b>{archivo ? archivo.name : "Toca para elegir el PDF"}</b>
+                <b>{archivo ? archivo.name : "Toca para elegir el PDF o Word"}</b>
                 <span className="muted small">
-                  {archivo ? `${(archivo.size / 1024 / 1024).toFixed(2)} MB` : "Máximo 15 MB, sin contraseña."}
+                  {archivo
+                    ? `${(archivo.size / 1024 / 1024).toFixed(2)} MB${/\.docx?$/i.test(archivo.name) ? " · lo convertimos a PDF" : ""}`
+                    : "PDF o Word (.docx, .doc). Máximo 15 MB, sin contraseña."}
                 </span>
               </label>
             </div>
@@ -445,12 +448,12 @@ export function Asistente({
             quien firma es el dueño de ese correo o WhatsApp.
           </p>
           <label className="check">
-            <input type="checkbox" checked={otpCorreo} onChange={(e) => setOtpCorreo(e.target.checked)} />
-            <span>Enviar el código por <b>correo</b></span>
-          </label>
-          <label className="check">
             <input type="checkbox" checked={otpWhatsapp} onChange={(e) => setOtpWhatsapp(e.target.checked)} />
             <span>Enviar el código por <b>WhatsApp</b></span>
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={otpCorreo} onChange={(e) => setOtpCorreo(e.target.checked)} />
+            <span>Enviar el código por <b>correo</b></span>
           </label>
           <h3 style={{ marginBottom: 6 }}>Verificación de identidad</h3>
           <p className="muted small" style={{ marginTop: 0 }}>
@@ -508,7 +511,11 @@ export function Asistente({
         <div className="spacer" />
         {paso === 0 && (
           <button type="button" className="btn" disabled={ocupado} onClick={crearBorrador}>
-            {ocupado ? "Preparando…" : "Continuar →"}
+            {ocupado
+              ? modo === "pdf" && archivo && /\.docx?$/i.test(archivo.name)
+                ? "Convirtiendo el Word…"
+                : "Preparando…"
+              : "Continuar →"}
           </button>
         )}
         {(paso === 1 || paso === 2) && (

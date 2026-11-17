@@ -1,0 +1,12 @@
+{
+  "name": "estradox-convertir",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Convierte a PDF (LibreOffice) los Word que suben los abogados en Firma Electrónica.",
+  "main": "convertir.mjs",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1"
+  }
+}

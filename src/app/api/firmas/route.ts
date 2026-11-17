@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getSuscripcion, tieneAcceso } from "@/lib/subscription";
 import { auditar, crearDocumento, origenDe, sha256 } from "@/lib/firmas";
 import { guardarArchivo } from "@/lib/firma-storage";
+import { esWord, wordAPdf } from "@/lib/firma-word";
 import { camposFaltantes, plantillaPorId, renderizarPlantilla } from "@/services/signature-engine";
 
 // Paso 1 del asistente: crea el borrador a partir de un PDF subido o de una
@@ -54,17 +55,30 @@ export async function POST(req: NextRequest) {
   } else {
     const archivo = form.get("archivo");
     if (!(archivo instanceof File) || archivo.size === 0) {
-      return NextResponse.json({ error: "Sube un PDF o elige una plantilla." }, { status: 400 });
+      return NextResponse.json({ error: "Sube un PDF o un Word, o elige una plantilla." }, { status: 400 });
     }
     if (archivo.size > MAX_MB * 1024 * 1024) {
-      return NextResponse.json({ error: `El PDF pesa más de ${MAX_MB} MB.` }, { status: 413 });
+      return NextResponse.json({ error: `El archivo pesa más de ${MAX_MB} MB.` }, { status: 413 });
     }
-    pdf = new Uint8Array(await archivo.arrayBuffer());
+    const datos = new Uint8Array(await archivo.arrayBuffer());
+    const word = esWord(archivo.name, datos);
+    if (word) {
+      // Word → PDF (LibreOffice en el VPS). El PDF es lo que se firma y se sella.
+      try {
+        pdf = await wordAPdf(user.id, archivo.name, datos);
+      } catch (e) {
+        return NextResponse.json({ error: e instanceof Error ? e.message : "No pudimos convertir el Word." }, { status: 422 });
+      }
+    } else {
+      pdf = datos;
+    }
     if (Buffer.from(pdf.subarray(0, 5)).toString("latin1") !== "%PDF-") {
-      return NextResponse.json({ error: "El archivo no es un PDF." }, { status: 400 });
+      return NextResponse.json({ error: "El archivo debe ser un PDF o un Word (.docx o .doc)." }, { status: 400 });
     }
-    titulo ||= archivo.name.replace(/\.pdf$/i, "").slice(0, 160);
-    origen = { origen: "pdf", archivo: archivo.name.slice(0, 200), bytes: archivo.size };
+    titulo ||= archivo.name.replace(/\.(pdf|docx|doc|odt|rtf)$/i, "").slice(0, 160);
+    origen = word
+      ? { origen: "word", archivo: archivo.name.slice(0, 200), bytes: archivo.size, convertido: "LibreOffice" }
+      : { origen: "pdf", archivo: archivo.name.slice(0, 200), bytes: archivo.size };
   }
   if (!titulo) return NextResponse.json({ error: "Ponle un título al documento." }, { status: 400 });
 
