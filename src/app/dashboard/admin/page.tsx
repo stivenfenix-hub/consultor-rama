@@ -188,8 +188,8 @@ export default async function AdminDashboard() {
               ⚠️ El portal de Publicaciones Procesales bloqueó {b.salida === "vps" ? "el VPS" : "Hostinger"} (
               {b.status ?? 403}) desde {hora(b.desde)}.{" "}
               {new Date(b.hasta).getTime() > Date.now()
-                ? `En pausa hasta ${hora(b.hasta)}; después prueba con una consulta por hora.`
-                : "Probando con una consulta por hora hasta que responda."}{" "}
+                ? `En pausa hasta ${hora(b.hasta)}; después prueba con una consulta cada 3 horas.`
+                : "Probando con una consulta cada 3 horas hasta que responda."}{" "}
               {b.salida === "vps" && "Mientras tanto, el «Actualizar» de los abogados se hace desde Hostinger (con tope diario)."}
             </div>
           ))}

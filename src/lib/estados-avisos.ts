@@ -25,7 +25,7 @@ export async function avisarBloqueosEstados() {
     if (!f.levantado && !f.avisadoAt) {
       await sendPushToUsers(admins, {
         title: "⚠️ Estados electrónicos en pausa",
-        body: `El portal de Publicaciones Procesales bloqueó ${nombre(f.salida)} (${f.status ?? "403"}). Pausamos las consultas hasta las ${hora(f.hasta)} y luego probamos de a una.`,
+        body: `El portal de Publicaciones Procesales bloqueó ${nombre(f.salida)} (${f.status ?? "403"}). Pausamos las consultas hasta las ${hora(f.hasta)} y luego probamos una consulta cada 3 horas.`,
         url: "/dashboard/admin",
         tag: `estados-bloqueo-${f.salida}`,
       }).catch((e) => console.error("[estados] aviso bloqueo", e));

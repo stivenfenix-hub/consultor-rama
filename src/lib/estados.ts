@@ -258,13 +258,13 @@ export async function cambiarEstadosActivo(userId: string, valor: boolean) {
 // ---------- Freno ante bloqueos del portal ----------
 // El 16 nov 2026 el firewall (Azure) del portal bloqueó la IP del VPS con 403 y el
 // servicio siguió insistiendo cada minuto. Ahora, al primer 403/429, esa salida
-// (VPS u Hostinger) deja de consultar 6 horas; luego prueba UNA consulta por hora
-// hasta que el portal vuelva a responder. El root recibe aviso (campanita y push).
+// (VPS u Hostinger) deja de consultar 6 horas; luego prueba UNA consulta cada 3 horas
+// hasta que el portal vuelva a responder (una cada 3 h). El root recibe aviso (campanita y push).
 
 /** Desde dónde se consulta el portal: "vps" (servicio de estados) u "hostinger" (la app). */
 export const SALIDA_ESTADOS = process.env.ESTADOS_SALIDA?.trim() || "hostinger";
 const PAUSA_BLOQUEO_H = 6;
-const REPRUEBA_H = 1;
+const REPRUEBA_H = 3;
 
 let cacheBloqueo: { hasta: Date | null; hay: boolean; leido: number } | null = null;
 
