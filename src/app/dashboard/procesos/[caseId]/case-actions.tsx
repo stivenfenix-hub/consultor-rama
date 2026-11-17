@@ -41,7 +41,7 @@ export function CaseActions({
         title={
           actualizadoHoy
             ? "Puedes actualizar cada proceso una vez por día. Disponible mañana."
-            : "Consulta la Rama y actualiza este proceso (una vez por día)"
+            : "Consulta la Rama y los estados electrónicos del juzgado (una vez por día)"
         }
         onClick={() =>
           run("refresh", async () => setMsg(await refrescarProcesoAction(caseId)))

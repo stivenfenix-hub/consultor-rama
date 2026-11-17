@@ -515,6 +515,24 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
       });
     }
   }
+  // También busca en los Estados electrónicos (si los tiene activos): el VPS
+  // revisa el juzgado en sus próximas vueltas y avisa si sale algo nuevo.
+  try {
+    const { estadosActivo, pedirActualizarRadicado } = await import("@/lib/estados");
+    if (await estadosActivo(user.id)) {
+      const r = await pedirActualizarRadicado(user.id, caso.radicado);
+      if (r.estado !== "no" && resultado.ok) {
+        resultado = {
+          ok:
+            r.estado === "pedido"
+              ? `${resultado.ok} También estamos buscando en los estados electrónicos del juzgado; te avisamos si sale algo nuevo.`
+              : `${resultado.ok} Los estados electrónicos del juzgado ya estaban al día.`,
+        };
+      }
+    }
+  } catch (e) {
+    console.error("[estados] actualizar desde proceso", e);
+  }
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/procesos");
   revalidatePath(`/dashboard/procesos/${caseId}`);
