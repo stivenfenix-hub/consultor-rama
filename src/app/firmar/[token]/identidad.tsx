@@ -375,7 +375,9 @@ export function PasoIdentidad({
           {!todoCoincide && (
             <ul className="identidad-lista">
               <li className={numeroOk ? "ok" : "mal"}>
-                {numeroOk ? "✓ Leímos el número de su cédula." : "✗ No logramos leer bien el número de su cédula."}
+                {numeroOk
+                  ? "✓ El número de su cédula concuerda con el del documento."
+                  : "✗ El número de su cédula no concuerda con el que aparece en el documento a firmar."}
               </li>
               {biometrica && (
                 <li className={rostroOk ? "ok" : "mal"}>
@@ -402,6 +404,11 @@ export function PasoIdentidad({
                 <button type="button" className="btn firmar-boton" onClick={() => { setRepitiendo(true); ir("rostro"); }}>
                   🙂 Repetir la foto de su cara
                 </button>
+              )}
+              {!numeroOk && (
+                <p className="small" style={{ textAlign: "center", margin: "6px 0 0" }}>
+                  Revise que esté usando <b>su propia cédula</b>, la misma que aparece en el documento.
+                </p>
               )}
               <p className="muted small" style={{ textAlign: "center", margin: "6px 0 0" }}>
                 Consejo: buena luz, sin reflejos y la cédula bien cerca de la cámara.

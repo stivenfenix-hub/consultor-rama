@@ -123,7 +123,7 @@ export type ResultadoIdentidad = {
 export function resumenIdentidad(r: ResultadoIdentidad | null): string | null {
   if (!r) return null;
   const partes = [
-    r.numeroCoincide === null ? "cédula aportada" : r.numeroCoincide ? "número de cédula coincide" : "número de cédula no legible o distinto",
+    r.numeroCoincide === null ? "cédula aportada" : r.numeroCoincide ? "número de cédula concuerda con el documento" : "número de cédula no concuerda con el documento",
   ];
   if (r.nivel === "biometrica") {
     partes.push(
