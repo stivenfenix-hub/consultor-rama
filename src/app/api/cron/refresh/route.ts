@@ -51,6 +51,15 @@ async function handle(req: NextRequest) {
       console.error("[campana] correos", e);
     }
   });
+  // Estados electrónicos: aviso al root si el portal bloqueó al VPS (o volvió).
+  after(async () => {
+    try {
+      const { avisarBloqueosEstados } = await import("@/lib/estados-avisos");
+      await avisarBloqueosEstados();
+    } catch (e) {
+      console.error("[estados] avisos de bloqueo", e);
+    }
+  });
   // Estados electrónicos: los revisa el VPS (estados-worker), no Hostinger.
   return NextResponse.json({ ok: true, mensaje: "Corrida iniciada en segundo plano." }, { status: 202 });
 }

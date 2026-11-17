@@ -4,7 +4,7 @@ import { StatTile } from "@/components/charts";
 import { Icon } from "@/components/icon";
 import { estadoSincronizacion } from "@/lib/sync-queue";
 import { estadoRama } from "@/lib/monitor-rama";
-import { estadoEstadosNoche } from "@/lib/estados";
+import { bloqueoPortal, estadoEstadosNoche } from "@/lib/estados";
 import { resumenFirmas } from "@/lib/firmas";
 import { RunSyncButton } from "./run-sync-button";
 
@@ -22,6 +22,10 @@ export default async function AdminDashboard() {
     estadoEstadosNoche().catch(() => null),
     resumenFirmas().catch(() => null),
   ]);
+  // Bloqueos activos del portal de estados (VPS / Hostinger).
+  const bloqueos = (
+    await Promise.all(["vps", "hostinger"].map((s) => bloqueoPortal(s).then((b) => (b ? { salida: s, ...b } : null)).catch(() => null)))
+  ).filter((b): b is NonNullable<typeof b> => !!b && !b.levantado);
   const ramaCaida = !!rama && rama.fallas > 0;
   // El cron corre cada 5 minutos: si lleva más de 20 sin correr, nada se está revisando.
   const cronParado =
@@ -179,6 +183,16 @@ export default async function AdminDashboard() {
             último estado; de día, los juzgados pedidos. Lo que encuentra sale en el resumen de las 7:00 a.m.{" "}
             {estados.usuarios} usuario(s) con estados · {estados.radicados} radicado(s) vigilado(s).
           </p>
+          {bloqueos.map((b) => (
+            <div key={b.salida} className="error small" style={{ marginBottom: 10 }}>
+              ⚠️ El portal de Publicaciones Procesales bloqueó {b.salida === "vps" ? "el VPS" : "Hostinger"} (
+              {b.status ?? 403}) desde {hora(b.desde)}.{" "}
+              {new Date(b.hasta).getTime() > Date.now()
+                ? `En pausa hasta ${hora(b.hasta)}; después prueba con una consulta por hora.`
+                : "Probando con una consulta por hora hasta que responda."}{" "}
+              {b.salida === "vps" && "Mientras tanto, el «Actualizar» de los abogados se hace desde Hostinger (con tope diario)."}
+            </div>
+          ))}
           <div className="stat-grid">
             <StatTile
               label="Juzgados revisados esta noche"

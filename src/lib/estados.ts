@@ -26,8 +26,12 @@ const NOCHE_DESDE = 18 * 60; // 6:00 p. m. (minutos, hora de Bogotá)
 const NOCHE_HASTA = 6 * 60 + 45; // 6:45 a. m.
 // En el VPS se ajustan con variables de entorno (ver estados-worker).
 const DESPACHOS_POR_CORRIDA = Number(process.env.ESTADOS_DESPACHOS_POR_CORRIDA) || 2;
-/** Pausa entre un despacho y otro, para no cargar el portal. */
-const PAUSA_DESPACHOS_MS = Number(process.env.ESTADOS_PAUSA_MS) || 0;
+/**
+ * Pausa al azar entre un despacho y otro (como una persona, no un robot).
+ * Por defecto 20 a 60 s: los ~730 juzgados caben en la noche (6 p. m. a 6:45 a. m.).
+ */
+const PAUSA_MIN_MS = Number(process.env.ESTADOS_PAUSA_MIN_MS) || 20_000;
+const PAUSA_MAX_MS = Math.max(PAUSA_MIN_MS, Number(process.env.ESTADOS_PAUSA_MAX_MS) || 60_000);
 const PRESUPUESTO_MS = 15 * 60 * 1000;
 const MAX_ARCHIVOS = 60; // por publicación
 const MAX_TEXTO_ARCHIVO = 60_000;
@@ -55,6 +59,20 @@ async function crearTablas() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "User" ALTER COLUMN "estadosActivo" SET DEFAULT true`);
     await prisma.$executeRawUnsafe(`UPDATE "User" SET "estadosActivo" = true WHERE NOT "estadosActivo"`);
   }
+  // Bloqueos del portal por salida (vps / hostinger): ver "Freno ante bloqueos".
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "EstadoBloqueo" (
+      salida TEXT PRIMARY KEY,
+      desde TIMESTAMPTZ NOT NULL DEFAULT now(),
+      hasta TIMESTAMPTZ NOT NULL,
+      intentos INTEGER NOT NULL DEFAULT 1,
+      status INTEGER,
+      levantado TIMESTAMPTZ,
+      "avisadoAt" TIMESTAMPTZ
+    )`);
+  // Revisiones que la app (Hostinger) hace directo cuando el VPS está bloqueado (tope diario).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "EstadoUsoDirecto" (dia DATE PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0)`);
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "EstadoDespacho" (
       despacho TEXT PRIMARY KEY,
@@ -237,9 +255,89 @@ export async function cambiarEstadosActivo(userId: string, valor: boolean) {
 }
 
 // ---------- Portal ----------
+// ---------- Freno ante bloqueos del portal ----------
+// El 16 nov 2026 el firewall (Azure) del portal bloqueó la IP del VPS con 403 y el
+// servicio siguió insistiendo cada minuto. Ahora, al primer 403/429, esa salida
+// (VPS u Hostinger) deja de consultar 6 horas; luego prueba UNA consulta por hora
+// hasta que el portal vuelva a responder. El root recibe aviso (campanita y push).
+
+/** Desde dónde se consulta el portal: "vps" (servicio de estados) u "hostinger" (la app). */
+export const SALIDA_ESTADOS = process.env.ESTADOS_SALIDA?.trim() || "hostinger";
+const PAUSA_BLOQUEO_H = 6;
+const REPRUEBA_H = 1;
+
+let cacheBloqueo: { hasta: Date | null; hay: boolean; leido: number } | null = null;
+
+/** Bloqueo de una salida: `hasta` en el futuro = en pausa; en el pasado = toca probar. */
+export async function bloqueoPortal(salida = SALIDA_ESTADOS) {
+  await asegurarTablas();
+  const [b] = await prisma.$queryRawUnsafe<
+    { hasta: Date; desde: Date; intentos: number; status: number; levantado: Date | null }[]
+  >(`SELECT hasta, desde, intentos, status, levantado FROM "EstadoBloqueo" WHERE salida = $1`, salida);
+  return b ?? null;
+}
+
+async function pausadoHasta(): Promise<Date | null> {
+  if (cacheBloqueo && Date.now() - cacheBloqueo.leido < 30_000) {
+    return cacheBloqueo.hasta && cacheBloqueo.hasta.getTime() > Date.now() ? cacheBloqueo.hasta : null;
+  }
+  const b = await bloqueoPortal();
+  cacheBloqueo = { hasta: b ? new Date(b.hasta) : null, hay: !!b && !b.levantado, leido: Date.now() };
+  return b && new Date(b.hasta).getTime() > Date.now() ? new Date(b.hasta) : null;
+}
+
+async function registrarBloqueo(status: number) {
+  const [b] = await prisma.$queryRawUnsafe<{ hasta: Date }[]>(
+    `INSERT INTO "EstadoBloqueo" (salida, desde, hasta, intentos, status)
+     VALUES ($1, now(), now() + ($2 || ' hours')::interval, 1, $4)
+     ON CONFLICT (salida) DO UPDATE SET
+       -- Bloqueo nuevo (el anterior ya se había levantado): 6 h y aviso otra vez.
+       -- Si sigue bloqueado tras la prueba: 1 h más.
+       desde = CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN now() ELSE "EstadoBloqueo".desde END,
+       hasta = now() + (CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN $2 ELSE $3 END || ' hours')::interval,
+       intentos = CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN 1 ELSE "EstadoBloqueo".intentos + 1 END,
+       "avisadoAt" = CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN NULL ELSE "EstadoBloqueo"."avisadoAt" END,
+       levantado = NULL,
+       status = $4
+     RETURNING hasta`,
+    SALIDA_ESTADOS,
+    String(PAUSA_BLOQUEO_H),
+    String(REPRUEBA_H),
+    status,
+  );
+  cacheBloqueo = { hasta: b ? new Date(b.hasta) : null, hay: true, leido: Date.now() };
+  console.error(`[estados] portal bloqueó la salida ${SALIDA_ESTADOS} (${status}); en pausa hasta ${b?.hasta?.toISOString()}`);
+}
+
+async function levantarBloqueo() {
+  if (cacheBloqueo && !cacheBloqueo.hay && Date.now() - cacheBloqueo.leido < 30_000) return;
+  const n = await prisma.$executeRawUnsafe(
+    `UPDATE "EstadoBloqueo" SET levantado = now() WHERE salida = $1 AND levantado IS NULL`,
+    SALIDA_ESTADOS,
+  );
+  if (n) {
+    // Queda el registro (levantado) para avisar al root que volvió; el cron lo borra después del aviso.
+    console.log(`[estados] el portal volvió a responder a la salida ${SALIDA_ESTADOS}`);
+  }
+  cacheBloqueo = { hasta: null, hay: false, leido: Date.now() };
+}
+
+const azar = (min: number, max: number) => min + Math.random() * (max - min);
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function traer(url: string, ms: number) {
-  const r = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(ms) });
+  const hasta = await pausadoHasta();
+  if (hasta) throw new Error(`Pausa por bloqueo del portal hasta ${hasta.toISOString()}`);
+  const r = await fetch(url, {
+    headers: { "User-Agent": UA, "Accept-Language": "es-CO,es;q=0.9", Accept: "text/html,application/pdf,*/*" },
+    signal: AbortSignal.timeout(ms),
+  });
+  if (r.status === 403 || r.status === 429) {
+    await registrarBloqueo(r.status);
+    throw new Error(`Publicaciones Procesales respondió ${r.status}`);
+  }
   if (!r.ok) throw new Error(`Publicaciones Procesales respondió ${r.status}`);
+  if (cacheBloqueo?.hay !== false) await levantarBloqueo().catch(() => {});
   return r;
 }
 
@@ -361,10 +459,13 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
       const buf = new Uint8Array(await (await traer(url, 60_000)).arrayBuffer());
       const texto = await textoPdf(buf);
       archivos.push({ nombre, url, texto: sinNulos(texto).slice(0, MAX_TEXTO_ARCHIVO), imagen: texto.trim().length < 20 });
-    } catch {
+    } catch (e) {
       archivos.push({ nombre, url, texto: "" });
+      // Bloqueado a mitad de la publicación: no sigue descargando.
+      if (/respondió 40[39]|Pausa por bloqueo/.test(e instanceof Error ? e.message : String(e))) break;
     }
-    await new Promise((r) => setTimeout(r, 300));
+    // Pausa al azar entre un PDF y otro.
+    await esperar(azar(1500, 4000));
   }
   return archivos;
 }
@@ -458,6 +559,13 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   // los pedidos de radicados recién agregados sí se atienden.
   const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA) && nocheHabil();
   await asegurarTablas();
+  // Freno: si el portal bloqueó esta salida, no se consulta hasta que pase la pausa;
+  // después, una sola consulta de prueba por vez hasta que vuelva a responder.
+  const bloqueo = await bloqueoPortal();
+  if (bloqueo && new Date(bloqueo.hasta).getTime() > Date.now() && !bloqueo.levantado) {
+    return { omitido: `portal bloqueado (${bloqueo.status}); en pausa hasta ${new Date(bloqueo.hasta).toISOString()}` };
+  }
+  const probando = !!bloqueo && !bloqueo.levantado;
   // De día solo se atienden los pedidos (radicados recién agregados).
   if (!opts.forzar && !deNoche) {
     const [p] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
@@ -483,7 +591,7 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
            LIMIT $3`,
           despachos,
           inicioNoche(),
-          DESPACHOS_POR_CORRIDA,
+          probando ? 1 : DESPACHOS_POR_CORRIDA,
           deNoche,
         );
     const presupuesto = opts.forzar ? 140 * 60_000 : PRESUPUESTO_MS;
@@ -492,7 +600,10 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
       for (let p = cola.shift(); p; p = cola.shift()) {
         if (Date.now() - inicio > presupuesto) break;
         info.push(await revisarDespacho(p.despacho));
-        if (PAUSA_DESPACHOS_MS && cola.length) await new Promise((r) => setTimeout(r, PAUSA_DESPACHOS_MS));
+        // Si en medio de la corrida el portal bloqueó, se para enseguida.
+        if (await pausadoHasta()) break;
+        // Ritmo humano: pausa al azar entre un juzgado y otro.
+        if (cola.length) await esperar(azar(PAUSA_MIN_MS, PAUSA_MAX_MS));
       }
     };
     await Promise.all(opts.forzar ? [trabajador(), trabajador()] : [trabajador()]);
@@ -1002,7 +1113,7 @@ export async function vigiladosDelUsuario(userId: string) {
 export async function pedirActualizarRadicado(
   userId: string,
   radicado: string,
-): Promise<{ estado: "pedido" | "reciente" | "no"; pedidoAt?: Date }> {
+): Promise<{ estado: "pedido" | "reciente" | "directo" | "no"; pedidoAt?: Date; despacho?: string }> {
   await asegurarTablas();
   const vigilado = (await vigiladosDelUsuario(userId)).find((v) => v.radicado === radicado);
   if (!vigilado) return { estado: "no" };
@@ -1021,7 +1132,43 @@ export async function pedirActualizarRadicado(
      RETURNING "pedidoAt"`,
     despacho,
   );
+  // Si el VPS está bloqueado por el portal, la app (Hostinger) lo revisa directo,
+  // con tope diario para no quemar también esta IP. Si no hay cupo, queda pedido.
+  if (await vpsBloqueado()) {
+    const cupo = await tomarCupoDirecto();
+    if (cupo) return { estado: "directo", pedidoAt: p?.pedidoAt, despacho };
+  }
   return { estado: "pedido", pedidoAt: p?.pedidoAt };
+}
+
+/** Revisiones directas desde la app por día (cuando el VPS está bloqueado). */
+const TOPE_DIRECTO_DIA = Number(process.env.ESTADOS_TOPE_DIRECTO_DIA) || 25;
+
+async function vpsBloqueado() {
+  const b = await bloqueoPortal("vps");
+  return !!b && !b.levantado;
+}
+
+async function tomarCupoDirecto(): Promise<boolean> {
+  if (await pausadoHasta()) return false; // Hostinger también está en pausa
+  const [r] = await prisma.$queryRawUnsafe<{ n: number }[]>(
+    `INSERT INTO "EstadoUsoDirecto" (dia, n) VALUES ((now() AT TIME ZONE 'America/Bogota')::date, 1)
+     ON CONFLICT (dia) DO UPDATE SET n = "EstadoUsoDirecto".n + 1
+     WHERE "EstadoUsoDirecto".n < $1
+     RETURNING n`,
+    TOPE_DIRECTO_DIA,
+  );
+  return !!r;
+}
+
+/** Revisión directa de un juzgado desde la app (ver pedirActualizarRadicado). No lanza error. */
+export async function revisarDespachoDirecto(despacho: string) {
+  try {
+    return await revisarDespacho(despacho);
+  } catch (e) {
+    console.error("[estados] revisión directa", despacho, e);
+    return { despacho, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Si el juzgado de ese radicado tiene una revisión pedida y pendiente (para mostrar "buscando…"). */
