@@ -77,6 +77,7 @@ const ZOOM_MAX = 3;
 function ConZoom({ children }: { children: (zoom: number) => ReactNode }) {
   const [zoom, setZoom] = useState(1);
   const [dibujo, setDibujo] = useState(1); // zoom con el que se dibujan los canvas (tras el gesto)
+  const [arrastre, setArrastre] = useState<{ x: number; y: number } | null>(null);
   const caja = useRef<HTMLDivElement>(null);
 
   // Cambia el zoom manteniendo el centro de lo que se está leyendo.
@@ -146,7 +147,24 @@ function ConZoom({ children }: { children: (zoom: number) => ReactNode }) {
           +
         </button>
       </div>
-      <div className="pdf-zoom" ref={caja}>
+      <div
+        className={`pdf-zoom ${zoom > 1 ? "arrastrable" : ""} ${arrastre ? "arrastrando" : ""}`}
+        ref={caja}
+        // Con el mouse (computador): arrastrar para mover el documento ampliado.
+        onPointerDown={(e) => {
+          if (e.pointerType !== "mouse" || e.button !== 0 || zoom <= 1) return;
+          setArrastre({ x: e.clientX, y: e.clientY });
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!arrastre || !caja.current) return;
+          caja.current.scrollLeft -= e.clientX - arrastre.x;
+          window.scrollBy(0, -(e.clientY - arrastre.y));
+          setArrastre({ x: e.clientX, y: e.clientY });
+        }}
+        onPointerUp={() => setArrastre(null)}
+        onPointerCancel={() => setArrastre(null)}
+      >
         <div className="pdf-paginas" style={{ width: `${zoom * 100}%` }}>
           {children(dibujo)}
         </div>

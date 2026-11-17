@@ -1572,3 +1572,15 @@ html:has(#que-puedo-firmar) {
 .pdf-zoom > .pdf-paginas {
   min-width: 100%;
 }
+/* Ampliado: se puede mover el documento en cualquier dirección con el dedo. */
+.pdf-zoom .pdf-pagina,
+.pdf-zoom .firma-recuadro.fijo {
+  touch-action: pan-x pan-y;
+}
+.pdf-zoom.arrastrable {
+  cursor: grab;
+}
+.pdf-zoom.arrastrando {
+  cursor: grabbing;
+  user-select: none;
+}
