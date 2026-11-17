@@ -41,6 +41,16 @@ async function handle(req: NextRequest) {
       console.error("[socios] drive", e);
     }
   });
+  // Campañas del root: 1 o 2 correos por corrida, de a poco durante el día.
+  after(async () => {
+    try {
+      const { procesarCorreosCampana } = await import("@/lib/campanas");
+      const n = await procesarCorreosCampana();
+      if (n) console.log("[campana] correos enviados", n);
+    } catch (e) {
+      console.error("[campana] correos", e);
+    }
+  });
   // Estados electrónicos: los revisa el VPS (estados-worker), no Hostinger.
   return NextResponse.json({ ok: true, mensaje: "Corrida iniciada en segundo plano." }, { status: 202 });
 }

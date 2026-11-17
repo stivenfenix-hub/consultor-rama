@@ -1584,3 +1584,31 @@ html:has(#que-puedo-firmar) {
   cursor: grabbing;
   user-select: none;
 }
+
+/* Campañas (root) */
+.campana-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .campana-editor {
+    grid-template-columns: 1fr;
+  }
+}
+.campana-previa.wa {
+  padding: 12px;
+  border-radius: 10px;
+  background: #0b141a;
+}
+.campana-burbuja {
+  white-space: pre-wrap;
+  padding: 10px 12px;
+  border-radius: 10px 10px 10px 2px;
+  background: #1f2c34;
+  color: #e9edef;
+  font-size: 14px;
+  line-height: 1.45;
+  max-height: 420px;
+  overflow: auto;
+}

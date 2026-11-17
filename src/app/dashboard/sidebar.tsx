@@ -36,6 +36,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/dashboard/admin/reportes", label: "Reportes", icon: "download" },
   { href: "/dashboard/admin/notificaciones", label: "Notificaciones", icon: "megaphone" },
   { href: "/dashboard/admin/whatsapp", label: "WhatsApp", icon: "phone" },
+  { href: "/dashboard/admin/campanas", label: "Campañas", icon: "send" },
   { href: "/dashboard/admin/suscripciones", label: "Suscripciones", icon: "card" },
   { href: "/dashboard/admin/correos", label: "Correos automáticos", icon: "mail" },
   { href: "/dashboard/admin/apariencia", label: "Apariencia", icon: "palette" },
