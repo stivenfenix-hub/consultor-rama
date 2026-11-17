@@ -837,6 +837,7 @@ export async function buscarEstadosDeNuevos(userId: string, radicados: string[])
       userId,
       radicados,
     );
+    let directos = 0;
     for (const despacho of [...new Set(radicados.map(despachoDe))]) {
       const [d] = await prisma.$queryRawUnsafe<{ reciente: boolean }[]>(
         `SELECT "revisadoAt" > now() - interval '24 hours' AS reciente FROM "EstadoDespacho" WHERE despacho = $1`,
@@ -850,6 +851,12 @@ export async function buscarEstadosDeNuevos(userId: string, radicados: string[])
            ON CONFLICT (despacho) DO UPDATE SET "pedidoAt" = coalesce("EstadoDespacho"."pedidoAt", now())`,
           despacho,
         );
+        // VPS bloqueado por el portal: la app (Hostinger) revisa el juzgado directo,
+        // con el mismo tope diario que el «Actualizar». Sin cupo, queda pedido al VPS.
+        if ((await vpsBloqueado()) && (await tomarCupoDirecto())) {
+          if (directos++ > 0) await esperar(azar(PAUSA_MIN_MS, PAUSA_MAX_MS)); // ritmo humano entre juzgados
+          await revisarDespachoDirecto(despacho);
+        }
       }
     }
   } catch (e) {
