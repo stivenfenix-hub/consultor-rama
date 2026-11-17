@@ -129,13 +129,23 @@ export default async function DetalleFirma({
           </div>
         </div>
         <div className="row wrap" style={{ gap: 8 }}>
+          {doc.estado !== "COMPLETED" && (
+            <Link prefetch={false} className="btn secondary" href={`/dashboard/firmas/${doc.id}/ver?tipo=original`}>
+              <Icon name="eye" size={16} /> Ver
+            </Link>
+          )}
           <a className="btn secondary" href={`/api/firmas/${doc.id}/pdf`}>
             <Icon name="download" size={16} /> Original
           </a>
           {doc.estado === "COMPLETED" && (
-            <a className="btn" href={`/api/firmas/${doc.id}/pdf?tipo=firmado`}>
-              <Icon name="sello" size={16} /> Descargar PDF sellado
-            </a>
+            <>
+              <Link prefetch={false} className="btn secondary" href={`/dashboard/firmas/${doc.id}/ver`}>
+                <Icon name="eye" size={16} /> Ver PDF sellado
+              </Link>
+              <a className="btn" href={`/api/firmas/${doc.id}/pdf?tipo=firmado`}>
+                <Icon name="sello" size={16} /> Descargar PDF sellado
+              </a>
+            </>
           )}
         </div>
       </div>
