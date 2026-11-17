@@ -1633,3 +1633,8 @@ html:has(#que-puedo-firmar) {
   color: #fff;
   font-weight: 900;
 }
+
+/* Botón Actualizar de un radicado en solo estados */
+.estado-actualizar {
+  max-width: 340px;
+}

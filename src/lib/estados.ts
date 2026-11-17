@@ -993,3 +993,43 @@ export async function vigiladosDelUsuario(userId: string) {
     }))
     .sort((a, b) => a.radicado.localeCompare(b.radicado));
 }
+
+/**
+ * Botón "Actualizar" de un radicado que solo está en estados: pide revisar ya
+ * el juzgado (lo hace el VPS en sus próximas vueltas, de día también). Si el
+ * juzgado se revisó hace menos de 15 minutos, solo se cruza con lo guardado.
+ */
+export async function pedirActualizarRadicado(
+  userId: string,
+  radicado: string,
+): Promise<{ estado: "pedido" | "reciente" | "no"; pedidoAt?: Date }> {
+  await asegurarTablas();
+  const vigilado = (await vigiladosDelUsuario(userId)).find((v) => v.radicado === radicado);
+  if (!vigilado) return { estado: "no" };
+  const despacho = despachoDe(radicado);
+  const [d] = await prisma.$queryRawUnsafe<{ reciente: boolean }[]>(
+    `SELECT "revisadoAt" > now() - interval '15 minutes' AS reciente FROM "EstadoDespacho" WHERE despacho = $1`,
+    despacho,
+  );
+  if (d?.reciente) {
+    await cruzarDespacho(despacho).catch((e) => console.error("[estados] cruzar", e));
+    return { estado: "reciente" };
+  }
+  const [p] = await prisma.$queryRawUnsafe<{ pedidoAt: Date }[]>(
+    `INSERT INTO "EstadoDespacho" (despacho, "pedidoAt") VALUES ($1, now())
+     ON CONFLICT (despacho) DO UPDATE SET "pedidoAt" = coalesce("EstadoDespacho"."pedidoAt", now())
+     RETURNING "pedidoAt"`,
+    despacho,
+  );
+  return { estado: "pedido", pedidoAt: p?.pedidoAt };
+}
+
+/** Si el juzgado de ese radicado tiene una revisión pedida y pendiente (para mostrar "buscando…"). */
+export async function revisionPendiente(radicado: string): Promise<Date | null> {
+  await asegurarTablas();
+  const [d] = await prisma.$queryRawUnsafe<{ pedidoAt: Date | null }[]>(
+    `SELECT "pedidoAt" FROM "EstadoDespacho" WHERE despacho = $1`,
+    despachoDe(radicado),
+  );
+  return d?.pedidoAt ?? null;
+}

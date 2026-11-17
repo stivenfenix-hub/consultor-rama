@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { EstadoBotones } from "@/components/estado-botones";
-import { estadosActivo, estadosDelRadicado, vigiladosDelUsuario } from "@/lib/estados";
+import { estadosActivo, estadosDelRadicado, revisionPendiente, vigiladosDelUsuario } from "@/lib/estados";
+import { ActualizarEstado } from "./actualizar";
 import { QuitarDeEstados } from "../quitar-estado";
 
 const fecha = (d: Date | null) =>
@@ -27,7 +28,10 @@ export default async function EstadoRadicadoPage({ params }: { params: Promise<{
   const vigilado = (await vigiladosDelUsuario(user.id)).find((v) => v.radicado === radicado);
   if (!vigilado) notFound();
 
-  const { publicaciones, juzgado, revisadoAt } = await estadosDelRadicado(user.id, radicado);
+  const [{ publicaciones, juzgado, revisadoAt }, pendiente] = await Promise.all([
+    estadosDelRadicado(user.id, radicado),
+    revisionPendiente(radicado).catch(() => null),
+  ]);
 
   return (
     <div className="page">
@@ -40,6 +44,11 @@ export default async function EstadoRadicadoPage({ params }: { params: Promise<{
             <span className="badge">solo en estados</span>
           </p>
         </div>
+        <ActualizarEstado
+          radicado={radicado}
+          revisadoAt={revisadoAt ? new Date(revisadoAt).toISOString() : null}
+          pendienteDesde={pendiente ? new Date(pendiente).toISOString() : null}
+        />
       </div>
 
       <div className="card">
