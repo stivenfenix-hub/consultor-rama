@@ -817,10 +817,10 @@ async function sincronizarDocumentos(
  * pedido con éxito ni agotado los intentos.
  */
 const MAX_INTENTOS_DOCS = 6;
-/** Solo las 30 actuaciones con documentos más recientes de cada proceso traen
+/** Solo las 10 actuaciones con documentos más recientes de cada proceso traen
  * sus documentos; las anteriores quedan solo con la información de la actuación
- * (decisión del 29/10/2026 para no sobrecargar la Rama). */
-const ULTIMAS_CON_DOCS = 30;
+ * (29/10/2026: 30; 17/11/2026: bajó a 10 para no sobrecargar la Rama). */
+const ULTIMAS_CON_DOCS = 10;
 const SQL_ACT_PENDIENTE = `a."conDocumentos" AND a."docsIntentos" < ${MAX_INTENTOS_DOCS}
   AND a.id IN (SELECT b.id FROM "Actuacion" b WHERE b."caseId" = a."caseId" AND b."conDocumentos"
                ORDER BY b."fechaActuacion" DESC NULLS LAST LIMIT ${ULTIMAS_CON_DOCS})
@@ -840,12 +840,12 @@ async function asegurarColumnasDocs() {
 
 /**
  * Pide los documentos de las actuaciones pendientes del proceso (las más
- * recientes primero, 30 por vez). Lo que falle queda pendiente y el cron lo
+ * recientes primero, 10 por vez). Lo que falle queda pendiente y el cron lo
  * vuelve a pedir; así ningún documento se pierde por una caída de la Rama.
  */
 async function cargarDocumentosActuacionEnFondo(
   caseId: string,
-  limite = 30,
+  limite = ULTIMAS_CON_DOCS,
   pausaMs = 400,
 ): Promise<{ docs: number; fallas: number; pedidas: number }> {
   const t = Date.now();
@@ -950,7 +950,7 @@ export async function completarRegistrosIncompletos(maximo = 2) {
 
 /**
  * Documentos que no llegaron (la Rama falló al agregar el proceso o en la
- * revisión nocturna, o quedaron más allá de las 30 actuaciones de la primera
+ * revisión nocturna, o quedaron más allá de las 10 actuaciones de la primera
  * carga). Un proceso por corrida del cron, sin repetir el mismo antes de 20 min.
  */
 /**
