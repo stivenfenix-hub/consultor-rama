@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { PRECIOS_FIRMA, documentoDe, firmantesDe } from "@/lib/firmas";
-import { cotizar } from "@/lib/firma-cobro";
+import { PROCESOS_PARA_GRATIS, cotizar } from "@/lib/firma-cobro";
 import { PLANTILLAS } from "@/services/signature-engine";
 import { Asistente } from "./asistente";
 
@@ -35,7 +35,13 @@ export default async function NuevoDocumento({ searchParams }: { searchParams: P
           norma: p.norma,
           campos: p.campos,
         }))}
-        cobro={{ gratis: cobro.gratis, motivo: cobro.motivo, precios: PRECIOS_FIRMA }}
+        cobro={{
+          gratis: cobro.gratis,
+          motivo: cobro.motivo,
+          precios: PRECIOS_FIRMA,
+          procesosParaRegalo: cobro.procesosParaRegalo,
+          meta: PROCESOS_PARA_GRATIS,
+        }}
         borrador={doc ? { id: doc.id, titulo: doc.titulo, paginas: doc.paginas } : null}
         firmantesIniciales={firmantes.map((f) => ({
           nombre: f.nombre,

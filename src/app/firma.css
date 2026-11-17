@@ -1372,3 +1372,35 @@ input.firmar-codigo {
     animation: none;
   }
 }
+.regalo-caja.quieta {
+  animation: none;
+  cursor: default;
+  filter: grayscale(0.35);
+}
+.regalo-candado {
+  position: absolute;
+  right: -10px;
+  bottom: -4px;
+  font-size: 30px;
+}
+.regalo-progreso {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+.regalo-progreso span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px dashed var(--border);
+  font-weight: 700;
+  color: var(--muted);
+}
+.regalo-progreso span.lleno {
+  border: 2px solid #22c55e;
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+  color: #22c55e;
+}

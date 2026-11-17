@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { ESTADOS_DOC, PRECIOS_FIRMA, listarDocumentos, type EstadoDocumento } from "@/lib/firmas";
-import { cotizar } from "@/lib/firma-cobro";
+import { PROCESOS_PARA_GRATIS, cotizar } from "@/lib/firma-cobro";
 import { RegaloPrimeraFirma } from "./regalo";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { Icon } from "@/components/icon";
@@ -50,7 +50,11 @@ export default async function Firmas({
   const pag = paginaDe(sp.pagina, previo.total);
   const { docs, total, porEstado } = await listarDocumentos(user.id, { estado, q, limite: POR_PAGINA, desde: pag.desde });
   const todos = Object.values(porEstado).reduce((a, b) => a + b, 0);
-  const primeraGratis = (await cotizar(user.id, "otp")).motivo === "primera";
+  const cobro = await cotizar(user.id, "otp");
+  const primeraGratis = cobro.motivo === "primera";
+  // Aún sin enviar nada pero con menos de 3 procesos: el regalo está bloqueado.
+  const bloqueado = cobro.procesosParaRegalo;
+  const hayRegalo = primeraGratis || bloqueado !== null;
 
   const href = (o: { estado?: string; pagina?: number }) => {
     const s = new URLSearchParams();
@@ -91,9 +95,19 @@ export default async function Firmas({
           <span className="regalo-aviso-ir">Usarla →</span>
         </Link>
       )}
+      {bloqueado !== null && todos > 0 && (
+        <Link prefetch={false} href="/dashboard/procesos" className="regalo-aviso">
+          <span className="regalo-aviso-icono">🎁</span>
+          <span>
+            <b>Desbloquea tu primera firma gratis:</b> carga {PROCESOS_PARA_GRATIS} procesos en Estradox (llevas{" "}
+            {bloqueado}).
+          </span>
+          <span className="regalo-aviso-ir">Agregar procesos →</span>
+        </Link>
+      )}
 
-      {todos === 0 && primeraGratis ? (
-        <RegaloPrimeraFirma precioMax={PRECIOS_FIRMA.biometrica} />
+      {todos === 0 && hayRegalo ? (
+        <RegaloPrimeraFirma precioMax={PRECIOS_FIRMA.biometrica} procesos={bloqueado} meta={PROCESOS_PARA_GRATIS} />
       ) : todos === 0 ? (
         <div className="card firma-vacio">
           <div className="cert-hero-icon">

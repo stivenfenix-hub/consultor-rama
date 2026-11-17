@@ -23,13 +23,43 @@ import { enviarInvitacion } from "./firma-envios";
  *     cuántos firmantes tenga.
  */
 
-export type Cotizacion = { precio: number; gratis: boolean; motivo: "primera" | "admin" | null };
+/** Procesos que debe haber cargado el abogado para ganarse la primera firma gratis. */
+export const PROCESOS_PARA_GRATIS = 3;
+
+export type Cotizacion = {
+  precio: number;
+  gratis: boolean;
+  motivo: "primera" | "admin" | null;
+  /**
+   * Aún no ha enviado documentos pero no tiene los procesos mínimos: cuántos
+   * lleva (el regalo se desbloquea al llegar a PROCESOS_PARA_GRATIS). null si no aplica.
+   */
+  procesosParaRegalo: number | null;
+};
+
+/** Radicados distintos del abogado (Consulta Nacional + solo estados electrónicos). */
+async function procesosCargados(userId: string): Promise<number> {
+  const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(DISTINCT radicado) AS n FROM "Case" WHERE "userId" = $1`,
+    userId,
+  );
+  let n = Number(r?.n ?? 0);
+  if (n < PROCESOS_PARA_GRATIS) {
+    const { contarSoloEstados } = await import("./estados");
+    n += await contarSoloEstados(userId).catch(() => 0);
+  }
+  return n;
+}
 
 export async function cotizar(userId: string, nivel: NivelVerificacion): Promise<Cotizacion> {
   const [u] = await prisma.$queryRawUnsafe<{ role: string | null }[]>(`SELECT role FROM "User" WHERE id = $1`, userId);
-  if (u?.role === "admin") return { precio: 0, gratis: true, motivo: "admin" };
-  if ((await documentosEnviados(userId)) === 0) return { precio: 0, gratis: true, motivo: "primera" };
-  return { precio: PRECIOS_FIRMA[nivel], gratis: false, motivo: null };
+  if (u?.role === "admin") return { precio: 0, gratis: true, motivo: "admin", procesosParaRegalo: null };
+  if ((await documentosEnviados(userId)) === 0) {
+    const procesos = await procesosCargados(userId);
+    if (procesos >= PROCESOS_PARA_GRATIS) return { precio: 0, gratis: true, motivo: "primera", procesosParaRegalo: null };
+    return { precio: PRECIOS_FIRMA[nivel], gratis: false, motivo: null, procesosParaRegalo: procesos };
+  }
+  return { precio: PRECIOS_FIRMA[nivel], gratis: false, motivo: null, procesosParaRegalo: null };
 }
 
 export const nombreNivel = (n: NivelVerificacion) => NIVELES[n].t;
