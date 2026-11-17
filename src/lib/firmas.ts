@@ -96,9 +96,10 @@ export const esNivel = (n: unknown): n is NivelVerificacion => n === "otp" || n 
  * es gratis (ver firma-cobro.ts).
  */
 export const PRECIOS_FIRMA: Record<NivelVerificacion, number> = {
-  otp: 3900,
-  cedula: 4900,
-  biometrica: 5900,
+  // Incluye los $900 que cobra Bold por cada pago.
+  otp: 4800,
+  cedula: 5800,
+  biometrica: 6800,
 };
 
 /** Resultado de la verificación de identidad (lo que queda como evidencia). */
