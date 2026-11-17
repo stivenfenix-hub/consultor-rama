@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { buscarPersonas, leerTextoDocumento, type Persona } from "./extraer";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { PdfPaginas } from "@/components/pdf-paginas";
@@ -40,6 +41,14 @@ const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
 const ANCHO = 0.3;
 const ALTO = 0.075;
 const vacio = (): FirmanteForm => ({ nombre: "", tipoDoc: "CC", numDoc: "", email: "", telefono: "", posicion: null });
+const desdePersona = (p: Persona): FirmanteForm => ({
+  nombre: p.nombre,
+  tipoDoc: p.tipoDoc,
+  numDoc: p.numDoc,
+  email: p.email,
+  telefono: p.telefono,
+  posicion: null,
+});
 const limite = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 export function Asistente({
@@ -87,6 +96,47 @@ export function Asistente({
 
   const cambiar = (i: number, c: Partial<FirmanteForm>) =>
     setFirmantes((fs) => fs.map((f, j) => (j === i ? { ...f, ...c } : f)));
+
+  // Firmantes leídos del documento (texto del PDF u OCR), para autollenar.
+  const [personas, setPersonas] = useState<Persona[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const leido = useRef<string | null>(null);
+  const delDocumento = new Set((personas ?? []).map((p) => p.numDoc));
+  const usados = new Set(firmantes.map((f) => f.numDoc.replace(/\D/g, "")).filter(Boolean));
+  const siguiente = (personas ?? []).find((p) => !usados.has(p.numDoc)) ?? null;
+
+  useEffect(() => {
+    if (paso !== 1 || !doc || leido.current === doc.id) return;
+    leido.current = doc.id;
+    let vivo = true;
+    setBuscando(true);
+    leerTextoDocumento(doc.id)
+      .then((texto) => {
+        if (!vivo) return;
+        const encontradas = buscarPersonas(texto);
+        setPersonas(encontradas);
+        // Llena, en orden, los firmantes que siguen vacíos (el primero y los que se hayan agregado).
+        setFirmantes((fs) => {
+          const ya = new Set(fs.map((f) => f.numDoc.replace(/\D/g, "")).filter(Boolean));
+          const libres = encontradas.filter((p) => !ya.has(p.numDoc));
+          return fs.map((f) => {
+            const vacioDeltodo = !f.nombre.trim() && !f.numDoc.trim() && !f.email.trim() && !f.telefono.trim();
+            const p = vacioDeltodo ? libres.shift() : undefined;
+            if (p) return { ...desdePersona(p), posicion: f.posicion };
+            // Ya tenía nombre y documento (p. ej. de la plantilla): completa correo y WhatsApp.
+            const mismo = encontradas.find((x) => x.numDoc === f.numDoc.replace(/\D/g, ""));
+            return mismo
+              ? { ...f, email: f.email || mismo.email, telefono: f.telefono || mismo.telefono }
+              : f;
+          });
+        });
+      })
+      .catch(() => vivo && setPersonas([]))
+      .finally(() => vivo && setBuscando(false));
+    return () => {
+      vivo = false;
+    };
+  }, [paso, doc]);
 
   async function crearBorrador() {
     setError(null);
@@ -321,10 +371,21 @@ export function Asistente({
             A cada uno le llega su enlace personal. Para firmar confirma su identidad con un código que le enviamos al
             correo o al WhatsApp que pongas aquí.
           </p>
+          {buscando ? (
+            <div className="firma-lector buscando small">🔍 Leyendo el documento para encontrar a los firmantes…</div>
+          ) : personas && personas.length > 0 ? (
+            <div className="firma-lector small">
+              ✨ Encontramos {personas.length === 1 ? "1 persona" : `${personas.length} personas`} en el documento y
+              llenamos sus datos. <b>Revísalos</b> antes de continuar.
+            </div>
+          ) : null}
           {firmantes.map((f, i) => (
             <div key={i} className="firma-firmante" style={{ borderLeftColor: COLORES[i % COLORES.length] }}>
               <div className="row" style={{ marginBottom: 8 }}>
                 <b>Firmante {i + 1}</b>
+                {f.numDoc && delDocumento.has(f.numDoc.replace(/\D/g, "")) && (
+                  <span className="badge reciente" style={{ marginLeft: 8 }}>Del documento</span>
+                )}
                 <div className="spacer" />
                 {firmantes.length > 1 && (
                   <button type="button" className="btn secondary small" onClick={() => setFirmantes((fs) => fs.filter((_, j) => j !== i))}>
@@ -361,8 +422,12 @@ export function Asistente({
             </div>
           ))}
           {firmantes.length < 10 && (
-            <button type="button" className="btn secondary" onClick={() => setFirmantes((fs) => [...fs, vacio()])}>
-              + Agregar otro firmante
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => setFirmantes((fs) => [...fs, siguiente ? desdePersona(siguiente) : vacio()])}
+            >
+              + Agregar otro firmante{siguiente ? ` (${siguiente.nombre})` : ""}
             </button>
           )}
         </div>

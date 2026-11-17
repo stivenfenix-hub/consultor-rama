@@ -1420,3 +1420,15 @@ html:has(#que-puedo-firmar) {
     scroll-behavior: auto;
   }
 }
+
+/* Lector de firmantes del documento (paso 2) */
+.firma-lector {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+.firma-lector.buscando {
+  animation: firma-pulso 1.6s ease-in-out infinite;
+}
