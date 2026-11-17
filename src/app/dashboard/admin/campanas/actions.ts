@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { destinatariosFirma, encolarCorreosFirma, personalizar } from "@/lib/campanas";
@@ -10,11 +11,16 @@ type Resultado = { ok?: string; error?: string };
 /** Root: encola la campaña de Firma electrónica gratis a los elegidos (WhatsApp y/o correo). */
 export async function enviarCampanaFirmaAction(
   ids: string[],
-  canales: { whatsapp: boolean; correo: boolean },
-  textos: { whatsapp: string; asunto: string; correo: string },
+  canales: { whatsapp: boolean; correo: boolean; notificacion?: boolean },
+  textos: { whatsapp: string; asunto: string; correo: string; notiTitulo?: string; notiCuerpo?: string },
 ): Promise<Resultado> {
   await requireAdmin();
-  if (!canales.whatsapp && !canales.correo) return { error: "Elige al menos un canal: WhatsApp o correo." };
+  if (!canales.whatsapp && !canales.correo && !canales.notificacion) {
+    return { error: "Elige al menos un canal: WhatsApp, correo o notificación." };
+  }
+  if (canales.notificacion && String(textos.notiCuerpo ?? "").trim().length < 10) {
+    return { error: "Escribe el texto de la notificación." };
+  }
   if (!Array.isArray(ids) || ids.length === 0) return { error: "Elige al menos un abogado." };
   const wa = String(textos.whatsapp ?? "").trim().slice(0, 3000);
   const asunto = String(textos.asunto ?? "").trim().slice(0, 200);
@@ -52,6 +58,24 @@ export async function enviarCampanaFirmaAction(
       `${n} correo(s) en cola (salen de a 1 o 2 cada 5 minutos, de 8 a.m. a 7 p.m.)` +
         (usuarios.length - n ? `; ${usuarios.length - n} ya lo tenían` : ""),
     );
+  }
+  if (canales.notificacion) {
+    // Campanita de la plataforma (y app Android) + notificación push a sus dispositivos.
+    // Va en segundo plano: con muchos abogados tarda unos segundos.
+    const titulo = String(textos.notiTitulo ?? "").trim().slice(0, 80) || "🎁 Tu primera firma electrónica es gratis";
+    const cuerpoNoti = String(textos.notiCuerpo ?? "").trim().slice(0, 200);
+    const ids = usuarios.map((u) => u.id);
+    after(async () => {
+      const { sendPushToUsers } = await import("@/lib/push");
+      const r = await sendPushToUsers(ids, { title: titulo, body: cuerpoNoti, url: "/dashboard/firmas", tag: "campana-firma" }).catch(
+        (e) => {
+          console.error("[campana] push", e);
+          return null;
+        },
+      );
+      if (r) console.log(`[campana] push: ${r.sent} enviadas, ${r.failed} fallidas`);
+    });
+    partes.push(`Campanita y notificación push a ${ids.length} abogado(s) (al momento)`);
   }
   revalidatePath("/dashboard/admin/campanas");
   revalidatePath("/dashboard/admin/whatsapp");

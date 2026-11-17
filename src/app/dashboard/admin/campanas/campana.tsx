@@ -13,7 +13,7 @@ type Fila = {
   ultimoWa: string | null;
   ultimoCorreo: string | null;
 };
-type Textos = { whatsapp: string; asunto: string; correo: string };
+type Textos = { whatsapp: string; asunto: string; correo: string; notiTitulo: string; notiCuerpo: string };
 
 const fecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "America/Bogota" });
@@ -23,9 +23,9 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
   // Por defecto nadie: así se puede empezar por los de confianza (los de más procesos van arriba).
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
   const [buscar, setBuscar] = useState("");
-  const [canales, setCanales] = useState({ whatsapp: waVinculado, correo: true });
+  const [canales, setCanales] = useState({ whatsapp: waVinculado, correo: true, notificacion: true });
   const [textos, setTextos] = useState<Textos>(plantillas);
-  const [vista, setVista] = useState<"whatsapp" | "correo">("whatsapp");
+  const [vista, setVista] = useState<"whatsapp" | "correo" | "notificacion">("whatsapp");
   const [confirmando, setConfirmando] = useState(false);
   const [resultado, setResultado] = useState<{ ok?: string; error?: string } | null>(null);
   const [pending, start] = useTransition();
@@ -84,6 +84,14 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
             />
             <span>Enviar por <b>correo</b></span>
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={canales.notificacion}
+              onChange={(e) => { setCanales((c) => ({ ...c, notificacion: e.target.checked })); setConfirmando(false); }}
+            />
+            <span><b>Campanita y notificación push</b></span>
+          </label>
         </div>
         <nav className="tabbar" style={{ marginBottom: 10 }}>
           <button type="button" className={`tab ${vista === "whatsapp" ? "active" : ""}`} onClick={() => setVista("whatsapp")}>
@@ -92,8 +100,39 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
           <button type="button" className={`tab ${vista === "correo" ? "active" : ""}`} onClick={() => setVista("correo")}>
             📧 Correo
           </button>
+          <button type="button" className={`tab ${vista === "notificacion" ? "active" : ""}`} onClick={() => setVista("notificacion")}>
+            🔔 Notificación
+          </button>
         </nav>
-        {vista === "whatsapp" ? (
+        {vista === "notificacion" ? (
+          <div className="campana-editor">
+            <div>
+              <label className="small" style={{ display: "block", marginBottom: 6 }}>
+                Título
+                <input type="text" value={textos.notiTitulo} maxLength={80} onChange={(e) => editar({ notiTitulo: e.target.value })} />
+              </label>
+              <label className="small" style={{ display: "block" }}>
+                Texto
+                <textarea rows={4} value={textos.notiCuerpo} maxLength={200} onChange={(e) => editar({ notiCuerpo: e.target.value })} />
+              </label>
+              <p className="muted small">
+                Llega al momento a la campanita de Estradox y como notificación push al celular o computador de quien
+                las tenga activadas. Al tocarla abre Firma electrónica.
+              </p>
+            </div>
+            <div className="campana-push">
+              <div className="muted small" style={{ marginBottom: 6 }}>Así se ve la notificación:</div>
+              <div className="campana-push-tarjeta">
+                <span className="campana-push-icono">X</span>
+                <div>
+                  <b>{textos.notiTitulo}</b>
+                  <div>{textos.notiCuerpo}</div>
+                  <span className="muted small">Estradox · ahora</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : vista === "whatsapp" ? (
           <div className="campana-editor">
             <textarea rows={16} value={textos.whatsapp} onChange={(e) => editar({ whatsapp: e.target.value })} />
             <div className="campana-previa wa">
@@ -195,14 +234,17 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
             : [
                 canales.whatsapp ? `${conWa} por WhatsApp${n - conWa ? ` (${n - conWa} sin número)` : ""}` : null,
                 canales.correo ? `${n} por correo` : null,
+                canales.notificacion ? `${n} con campanita y push (al momento)` : null,
               ]
                 .filter(Boolean)
-                .join(" y ") + ". Salen de a poco durante el día: no todos al mismo tiempo."}
+                .join(", ") +
+              ". " +
+              (canales.whatsapp || canales.correo ? "WhatsApp y correos salen de a poco durante el día: no todos al mismo tiempo." : "")}
         </p>
         <button
           type="button"
           className={`btn ${confirmando ? "" : "secondary"}`}
-          disabled={pending || n === 0 || (!canales.whatsapp && !canales.correo)}
+          disabled={pending || n === 0 || (!canales.whatsapp && !canales.correo && !canales.notificacion)}
           onClick={() => {
             if (!confirmando) {
               setConfirmando(true);

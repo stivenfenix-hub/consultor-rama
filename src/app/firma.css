@@ -1612,3 +1612,24 @@ html:has(#que-puedo-firmar) {
   max-height: 420px;
   overflow: auto;
 }
+.campana-push-tarjeta {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.campana-push-icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #5b21b6;
+  color: #fff;
+  font-weight: 900;
+}

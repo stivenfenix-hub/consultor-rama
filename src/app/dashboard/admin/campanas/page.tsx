@@ -67,7 +67,14 @@ export default async function Campanas() {
 
       <CampanaFirma
         waVinculado={!!comercial?.numero}
-        plantillas={{ whatsapp: PLANTILLA_WA_FIRMA, asunto: ASUNTO_CORREO_FIRMA, correo: PLANTILLA_CORREO_FIRMA }}
+        plantillas={{
+          whatsapp: PLANTILLA_WA_FIRMA,
+          asunto: ASUNTO_CORREO_FIRMA,
+          correo: PLANTILLA_CORREO_FIRMA,
+          notiTitulo: "🎁 Tu primera firma electrónica es gratis",
+          notiCuerpo:
+            "Tu cliente firma poderes y contratos desde el celular, sin notaría. Envía tu primer documento sin pagar nada.",
+        }}
         usuarios={lista.map((u) => ({
           id: u.id,
           nombre: u.nombre,
