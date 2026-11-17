@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ESTADOS_DOC, PRECIOS_FIRMA, listarDocumentos, type EstadoDocumento } from "@/lib/firmas";
 import { cotizar } from "@/lib/firma-cobro";
 import { RegaloPrimeraFirma } from "./regalo";
+import { GuiaFirma } from "./guia/guia";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { Icon } from "@/components/icon";
 
@@ -72,9 +73,9 @@ export default async function Firmas({
           </p>
         </div>
         <div className="row wrap" style={{ gap: 8 }}>
-          <Link prefetch={false} href="/dashboard/firmas/guia" className="btn secondary">
-            ¿Qué puedo firmar?
-          </Link>
+          <a href="#que-puedo-firmar" className="btn secondary">
+            ¿Qué puedo firmar? ↓
+          </a>
           <Link prefetch={false} href="/dashboard/firmas/nuevo" className={`btn ${todos === 0 ? "btn-pulse" : ""}`}>
             + Nuevo documento
           </Link>
@@ -187,6 +188,11 @@ export default async function Firmas({
           </div>
         </>
       )}
+
+      {/* Guía (antes en /dashboard/firmas/guia): el botón «¿Qué puedo firmar?» baja hasta aquí. */}
+      <div id="que-puedo-firmar" className="firma-guia-embebida">
+        <GuiaFirma embebida />
+      </div>
     </div>
   );
 }

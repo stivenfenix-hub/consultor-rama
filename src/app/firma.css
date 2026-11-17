@@ -1404,3 +1404,19 @@ input.firmar-codigo {
   background: color-mix(in srgb, #22c55e 18%, transparent);
   color: #22c55e;
 }
+
+/* Guía «¿Qué puedo firmar?» dentro de /dashboard/firmas */
+html:has(#que-puedo-firmar) {
+  scroll-behavior: smooth;
+}
+.firma-guia-embebida {
+  margin-top: 28px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 80px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(#que-puedo-firmar) {
+    scroll-behavior: auto;
+  }
+}
