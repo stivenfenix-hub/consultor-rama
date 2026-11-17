@@ -10,18 +10,31 @@ import path from "node:path";
  *
  * Dónde se guardan:
  *   - FIRMA_STORAGE_DIR, si está definida (ruta absoluta recomendada).
- *   - En producción, sin esa variable: la carpeta "estradox-firmas" AL LADO de
- *     la carpeta de la app (no dentro). Hostinger reemplaza la carpeta de la
- *     app en cada publicación; la de al lado se conserva.
+ *   - En producción, sin esa variable: /home/<usuario>/domains/<dominio>/estradox-firmas,
+ *     fuera de las carpetas de versión que Hostinger crea en cada publicación
+ *     (ver carpetaProduccion).
  *   - En desarrollo: ./.firmas-storage
  *
  * Las funciones de aquí son las únicas que tocan el disco: cambiar a un bucket
  * (S3, R2, Supabase Storage) es reemplazar este archivo sin tocar el resto.
  */
 
+/**
+ * Carpeta por defecto en producción. Hostinger corre la app desde una carpeta
+ * NUEVA en cada publicación:
+ *   /home/<usuario>/domains/<dominio>/hbuilds/versions/<id>/nodejs
+ * Por eso la carpeta de archivos va en /home/<usuario>/domains/<dominio>/,
+ * fuera de "hbuilds", que no cambia entre publicaciones.
+ */
+function carpetaProduccion() {
+  const app = process.cwd().replace(/\\/g, "/");
+  const i = app.indexOf("/hbuilds/");
+  return i > 0 ? path.posix.join(app.slice(0, i), "estradox-firmas") : path.join(app, "..", "estradox-firmas");
+}
+
 export const CARPETA_FIRMAS = path.resolve(
   process.env.FIRMA_STORAGE_DIR?.trim() ||
-    (process.env.NODE_ENV === "production" ? path.join(process.cwd(), "..", "estradox-firmas") : ".firmas-storage"),
+    (process.env.NODE_ENV === "production" ? carpetaProduccion() : ".firmas-storage"),
 );
 
 /** Solo claves generadas por el módulo: "<uuid>/<nombre>" sin subir de carpeta. */
