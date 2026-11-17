@@ -1505,3 +1505,23 @@ html:has(#que-puedo-firmar) {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* Cuenta regresiva tras verificar la identidad */
+.identidad-cuenta {
+  height: 6px;
+  margin: 4px 0 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+}
+.identidad-cuenta > div {
+  height: 100%;
+  width: 100%;
+  background: var(--green);
+  transform-origin: left;
+  animation: identidad-cuenta linear forwards;
+}
+@keyframes identidad-cuenta {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}

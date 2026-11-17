@@ -371,26 +371,26 @@ export function PasoIdentidad({
           <div className={`identidad-icono ${todoCoincide ? "ok" : "mal"}`}>
             <Icon name={todoCoincide ? "check" : "alert"} size={30} />
           </div>
-          <h1 className="identidad-titulo">{todoCoincide ? "¡Listo, es usted!" : "Casi listo"}</h1>
-          <ul className="identidad-lista">
-            <li className={numeroOk ? "ok" : "mal"}>
-              {numeroOk ? "✓ Leímos el número de su cédula." : "✗ No logramos leer bien el número de su cédula."}
-            </li>
-            {biometrica && (
-              <li className={rostroOk ? "ok" : "mal"}>
-                {resultado.rostroCoincide === null
-                  ? "✗ No encontramos la foto de la cara en su cédula."
-                  : rostroOk
-                    ? `✓ Su cara coincide con la de la cédula (${Math.round((resultado.similitud ?? 0) * 100)} %).`
-                    : `✗ Su cara no coincide lo suficiente con la cédula (${Math.round((resultado.similitud ?? 0) * 100)} %).`}
+          <h1 className="identidad-titulo">{todoCoincide ? "Identidad verificada" : "Casi listo"}</h1>
+          {!todoCoincide && (
+            <ul className="identidad-lista">
+              <li className={numeroOk ? "ok" : "mal"}>
+                {numeroOk ? "✓ Leímos el número de su cédula." : "✗ No logramos leer bien el número de su cédula."}
               </li>
-            )}
-          </ul>
+              {biometrica && (
+                <li className={rostroOk ? "ok" : "mal"}>
+                  {resultado.rostroCoincide === null
+                    ? "✗ No encontramos la foto de la cara en su cédula."
+                    : rostroOk
+                      ? "✓ Su cara coincide con la de la cédula."
+                      : "✗ Su cara no coincide lo suficiente con la cédula."}
+                </li>
+              )}
+            </ul>
+          )}
 
           {todoCoincide ? (
-            <button type="button" className="btn firmar-boton" disabled={ocupado} onClick={enviar}>
-              {ocupado ? "Guardando…" : "Continuar →"}
-            </button>
+            <SigueSolo segundos={5} ocupado={ocupado} alSeguir={enviar} />
           ) : (
             <div className="identidad-reintentos">
               {(!numeroOk || (biometrica && resultado.rostroCoincide === null)) && (
@@ -660,5 +660,43 @@ function Camara({ alTerminar }: { alTerminar: (s: { foto: Blob; descriptor: Floa
       </div>
       {error && <div className="error small" style={{ marginTop: 8 }}>{error}</div>}
     </div>
+  );
+}
+
+/** Cuenta regresiva: sigue sola al siguiente paso (o al tocar el botón). */
+function SigueSolo({ segundos, ocupado, alSeguir }: { segundos: number; ocupado: boolean; alSeguir: () => void }) {
+  const [quedan, setQuedan] = useState(segundos);
+  const hecho = useRef(false);
+  const seguir = useRef(alSeguir);
+  seguir.current = alSeguir;
+  useEffect(() => {
+    if (quedan <= 0) {
+      if (!hecho.current) {
+        hecho.current = true;
+        seguir.current();
+      }
+      return;
+    }
+    const t = setTimeout(() => setQuedan((q) => q - 1), 1000);
+    return () => clearTimeout(t);
+  }, [quedan]);
+  return (
+    <>
+      <div className="identidad-cuenta" aria-hidden>
+        <div style={{ animationDuration: `${segundos}s` }} />
+      </div>
+      <button
+        type="button"
+        className="btn firmar-boton"
+        disabled={ocupado}
+        onClick={() => {
+          // Si el guardado automático falló, el botón permite reintentar.
+          hecho.current = true;
+          alSeguir();
+        }}
+      >
+        {ocupado ? "Guardando…" : quedan > 0 ? `Continuar → (${quedan})` : "Continuar →"}
+      </button>
+    </>
   );
 }
