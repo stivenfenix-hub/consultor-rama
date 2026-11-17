@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { ESTADOS_DOC, listarDocumentos, type EstadoDocumento } from "@/lib/firmas";
+import { ESTADOS_DOC, PRECIOS_FIRMA, listarDocumentos, type EstadoDocumento } from "@/lib/firmas";
+import { cotizar } from "@/lib/firma-cobro";
+import { RegaloPrimeraFirma } from "./regalo";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
 import { Icon } from "@/components/icon";
 
@@ -48,6 +50,7 @@ export default async function Firmas({
   const pag = paginaDe(sp.pagina, previo.total);
   const { docs, total, porEstado } = await listarDocumentos(user.id, { estado, q, limite: POR_PAGINA, desde: pag.desde });
   const todos = Object.values(porEstado).reduce((a, b) => a + b, 0);
+  const primeraGratis = (await cotizar(user.id, "otp")).motivo === "primera";
 
   const href = (o: { estado?: string; pagina?: number }) => {
     const s = new URLSearchParams();
@@ -78,7 +81,20 @@ export default async function Firmas({
         </div>
       </div>
 
-      {todos === 0 ? (
+      {primeraGratis && todos > 0 && (
+        <Link prefetch={false} href="/dashboard/firmas/nuevo" className="regalo-aviso">
+          <span className="regalo-aviso-icono">🎁</span>
+          <span>
+            <b>Tu primera firma es gratis.</b> Aún no has enviado ningún documento: el primero no tiene costo, incluso
+            con cédula y rostro.
+          </span>
+          <span className="regalo-aviso-ir">Usarla →</span>
+        </Link>
+      )}
+
+      {todos === 0 && primeraGratis ? (
+        <RegaloPrimeraFirma precioMax={PRECIOS_FIRMA.biometrica} />
+      ) : todos === 0 ? (
         <div className="card firma-vacio">
           <div className="cert-hero-icon">
             <Icon name="firma" size={30} />
