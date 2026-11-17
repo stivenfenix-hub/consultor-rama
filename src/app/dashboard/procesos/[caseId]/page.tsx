@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CaseActions } from "./case-actions";
-import { proximaActualizacionProceso, sinLimiteManual } from "@/lib/limits";
+import { proximaActualizacionProceso, proximoActualizarUsuario, sinLimiteManual } from "@/lib/limits";
 import { CaseTabs, type Datos, type FilaLinea } from "./case-tabs";
 import { Icon } from "@/components/icon";
 import { avisoProceso } from "@/lib/aviso-rama";
@@ -131,6 +131,8 @@ export default async function CaseDetail({
     caso.id,
     await sinLimiteManual(user),
   );
+  // Límite general: un "Actualizar" cada 3 horas en cualquiera de sus radicados.
+  const esperaActualizar = await proximoActualizarUsuario(user);
 
   const datos: Datos = [
     { label: "Despacho", value: caso.despacho },
@@ -249,6 +251,7 @@ export default async function CaseDetail({
           caseId={caso.id}
           hasUnseen={caso.unseenCount > 0}
           actualizadoHoy={!!proximaActualizacion}
+          esperaHasta={esperaActualizar}
         />
       </div>
 

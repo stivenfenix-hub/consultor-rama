@@ -13,12 +13,18 @@ export function ActualizarEstado({
   radicado,
   revisadoAt,
   pendienteDesde,
+  esperaHasta = null,
 }: {
   radicado: string;
   revisadoAt: string | null;
   /** Ya hay una revisión pedida y sin terminar (al recargar la página). */
   pendienteDesde: string | null;
+  /** Límite general (un "Actualizar" cada 3 horas): hasta cuándo debe esperar (ISO). */
+  esperaHasta?: string | null;
 }) {
+  const horaEspera = esperaHasta
+    ? new Date(esperaHasta).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" })
+    : null;
   const router = useRouter();
   const [pending, start] = useTransition();
   const [buscando, setBuscando] = useState<number | null>(pendienteDesde ? new Date(pendienteDesde).getTime() : null);
@@ -46,7 +52,7 @@ export function ActualizarEstado({
       <button
         type="button"
         className="btn secondary"
-        disabled={pending || !!buscando}
+        disabled={pending || !!buscando || !!horaEspera}
         onClick={() =>
           start(async () => {
             setMsg(null);
@@ -73,6 +79,11 @@ export function ActualizarEstado({
         </div>
       )}
       {msg && <div className="small" style={{ marginTop: 6 }}>{msg}</div>}
+      {horaEspera && !buscando && !msg && (
+        <div className="muted small" style={{ marginTop: 6 }}>
+          Puedes usar «Actualizar» una vez cada 3 horas. Disponible a las {horaEspera}.
+        </div>
+      )}
     </div>
   );
 }

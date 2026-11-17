@@ -14,12 +14,18 @@ export function CaseActions({
   caseId,
   hasUnseen,
   actualizadoHoy,
+  esperaHasta = null,
 }: {
   caseId: string;
   hasUnseen: boolean;
   /** Ya se actualizó manualmente hoy (límite: una vez por día). */
   actualizadoHoy: boolean;
+  /** Límite general: no puede usar "Actualizar" en ningún radicado hasta esta hora (ISO). */
+  esperaHasta?: string | null;
 }) {
+  const horaEspera = esperaHasta
+    ? new Date(esperaHasta).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" })
+    : null;
   const [pending, startTransition] = useTransition();
   const [accion, setAccion] = useState<string>("");
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
@@ -37,9 +43,11 @@ export function CaseActions({
     <div className="row wrap">
       <button
         className="btn"
-        disabled={pending || actualizadoHoy}
+        disabled={pending || actualizadoHoy || !!horaEspera}
         title={
-          actualizadoHoy
+          horaEspera
+            ? `Puedes usar «Actualizar» una vez cada 3 horas. Disponible a las ${horaEspera}.`
+            : actualizadoHoy
             ? "Puedes actualizar cada proceso una vez por día. Disponible mañana."
             : "Consulta la Rama y los estados electrónicos del juzgado (una vez por día)"
         }
@@ -94,6 +102,9 @@ export function CaseActions({
         ))}
       {actualizadoHoy && !msg.ok && !msg.error && (
         <span className="muted small">Disponible de nuevo mañana</span>
+      )}
+      {!actualizadoHoy && horaEspera && !msg.ok && !msg.error && (
+        <span className="muted small">Podrás actualizar de nuevo a las {horaEspera}</span>
       )}
     </div>
   );

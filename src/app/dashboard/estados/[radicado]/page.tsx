@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { EstadoBotones } from "@/components/estado-botones";
 import { estadosActivo, estadosDelRadicado, revisionPendiente, vigiladosDelUsuario } from "@/lib/estados";
 import { ActualizarEstado } from "./actualizar";
+import { proximoActualizarUsuario } from "@/lib/limits";
 import { QuitarDeEstados } from "../quitar-estado";
 
 const fecha = (d: Date | null) =>
@@ -32,6 +33,8 @@ export default async function EstadoRadicadoPage({ params }: { params: Promise<{
     estadosDelRadicado(user.id, radicado),
     revisionPendiente(radicado).catch(() => null),
   ]);
+  // Límite general: un "Actualizar" cada 3 horas en cualquiera de sus radicados.
+  const esperaActualizar = await proximoActualizarUsuario(user);
 
   return (
     <div className="page">
@@ -48,6 +51,7 @@ export default async function EstadoRadicadoPage({ params }: { params: Promise<{
           radicado={radicado}
           revisadoAt={revisadoAt ? new Date(revisadoAt).toISOString() : null}
           pendienteDesde={pendiente ? new Date(pendiente).toISOString() : null}
+          esperaHasta={esperaActualizar}
         />
       </div>
 

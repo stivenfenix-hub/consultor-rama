@@ -189,3 +189,40 @@ export async function marcarActualizacionProceso(caseId: string) {
     caseId,
   );
 }
+
+// ---------- Límite general del botón "Actualizar" (17 nov 2026) ----------
+// Para que nadie le dé "Actualizar" a todos sus radicados uno tras otro (eso
+// hace que la Rama y el portal de estados bloqueen el servidor): cada usuario
+// puede usar el botón "Actualizar" de un radicado (Rama o solo estados) una vez
+// cada 3 horas, en cualquiera de sus radicados. El admin y los "sin límite" no.
+const ESPERA_ACTUALIZAR_MS = 3 * 60 * 60 * 1000;
+
+async function columnaActualizar() {
+  await ensureColumn("User", "ultimoActualizarAt", "TIMESTAMPTZ");
+}
+
+/** Cuándo puede volver a usar "Actualizar" en un radicado (ISO) o null si ya puede. */
+export async function proximoActualizarUsuario(user: { id: string; role: string }): Promise<string | null> {
+  if (await sinLimiteManual(user)) return null;
+  try {
+    await columnaActualizar();
+    const [r] = await prisma.$queryRawUnsafe<{ ultimo: Date | null }[]>(
+      `SELECT "ultimoActualizarAt" AS ultimo FROM "User" WHERE id = $1`,
+      user.id,
+    );
+    if (!r?.ultimo) return null;
+    const prox = new Date(r.ultimo).getTime() + ESPERA_ACTUALIZAR_MS;
+    return prox > Date.now() ? new Date(prox).toISOString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function marcarActualizarUsuario(userId: string) {
+  await columnaActualizar();
+  await prisma.$executeRawUnsafe(`UPDATE "User" SET "ultimoActualizarAt" = now() WHERE id = $1`, userId);
+}
+
+/** "3:45 p. m." (hora de Colombia) para los mensajes. */
+export const horaCo = (iso: string) =>
+  new Date(iso).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit" });

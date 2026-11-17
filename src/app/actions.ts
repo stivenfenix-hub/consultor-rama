@@ -494,6 +494,15 @@ export async function refrescarProcesoAction(caseId: string): Promise<ActionStat
   if (await proximaActualizacionProceso(caseId, await sinLimiteManual(user))) {
     return { error: "Este proceso ya se actualizó hoy. Podrás hacerlo de nuevo mañana." };
   }
+  // Límite general: un "Actualizar" cada 3 horas en cualquiera de sus radicados.
+  const { proximoActualizarUsuario, marcarActualizarUsuario, horaCo } = await import("@/lib/limits");
+  const espera = await proximoActualizarUsuario(user);
+  if (espera) {
+    return {
+      error: `Ya actualizaste un proceso hace poco. Puedes volver a usar «Actualizar» a las ${horaCo(espera)}. Mientras tanto, Estradox sigue revisando todos tus procesos automáticamente cada noche.`,
+    };
+  }
+  await marcarActualizarUsuario(user.id);
   let resultado: ActionState;
   try {
     await revisarProcesoManual(caseId);
