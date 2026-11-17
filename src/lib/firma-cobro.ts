@@ -24,7 +24,7 @@ import { enviarInvitacion } from "./firma-envios";
  */
 
 /** Procesos que debe haber cargado el abogado para ganarse la primera firma gratis. */
-export const PROCESOS_PARA_GRATIS = 3;
+export const PROCESOS_PARA_GRATIS = 1;
 
 export type Cotizacion = {
   precio: number;
