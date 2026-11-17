@@ -700,3 +700,33 @@ export async function nombreAbogado(userId: string) {
 
 /** Cédula a medias para pantallas públicas: ****5678. */
 export const ocultarDoc = (n: string) => (n.length <= 4 ? "****" : `${"*".repeat(Math.min(n.length - 4, 6))}${n.slice(-4)}`);
+
+/**
+ * Conteo de firmas electrónicas para el root: documentos enviados a firmar,
+ * completados (todos firmaron) y cuánto se pagó. Sin userId, de todos.
+ */
+export async function resumenFirmas(userId?: string) {
+  await asegurarTablasFirma();
+  const [r] = await prisma.$queryRawUnsafe<
+    { enviados: bigint; completados: bigint; pagados: bigint; gratis: bigint; ingresos: bigint | null; firmantes: bigint }[]
+  >(
+    `SELECT count(*) FILTER (WHERE "enviadoAt" IS NOT NULL) AS enviados,
+            count(*) FILTER (WHERE estado = 'COMPLETED') AS completados,
+            count(*) FILTER (WHERE "pagadoAt" IS NOT NULL) AS pagados,
+            count(*) FILTER (WHERE gratis AND "enviadoAt" IS NOT NULL) AS gratis,
+            sum(precio) FILTER (WHERE "pagadoAt" IS NOT NULL) AS ingresos,
+            (SELECT count(*) FROM "FirmaFirmante" s JOIN "FirmaDocumento" d2 ON d2.id = s."documentoId"
+              WHERE s.estado = 'SIGNED' AND ($1::text IS NULL OR d2."userId" = $1)) AS firmantes
+     FROM "FirmaDocumento" WHERE $1::text IS NULL OR "userId" = $1`,
+    userId ?? null,
+  );
+  return {
+    enviados: Number(r?.enviados ?? 0),
+    completados: Number(r?.completados ?? 0),
+    pagados: Number(r?.pagados ?? 0),
+    gratis: Number(r?.gratis ?? 0),
+    ingresos: Number(r?.ingresos ?? 0),
+    /** Personas que ya firmaron (un documento puede tener varias). */
+    firmantes: Number(r?.firmantes ?? 0),
+  };
+}

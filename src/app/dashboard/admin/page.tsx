@@ -5,6 +5,7 @@ import { Icon } from "@/components/icon";
 import { estadoSincronizacion } from "@/lib/sync-queue";
 import { estadoRama } from "@/lib/monitor-rama";
 import { estadoEstadosNoche } from "@/lib/estados";
+import { resumenFirmas } from "@/lib/firmas";
 import { RunSyncButton } from "./run-sync-button";
 
 const TZ = "America/Bogota";
@@ -14,11 +15,12 @@ const hora = (d: Date | string | null) =>
     : "—";
 
 export default async function AdminDashboard() {
-  const [s, sync, rama, estados] = await Promise.all([
+  const [s, sync, rama, estados, firmas] = await Promise.all([
     getAdminStats(),
     estadoSincronizacion().catch(() => null),
     estadoRama().catch(() => null),
     estadoEstadosNoche().catch(() => null),
+    resumenFirmas().catch(() => null),
   ]);
   const ramaCaida = !!rama && rama.fallas > 0;
   // El cron corre cada 5 minutos: si lleva más de 20 sin correr, nada se está revisando.
@@ -56,6 +58,20 @@ export default async function AdminDashboard() {
           accent={s.totalUsuarios - s.verificados > 0 ? "var(--amber)" : undefined}
         />
       </section>
+
+      {firmas && (
+        <section className="stat-grid">
+          <StatTile
+            label="Firmas electrónicas"
+            value={firmas.enviados}
+            accent="var(--accent)"
+            hint="Documentos enviados a firmar por todos los usuarios"
+          />
+          <StatTile label="Completadas (firmaron todos)" value={firmas.completados} accent="var(--green)" />
+          <StatTile label="Pagadas / gratis" value={`${firmas.pagados} / ${firmas.gratis}`} />
+          <StatTile label="Ingresos por firmas" value={`$${firmas.ingresos.toLocaleString("es-CO")}`} />
+        </section>
+      )}
 
       {rama?.revisadaAt && (
         <section className="card">

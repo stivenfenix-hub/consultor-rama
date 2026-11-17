@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { detalleCargasUsuario } from "@/lib/sync";
 import { sinLimiteManual } from "@/lib/limits";
 import { esSocio } from "@/lib/subscription";
+import { resumenFirmas } from "@/lib/firmas";
+import { StatTile } from "@/components/charts";
 import { Interruptor } from "./sin-limite";
 import { RevisarEstadosAhora } from "./revisar-estados";
 import { AgregarRadicados } from "./agregar-radicados";
@@ -38,11 +40,12 @@ export default async function CargasUsuario({
   if (!user) notFound();
 
   const desdeDe = (v: string | undefined) => (Math.max(1, Number(v) || 1) - 1) * POR_PAGINA;
-  const [detalle, libre, estados, socio] = await Promise.all([
+  const [detalle, libre, estados, socio, firmas] = await Promise.all([
     detalleCargasUsuario(userId, { cargas: desdeDe(sp.pc), reintentos: desdeDe(sp.pr), procesos: desdeDe(sp.pp) }),
     sinLimiteManual({ id: userId, role: user.role }),
     estadosActivo(userId),
     esSocio(userId),
+    resumenFirmas(userId).catch(() => null),
   ]);
   const { cargas, reintentos, procesos, totales } = detalle;
   const pagC = paginaDe(sp.pc, totales.cargas);
@@ -77,6 +80,19 @@ export default async function CargasUsuario({
           <p className="muted small" style={{ margin: 0 }}>{user.email}</p>
         </div>
       </div>
+
+      {firmas && (
+        <section className="stat-grid">
+          <StatTile label="Firmas electrónicas enviadas" value={firmas.enviados} accent="var(--accent)" />
+          <StatTile label="Completadas" value={firmas.completados} accent="var(--green)" />
+          <StatTile label="Personas que firmaron" value={firmas.firmantes} />
+          <StatTile
+            label="Pagado por firmas"
+            value={`$${firmas.ingresos.toLocaleString("es-CO")}`}
+            hint={`${firmas.pagados} pagada(s) · ${firmas.gratis} gratis`}
+          />
+        </section>
+      )}
 
       <div className="card">
         {user.role !== "admin" && <Interruptor userId={userId} valor={socio} tipo="socio" />}
