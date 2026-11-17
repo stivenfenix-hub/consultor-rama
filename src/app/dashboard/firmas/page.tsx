@@ -6,7 +6,6 @@ import { cotizar } from "@/lib/firma-cobro";
 import { RegaloPrimeraFirma } from "./regalo";
 import { GuiaFirma } from "./guia/guia";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
-import { Icon } from "@/components/icon";
 
 export const metadata = { title: "Firma electrónica" };
 
@@ -86,22 +85,7 @@ export default async function Firmas({
           si ya tiene los procesos mínimos; si no, la presentación de siempre. */}
       {todos === 0 && primeraGratis ? (
         <RegaloPrimeraFirma precioMax={PRECIOS_FIRMA.biometrica} />
-      ) : todos === 0 ? (
-        <div className="card firma-vacio">
-          <div className="cert-hero-icon">
-            <Icon name="firma" size={30} />
-          </div>
-          <h2>Envía tu primer documento a firmar</h2>
-          <p className="muted">
-            Sube un PDF o usa una plantilla (poder especial, contrato de honorarios), agrega a quienes firman y marca
-            dónde va cada firma. Ellos firman desde el celular con un código de verificación y tú recibes el PDF sellado
-            con su certificado de auditoría.
-          </p>
-          <Link prefetch={false} href="/dashboard/firmas/nuevo" className="btn">
-            + Nuevo documento
-          </Link>
-        </div>
-      ) : (
+      ) : todos === 0 ? null : (
         <>
           <nav className="tabbar">
             {FILTROS.filter((f) => !f.k || porEstado[f.k] || estado === f.k).map((f) => (
@@ -189,9 +173,10 @@ export default async function Firmas({
         </>
       )}
 
-      {/* Guía (antes en /dashboard/firmas/guia): el botón «¿Qué puedo firmar?» baja hasta aquí. */}
-      <div id="que-puedo-firmar" className="firma-guia-embebida">
-        <GuiaFirma embebida />
+      {/* Guía (antes en /dashboard/firmas/guia). «¿Qué puedo firmar?» baja a su sección
+          «Qué puedes firmar» (id="que-puedo-firmar"). */}
+      <div className={todos === 0 && !primeraGratis ? "" : "firma-guia-embebida"}>
+        <GuiaFirma embebida primerDocumento={todos === 0} />
       </div>
     </div>
   );

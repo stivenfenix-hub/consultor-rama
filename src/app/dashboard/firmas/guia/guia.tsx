@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/icon";
 
@@ -107,8 +108,15 @@ const EXCEPCIONES: { t: string; d: string }[] = [
   { t: "Títulos para el mercado de valores", d: "Un pagaré electrónico es válido, pero para negociarlo requiere anotación en cuenta (p. ej. Deceval)." },
 ];
 
-/** embebida: va dentro de /dashboard/firmas (el título pasa a h2). */
-export function GuiaFirma({ embebida = false }: { embebida?: boolean } = {}) {
+/**
+ * embebida: va dentro de /dashboard/firmas (el título pasa a h2 y lleva el
+ * botón «Nuevo documento»). primerDocumento: aún no ha creado ninguno.
+ */
+export function GuiaFirma({
+  embebida = false,
+  primerDocumento = false,
+}: { embebida?: boolean; primerDocumento?: boolean } = {}) {
+  const titulo = primerDocumento ? "Envía tu primer documento a firmar" : "Qué puedes firmar electrónicamente";
   const [etapa, setEtapa] = useState(0);
   const [cat, setCat] = useState(0);
   const [doc, setDoc] = useState(0);
@@ -129,11 +137,16 @@ export function GuiaFirma({ embebida = false }: { embebida?: boolean } = {}) {
         <div className="cert-hero-icon">
           <Icon name="firma" size={34} />
         </div>
-        {embebida ? <h2>Qué puedes firmar electrónicamente</h2> : <h1>Qué puedes firmar electrónicamente</h1>}
+        {embebida ? <h2>{titulo}</h2> : <h1>{titulo}</h1>}
         <p>
           Haz que tus clientes firmen poderes, contratos de honorarios y pagarés <b>desde el celular</b>, con
           validez jurídica (Ley 527 de 1999 y Ley 2213 de 2022), sin imprimir ni ir a notaría.
         </p>
+        {embebida && (
+          <Link prefetch={false} href="/dashboard/firmas/nuevo" className="btn" style={{ margin: "4px 0 14px" }}>
+            + Nuevo documento
+          </Link>
+        )}
         <div className="cert-chips">
           {CHIPS.map((x) => (
             <span key={x.t} className="cert-chip">
@@ -183,7 +196,7 @@ export function GuiaFirma({ embebida = false }: { embebida?: boolean } = {}) {
         ))}
       </section>
 
-      <section className="card">
+      <section className="card" id="que-puedo-firmar" style={{ scrollMarginTop: 80 }}>
         <h2 style={{ marginTop: 0 }}>Qué puedes firmar</h2>
         <p className="muted small" style={{ marginTop: 0 }}>Elige un tipo y toca un documento para ver para qué sirve.</p>
         <div className="cert-plantillas">
