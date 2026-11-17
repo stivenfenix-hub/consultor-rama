@@ -44,7 +44,10 @@ export function CaseActions({
             : "Consulta la Rama y los estados electrónicos del juzgado (una vez por día)"
         }
         onClick={() =>
-          run("refresh", async () => setMsg(await refrescarProcesoAction(caseId)))
+          run("refresh", async () => {
+            setMsg({});
+            setMsg(await refrescarProcesoAction(caseId));
+          })
         }
       >
         <Icon name="refresh" />
@@ -78,6 +81,11 @@ export function CaseActions({
       >
         Eliminar
       </button>
+      {msg.ok && (
+        <span className="ok small" role="status" style={{ flexBasis: "100%", maxWidth: 520 }}>
+          ✓ {msg.ok}
+        </span>
+      )}
       {msg.error &&
         (esMensajeRama(msg.error) ? (
           <span className="aviso-rama small">ℹ️ {msg.error}</span>
