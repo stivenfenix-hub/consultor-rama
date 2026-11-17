@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { buscarPersonas, leerTextoDocumento, type Persona } from "./extraer";
+import { buscarPersonas, leerTextoDocumento, type Avance, type Persona } from "./extraer";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { PdfPaginas } from "@/components/pdf-paginas";
@@ -100,6 +100,7 @@ export function Asistente({
   // Firmantes leídos del documento (texto del PDF u OCR), para autollenar.
   const [personas, setPersonas] = useState<Persona[] | null>(null);
   const [buscando, setBuscando] = useState(false);
+  const [avance, setAvance] = useState<Avance>({ etapa: "Abriendo el documento…", pct: 0 });
   const leido = useRef<string | null>(null);
   const delDocumento = new Set((personas ?? []).map((p) => p.numDoc));
   const usados = new Set(firmantes.map((f) => f.numDoc.replace(/\D/g, "")).filter(Boolean));
@@ -110,7 +111,15 @@ export function Asistente({
     leido.current = doc.id;
     let vivo = true;
     setBuscando(true);
-    leerTextoDocumento(doc.id)
+    setAvance({ etapa: "Abriendo el documento…", pct: 0 });
+    const inicio = Date.now();
+    leerTextoDocumento(doc.id, (a) => vivo && setAvance(a))
+      // Aunque el PDF se lea en un instante, la barra se deja ver un momento.
+      .then(async (texto) => {
+        setAvance({ etapa: "Buscando a los firmantes…", pct: 100 });
+        await new Promise((r) => setTimeout(r, Math.max(0, 1500 - (Date.now() - inicio))));
+        return texto;
+      })
       .then((texto) => {
         if (!vivo) return;
         const encontradas = buscarPersonas(texto);
@@ -372,11 +381,37 @@ export function Asistente({
             correo o al WhatsApp que pongas aquí.
           </p>
           {buscando ? (
-            <div className="firma-lector buscando small">🔍 Leyendo el documento para encontrar a los firmantes…</div>
+            <div className="firma-lector buscando" role="status" aria-live="polite">
+              <div className="row" style={{ gap: 8 }}>
+                <span className="firma-lector-lupa">🔍</span>
+                <b className="small">Estamos leyendo tu documento para llenar los datos de los firmantes</b>
+              </div>
+              <div className="firma-lector-barra" aria-hidden>
+                <div style={{ width: `${Math.max(avance.pct, 4)}%` }} />
+              </div>
+              <div className="row small muted" style={{ gap: 8 }}>
+                <span>{avance.etapa}</span>
+                <span className="spacer" />
+                <b>{avance.pct}%</b>
+              </div>
+              <span className="muted small">Mientras tanto puedes escribir los datos tú mismo si quieres.</span>
+            </div>
           ) : personas && personas.length > 0 ? (
+            <div className="firma-revisar" role="alert">
+              <span className="firma-revisar-icono">⚠️</span>
+              <div>
+                <b>Revisa bien los datos antes de continuar.</b>
+                <p className="small" style={{ margin: "4px 0 0" }}>
+                  Encontramos {personas.length === 1 ? "1 persona" : `${personas.length} personas`} en el documento y
+                  llenamos sus datos automáticamente, pero la lectura puede equivocarse. Confirma{" "}
+                  <b>nombre, número de cédula, correo y WhatsApp</b> de cada firmante: a ellos les llega el enlace y el
+                  código para firmar.
+                </p>
+              </div>
+            </div>
+          ) : personas && personas.length === 0 ? (
             <div className="firma-lector small">
-              ✨ Encontramos {personas.length === 1 ? "1 persona" : `${personas.length} personas`} en el documento y
-              llenamos sus datos. <b>Revísalos</b> antes de continuar.
+              No encontramos firmantes en el documento. Escribe sus datos aquí abajo.
             </div>
           ) : null}
           {firmantes.map((f, i) => (
