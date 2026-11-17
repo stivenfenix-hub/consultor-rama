@@ -45,13 +45,20 @@ const ICONO_EVENTO: Record<EventoFirma, IconName> = {
 const CLASE_FIRMANTE: Record<EstadoFirmante, string> = { PENDING: "", VIEWED: "reciente", SIGNED: "new", REJECTED: "rojo" };
 const CLASE_DOC = { DRAFT: "", PENDING: "reciente", PARTIALLY_SIGNED: "warn", COMPLETED: "new", REJECTED: "rojo", EXPIRED: "" } as const;
 
-export default async function DetalleFirma({ params }: { params: Promise<{ id: string }> }) {
+export default async function DetalleFirma({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ enviado?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const { id } = await params;
+  const enviado = !!(await searchParams).enviado;
   let doc = await documentoDe(user.id, id);
   if (!doc) notFound();
-  if (doc.estado === "DRAFT") redirect(`/dashboard/firmas/nuevo?id=${doc.id}`);
+  if (doc.estado === "DRAFT") redirect(doc.pagoId ? `/dashboard/firmas/pago/${doc.id}` : `/dashboard/firmas/nuevo?id=${doc.id}`);
 
   // Si todos firmaron pero el sellado falló en su momento, se reintenta aquí.
   let errorSello: string | null = null;
@@ -80,6 +87,13 @@ export default async function DetalleFirma({ params }: { params: Promise<{ id: s
             <span className="badge" title={NIVELES[doc.verificacion].d}>
               {NIVELES[doc.verificacion].t}
             </span>
+            {doc.gratis ? (
+              <span className="badge new">Gratis</span>
+            ) : doc.pagadoAt && doc.precio ? (
+              <span className="badge new" title={`Pagado el ${fechaHora(doc.pagadoAt)}`}>
+                Pagado ${doc.precio.toLocaleString("es-CO")}
+              </span>
+            ) : null}
             {doc.radicado && <span className="radicado small">{doc.radicado}</span>}
             {abierto && <EnVivo />}
           </div>
@@ -96,6 +110,11 @@ export default async function DetalleFirma({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
+      {enviado && doc.estado === "PENDING" && (
+        <div className="ok" style={{ marginBottom: 12 }}>
+          {doc.pagadoAt ? "¡Pago confirmado! " : ""}Ya enviamos los enlaces a los firmantes.
+        </div>
+      )}
       {errorSello && <div className="error" style={{ marginBottom: 12 }}>{errorSello}</div>}
 
       {doc.estado === "COMPLETED" && (

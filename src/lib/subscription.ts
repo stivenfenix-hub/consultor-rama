@@ -104,6 +104,8 @@ async function ensureSchema() {
   await ensureColumn("BoldPayment", "adicionales", "INTEGER");
   // Recordatorios enviados de un cobro de adicionales sin pagar (a los 5 y 15 días).
   await ensureColumn("BoldPayment", "recordatorios", "INTEGER NOT NULL DEFAULT 0");
+  // Pago de un envío de Firma Electrónica (tipo "firma"): el documento que paga.
+  await ensureColumn("BoldPayment", "firmaId", "TEXT");
   // Un renglón por usuario y corte mensual: los adicionales de ese mes que no
   // cubría su paquete. "paymentId" es el link que los cobra (NULL: aún sin cobrar).
   await prisma.$executeRawUnsafe(`
@@ -767,14 +769,71 @@ export async function crearLinkDePago(user: { id: string; email: string }, meses
   return link.url;
 }
 
-async function crearLinkBold(d: { email: string; valor: number; descripcion: string }) {
+/**
+ * Link de pago de un envío de Firma Electrónica. Al volver de Bold el abogado
+ * llega a /dashboard/firmas/pago/<id>, donde se confirma y se envía.
+ * En desarrollo, sin llaves de Bold, se crea un pago simulado.
+ */
+export async function crearLinkFirma(
+  user: { id: string; email: string },
+  firma: { id: string; titulo: string; valor: number; nivel: string },
+) {
+  await ensureSchema();
+  const vuelta = `${APP_URL}/dashboard/firmas/pago/${firma.id}`;
+  let link: { id: string; url: string };
+  if (boldConfigurado()) {
+    link = await crearLinkBold({
+      email: user.email,
+      valor: firma.valor,
+      descripcion: `Estradox - Firma electrónica (${firma.nivel}): ${firma.titulo}`.slice(0, 100),
+      callback: vuelta,
+    });
+  } else if (process.env.NODE_ENV !== "production") {
+    link = { id: `DEV_${crypto.randomUUID()}`, url: `${vuelta}?simular=1` };
+  } else {
+    throw new Error("Los pagos aún no están configurados.");
+  }
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "BoldPayment" (id, "userId", amount, status, url, meses, tipo, "firmaId")
+     VALUES ($1, $2, $3, 'ACTIVE', $4, 0, 'firma', $5)`,
+    link.id,
+    user.id,
+    firma.valor,
+    link.url,
+    firma.id,
+  );
+  return link;
+}
+
+/** Solo en desarrollo: da por pagado un link simulado (DEV_…). */
+export async function simularPagoDev(linkId: string) {
+  if (process.env.NODE_ENV === "production" || !linkId.startsWith("DEV_")) return false;
+  const n = await prisma.$executeRawUnsafe(
+    `UPDATE "BoldPayment" SET status = 'PAID', "paidAt" = now(), "paymentId" = 'simulado' WHERE id = $1 AND status <> 'PAID'`,
+    linkId,
+  );
+  if (n === 1) await alAprobarFirma(linkId);
+  return n === 1;
+}
+
+async function alAprobarFirma(linkId: string) {
+  const [p] = await prisma.$queryRawUnsafe<{ firmaId: string | null; amount: number }[]>(
+    `SELECT "firmaId", amount FROM "BoldPayment" WHERE id = $1`,
+    linkId,
+  );
+  if (!p?.firmaId) return;
+  const { enviarTrasPago } = await import("./firma-cobro");
+  await enviarTrasPago(p.firmaId, linkId, p.amount);
+}
+
+async function crearLinkBold(d: { email: string; valor: number; descripcion: string; callback?: string }) {
   const j = await bold("/online/link/v1", {
     method: "POST",
     body: JSON.stringify({
       amount_type: "CLOSE",
       amount: { currency: "COP", total_amount: d.valor, tip_amount: 0 },
       description: d.descripcion,
-      callback_url: `${APP_URL}/dashboard/suscripcion?pago=1`,
+      callback_url: d.callback ?? `${APP_URL}/dashboard/suscripcion?pago=1`,
       payer_email: d.email,
     }),
   });
@@ -847,7 +906,9 @@ export async function confirmarPago(
   );
   if (marcado !== 1) return false; // otro proceso ya lo acreditó
   // El cobro mensual de adicionales no suma acceso: solo lo paga.
-  if (pago.tipo !== "adicionales") await extenderAcceso(pago.userId, { meses: pago.meses || 1 });
+  // El pago de una firma tampoco: envía el documento a sus firmantes.
+  if (pago.tipo === "firma") await alAprobarFirma(linkId);
+  else if (pago.tipo !== "adicionales") await extenderAcceso(pago.userId, { meses: pago.meses || 1 });
   console.log(`[bold] pago ${linkId} acreditado a ${pago.userId}`);
   return true;
 }

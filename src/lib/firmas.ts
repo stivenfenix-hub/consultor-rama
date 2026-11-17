@@ -90,6 +90,17 @@ export const NIVELES: Record<NivelVerificacion, { t: string; d: string }> = {
 };
 export const esNivel = (n: unknown): n is NivelVerificacion => n === "otp" || n === "cedula" || n === "biometrica";
 
+/**
+ * Precio por documento enviado a firmar (pesos colombianos), según el nivel.
+ * Todos los niveles incluyen el código OTP. El primer documento de cada abogado
+ * es gratis (ver firma-cobro.ts).
+ */
+export const PRECIOS_FIRMA: Record<NivelVerificacion, number> = {
+  otp: 3900,
+  cedula: 4900,
+  biometrica: 5900,
+};
+
 /** Resultado de la verificación de identidad (lo que queda como evidencia). */
 export type ResultadoIdentidad = {
   nivel: NivelVerificacion;
@@ -206,6 +217,10 @@ export function asegurarTablasFirma() {
     ]) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "FirmaFirmante" ADD COLUMN IF NOT EXISTS ${col}`);
     }
+    // Cobro: precio del envío, link de Bold que lo paga y si fue el gratis.
+    for (const col of [`precio INTEGER`, `"pagoId" TEXT`, `"pagadoAt" TIMESTAMPTZ`, `gratis BOOLEAN NOT NULL DEFAULT false`]) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "FirmaDocumento" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
   })().catch((e) => {
     listo = null;
     throw e;
@@ -269,6 +284,12 @@ export type Documento = {
   otpWhatsapp: boolean;
   verificacion: NivelVerificacion;
   sello: Record<string, unknown> | null;
+  /** Precio del envío (null: aún no se ha cotizado). */
+  precio: number | null;
+  /** Link de Bold creado para pagar el envío (borrador esperando pago). */
+  pagoId: string | null;
+  pagadoAt: Date | null;
+  gratis: boolean;
   createdAt: Date;
   enviadoAt: Date | null;
   completedAt: Date | null;
@@ -497,21 +518,57 @@ export async function guardarIdentidad(
   );
 }
 
-export async function marcarEnviado(
+/** Guarda cómo se va a enviar (medios del código, nivel y precio) sin enviarlo aún. */
+export async function prepararEnvio(
   documentoId: string,
   otpCorreo: boolean,
   otpWhatsapp: boolean,
-  verificacion: NivelVerificacion = "otp",
+  verificacion: NivelVerificacion,
+  precio: number,
 ) {
   await prisma.$executeRawUnsafe(
-    `UPDATE "FirmaDocumento" SET estado = 'PENDING', "enviadoAt" = now(), "otpCorreo" = $2, "otpWhatsapp" = $3,
-            verificacion = $4
-     WHERE id = $1::uuid`,
+    `UPDATE "FirmaDocumento" SET "otpCorreo" = $2, "otpWhatsapp" = $3, verificacion = $4, precio = $5
+     WHERE id = $1::uuid AND estado = 'DRAFT'`,
     documentoId,
     otpCorreo,
     otpWhatsapp,
     verificacion,
+    precio,
   );
+}
+
+export async function asignarPago(documentoId: string, pagoId: string) {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "FirmaDocumento" SET "pagoId" = $2 WHERE id = $1::uuid AND estado = 'DRAFT'`,
+    documentoId,
+    pagoId,
+  );
+}
+
+/** Documentos que el abogado ya envió alguna vez (para saber si le toca el gratis). */
+export async function documentosEnviados(userId: string): Promise<number> {
+  await asegurarTablasFirma();
+  const [r] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(*) AS n FROM "FirmaDocumento" WHERE "userId" = $1 AND "enviadoAt" IS NOT NULL`,
+    userId,
+  );
+  return Number(r?.n ?? 0);
+}
+
+/**
+ * Pasa el borrador a "Enviado". Devuelve true solo la primera vez (si el pago
+ * se confirma por el webhook y por la página a la vez, solo uno envía).
+ */
+export async function marcarEnviado(documentoId: string, cobro: { gratis: boolean; pagado: boolean }): Promise<boolean> {
+  const n = await prisma.$executeRawUnsafe(
+    `UPDATE "FirmaDocumento" SET estado = 'PENDING', "enviadoAt" = now(), gratis = $2,
+            "pagadoAt" = CASE WHEN $3 THEN now() ELSE NULL END
+     WHERE id = $1::uuid AND estado = 'DRAFT'`,
+    documentoId,
+    cobro.gratis,
+    cobro.pagado,
+  );
+  return n === 1;
 }
 
 export async function marcarVisto(firmanteId: string) {

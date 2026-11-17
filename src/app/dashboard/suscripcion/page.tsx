@@ -43,7 +43,7 @@ export default async function SuscripcionPage({
     pagosDeUsuario(user.id),
     usoProcesos(user.id),
   ]);
-  const ultimoAprobado = pagos.find((p) => p.status === "PAID");
+  const ultimoAprobado = pagos.find((p) => p.status === "PAID" && p.tipo !== "firma");
   const pagoAdicionales = ultimoAprobado?.tipo === "adicionales";
   const pagoRecienAprobado =
     !!pago && !!ultimoAprobado?.paidAt && Date.now() - new Date(ultimoAprobado.paidAt).getTime() < 30 * 60 * 1000;
@@ -191,7 +191,9 @@ export default async function SuscripcionPage({
                   <tr key={p.id}>
                     <td className="muted">{fecha(p.paidAt ?? p.createdAt)}</td>
                     <td>
-                      {p.tipo === "adicionales"
+                      {p.tipo === "firma"
+                        ? "Firma electrónica"
+                        : p.tipo === "adicionales"
                         ? `${p.adicionales ?? ""} proceso(s) adicional(es)`
                         : p.meses === 1
                           ? "1 mes"

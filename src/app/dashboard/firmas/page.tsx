@@ -132,13 +132,23 @@ export default async function Firmas({
                     <Link
                       prefetch={false}
                       key={d.id}
-                      href={d.estado === "DRAFT" ? `/dashboard/firmas/nuevo?id=${d.id}` : `/dashboard/firmas/${d.id}`}
+                      href={
+                        d.estado === "DRAFT"
+                          ? d.pagoId
+                            ? `/dashboard/firmas/pago/${d.id}`
+                            : `/dashboard/firmas/nuevo?id=${d.id}`
+                          : `/dashboard/firmas/${d.id}`
+                      }
                       className="case firma-fila"
                     >
                       <div className="firma-fila-info">
                         <div className="row wrap" style={{ gap: 8 }}>
                           <b>{d.titulo}</b>
-                          <span className={`badge ${CLASE_ESTADO[d.estado]}`}>{ESTADOS_DOC[d.estado]}</span>
+                          {d.estado === "DRAFT" && d.pagoId ? (
+                            <span className="badge warn">Pendiente de pago</span>
+                          ) : (
+                            <span className={`badge ${CLASE_ESTADO[d.estado]}`}>{ESTADOS_DOC[d.estado]}</span>
+                          )}
                         </div>
                         <div className="muted small" style={{ marginTop: 4 }}>
                           {d.radicado ? <span className="radicado">{d.radicado}</span> : "Sin radicado"} · {fecha(d.enviadoAt ?? d.createdAt)}
@@ -146,7 +156,9 @@ export default async function Firmas({
                       </div>
                       <div className="firma-progreso">
                         {d.estado === "DRAFT" ? (
-                          <span className="small" style={{ color: "var(--accent)", fontWeight: 600 }}>Continuar →</span>
+                          <span className="small" style={{ color: "var(--accent)", fontWeight: 600 }}>
+                            {d.pagoId ? "Pagar y enviar →" : "Continuar →"}
+                          </span>
                         ) : (
                           <>
                             <div className="small muted">

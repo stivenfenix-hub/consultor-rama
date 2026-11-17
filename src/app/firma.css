@@ -1152,3 +1152,44 @@ input.firmar-codigo {
   display: grid;
   gap: 10px;
 }
+
+/* ---------- Cobro de la firma ---------- */
+.firma-precio {
+  font-weight: 700;
+  white-space: nowrap;
+  align-self: center;
+}
+.firma-precio s {
+  color: var(--muted);
+  font-weight: 500;
+}
+.firma-total {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+.firma-total b {
+  font-size: 1.25rem;
+}
+.firma-total .small {
+  grid-column: 1 / -1;
+}
+.firma-pago {
+  max-width: 520px;
+  margin: 0 auto;
+  text-align: center;
+}
+.firma-pago .firma-veredicto-icon {
+  margin: 0 auto 8px;
+  background: var(--accent);
+  color: #fff;
+}
+.firma-pago .firma-veredicto-icon.rojo {
+  background: var(--red, #dc2626);
+}

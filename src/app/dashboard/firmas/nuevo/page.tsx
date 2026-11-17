@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { documentoDe, firmantesDe } from "@/lib/firmas";
+import { PRECIOS_FIRMA, documentoDe, firmantesDe } from "@/lib/firmas";
+import { cotizar } from "@/lib/firma-cobro";
 import { PLANTILLAS } from "@/services/signature-engine";
 import { Asistente } from "./asistente";
 
@@ -16,6 +17,7 @@ export default async function NuevoDocumento({ searchParams }: { searchParams: P
   const doc = id ? await documentoDe(user.id, id) : null;
   if (id && (!doc || doc.estado !== "DRAFT")) redirect(doc ? `/dashboard/firmas/${doc.id}` : "/dashboard/firmas");
   const firmantes = doc ? await firmantesDe(doc.id) : [];
+  const cobro = await cotizar(user.id, "otp");
 
   return (
     <div className="page">
@@ -33,6 +35,7 @@ export default async function NuevoDocumento({ searchParams }: { searchParams: P
           norma: p.norma,
           campos: p.campos,
         }))}
+        cobro={{ gratis: cobro.gratis, motivo: cobro.motivo, precios: PRECIOS_FIRMA }}
         borrador={doc ? { id: doc.id, titulo: doc.titulo, paginas: doc.paginas } : null}
         firmantesIniciales={firmantes.map((f) => ({
           nombre: f.nombre,

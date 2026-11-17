@@ -5,21 +5,24 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import {
   TIPOS_DOC,
+  asignarPago,
   documentoDe,
   eliminarBorrador,
   esNivel,
   firmantesDe,
   guardarFirmantes,
-  marcarEnviado,
   nombreAbogado,
   origenDe,
+  prepararEnvio,
   type FirmanteNuevo,
   type PosicionFirma,
   type TipoDoc,
 } from "@/lib/firmas";
 import { enviarInvitacion } from "@/lib/firma-envios";
+import { cotizar, enviarDocumento, nombreNivel } from "@/lib/firma-cobro";
+import { crearLinkFirma } from "@/lib/subscription";
 
-type Resultado = { ok?: string; error?: string };
+type Resultado = { ok?: string; error?: string; pagar?: string };
 
 export type FirmanteForm = {
   nombre: string;
@@ -94,23 +97,32 @@ export async function enviarDocumentoAction(
 
   await guardarFirmantes(doc.id, limpios);
   const nivel = esNivel(opciones.verificacion) ? opciones.verificacion : "otp";
-  await marcarEnviado(doc.id, opciones.otpCorreo, opciones.otpWhatsapp, nivel);
-  const [enviado, guardados, abogado] = await Promise.all([
-    documentoDe(user.id, id),
-    firmantesDe(doc.id),
-    nombreAbogado(user.id),
-  ]);
-  const origen = origenDe(await headers());
-  let sinCanal = 0;
-  for (const f of guardados) {
-    const canales = await enviarInvitacion(enviado ?? doc, f, abogado, origen);
-    if (canales.length === 0) sinCanal++;
+  const cobro = await cotizar(user.id, nivel);
+  await prepararEnvio(doc.id, opciones.otpCorreo, opciones.otpWhatsapp, nivel, cobro.precio);
+
+  if (!cobro.gratis) {
+    // Primero se paga con Bold; al confirmarse el pago se envía solo.
+    try {
+      const link = await crearLinkFirma(
+        { id: user.id, email: user.email },
+        { id: doc.id, titulo: doc.titulo, valor: cobro.precio, nivel: nombreNivel(nivel) },
+      );
+      await asignarPago(doc.id, link.id);
+      revalidatePath("/dashboard/firmas");
+      return { pagar: link.url };
+    } catch (e) {
+      console.error("[firma] crear link de pago", e);
+      return { error: "No pudimos abrir el pago en este momento. Intenta de nuevo en un minuto." };
+    }
   }
+
+  const r = await enviarDocumento(doc.id, { gratis: true, pagado: false }, origenDe(await headers()));
   revalidatePath("/dashboard/firmas");
+  if (!r.enviado) return { error: "Este documento ya fue enviado." };
   return {
     ok:
-      sinCanal > 0
-        ? `Documento enviado, pero ${sinCanal} firmante(s) no recibieron el enlace. Cópialo desde el detalle y envíaselo tú.`
+      r.sinCanal > 0
+        ? `Documento enviado, pero ${r.sinCanal} firmante(s) no recibieron el enlace. Cópialo desde el detalle y envíaselo tú.`
         : "Documento enviado a firmar.",
   };
 }

@@ -36,6 +36,7 @@ const NIVELES_VISTA: { k: "otp" | "cedula" | "biometrica"; t: string; d: string 
     d: "Además una selfie con prueba de vida (girar la cabeza) que se compara con la foto de la cédula.",
   },
 ];
+const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
 const ANCHO = 0.3;
 const ALTO = 0.075;
 const vacio = (): FirmanteForm => ({ nombre: "", tipoDoc: "CC", numDoc: "", email: "", telefono: "", posicion: null });
@@ -45,8 +46,11 @@ export function Asistente({
   plantillas,
   borrador,
   firmantesIniciales,
+  cobro,
 }: {
   plantillas: PlantillaVista[];
+  /** Precio por nivel; gratis = su primer documento (o cuenta administradora). */
+  cobro: { gratis: boolean; motivo: "primera" | "admin" | null; precios: Record<"otp" | "cedula" | "biometrica", number> };
   /** Borrador que se está retomando (entra directo al paso 2). */
   borrador: Borrador | null;
   firmantesIniciales: FirmanteForm[];
@@ -176,6 +180,11 @@ export function Asistente({
     enviar(async () => {
       const r = await enviarDocumentoAction(doc.id, firmantes, { otpCorreo, otpWhatsapp, verificacion });
       if (r.error) return setError(r.error);
+      if (r.pagar) {
+        // Primero el pago en Bold; al volver se envía solo.
+        window.location.href = r.pagar;
+        return;
+      }
       router.push(`/dashboard/firmas/${doc.id}`);
     });
   }
@@ -448,13 +457,35 @@ export function Asistente({
             {NIVELES_VISTA.map((n) => (
               <label key={n.k} className={verificacion === n.k ? "sel" : ""}>
                 <input type="radio" name="verificacion" checked={verificacion === n.k} onChange={() => setVerificacion(n.k)} />
-                <span>
+                <span style={{ flex: 1 }}>
                   <b>{n.t}</b>
                   <span className="muted small" style={{ display: "block" }}>{n.d}</span>
+                </span>
+                <span className="firma-precio">
+                  {cobro.gratis ? <s>{pesos(cobro.precios[n.k])}</s> : pesos(cobro.precios[n.k])}
                 </span>
               </label>
             ))}
           </div>
+          <p className="muted small" style={{ marginTop: 8 }}>
+            Todos los niveles incluyen el código OTP. El precio es por documento, sin importar cuántos firmantes tenga.
+          </p>
+          {cobro.gratis ? (
+            <div className="ok small" style={{ marginTop: 8 }}>
+              {cobro.motivo === "admin"
+                ? "Cuenta administradora: este envío no tiene costo."
+                : "🎁 Tu primer documento es gratis, para que pruebes la firma electrónica."}
+            </div>
+          ) : (
+            <div className="firma-total">
+              <span>Total a pagar</span>
+              <b>{pesos(cobro.precios[verificacion])}</b>
+              <span className="muted small">
+                Pagas con Bold (tarjeta, PSE, Nequi o Botón Bancolombia). Apenas se confirme el pago, enviamos los
+                enlaces a los firmantes.
+              </span>
+            </div>
+          )}
           <p className="muted small">
             El enlace para firmar vence en 30 días. Cuando firmen todos, cada uno recibe el PDF sellado con su
             certificado de auditoría.
@@ -483,7 +514,14 @@ export function Asistente({
         )}
         {paso === 3 && (
           <button type="button" className="btn" disabled={enviando} onClick={enviarYa}>
-            <Icon name="send" size={16} /> {enviando ? "Enviando…" : "Enviar a firmar"}
+            <Icon name="send" size={16} />{" "}
+            {enviando
+              ? cobro.gratis
+                ? "Enviando…"
+                : "Abriendo el pago…"
+              : cobro.gratis
+                ? "Enviar a firmar"
+                : `Pagar ${pesos(cobro.precios[verificacion])} y enviar`}
           </button>
         )}
       </div>
