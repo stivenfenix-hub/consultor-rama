@@ -1525,3 +1525,50 @@ html:has(#que-puedo-firmar) {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
+
+/* Zoom del documento (lectura del firmante en el celular) */
+.pdf-zoom-barra {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  width: max-content;
+  margin: 0 auto 10px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.pdf-zoom-barra button {
+  min-width: 44px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pdf-zoom-barra button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pdf-zoom-barra .pdf-zoom-valor {
+  font-size: 14px;
+  min-width: 92px;
+}
+.pdf-zoom {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 6px;
+}
+.pdf-zoom > .pdf-paginas {
+  min-width: 100%;
+}

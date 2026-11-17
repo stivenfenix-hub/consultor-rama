@@ -268,11 +268,13 @@ export function PortalFirma({
           <div className="card">
             <h1 style={{ fontSize: 20, margin: 0 }}>{titulo}</h1>
             <p className="muted small" style={{ margin: "4px 0 0" }}>
-              Lea el documento completo. El recuadro morado muestra dónde quedará su firma.
+              Lea el documento completo. El recuadro morado muestra dónde quedará su firma. Si la letra se ve
+              pequeña, use el botón <b>+</b> o pellizque con dos dedos para acercar.
             </p>
           </div>
           <div className="firmar-doc">
             <PdfPaginas
+              ampliable
               src={`${api}/pdf?leer=1`}
               sobre={(pagina) =>
                 posicion && posicion.page === pagina ? (
