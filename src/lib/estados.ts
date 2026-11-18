@@ -33,8 +33,11 @@ const DESPACHOS_POR_CORRIDA = Number(process.env.ESTADOS_DESPACHOS_POR_CORRIDA) 
 const PAUSA_MIN_MS = Number(process.env.ESTADOS_PAUSA_MIN_MS) || 20_000;
 const PAUSA_MAX_MS = Math.max(PAUSA_MIN_MS, Number(process.env.ESTADOS_PAUSA_MAX_MS) || 60_000);
 const PRESUPUESTO_MS = 15 * 60 * 1000;
-/** Documentos que se leen por publicación (antes 60; 18 nov 2026: 20, menos carga al portal). */
-const MAX_ARCHIVOS = Number(process.env.ESTADOS_MAX_ARCHIVOS) || 20;
+/** Documentos por publicación: todos (tope de seguridad 300); a cambio, se descargan más despacio (ver PAUSA_PDF). */
+const MAX_ARCHIVOS = Number(process.env.ESTADOS_MAX_ARCHIVOS) || 300;
+/** Pausa al azar entre un PDF y otro (18 nov 2026: 4 a 8 s, antes 1,5 a 4 s). */
+const PAUSA_PDF_MIN_MS = Number(process.env.ESTADOS_PAUSA_PDF_MIN_MS) || 4_000;
+const PAUSA_PDF_MAX_MS = Math.max(PAUSA_PDF_MIN_MS, Number(process.env.ESTADOS_PAUSA_PDF_MAX_MS) || 8_000);
 /**
  * Topes de la revisión (18 nov 2026, tras el bloqueo del VPS por volumen):
  * juzgados revisados por hora y por noche, contando los pedidos. Antes del
@@ -473,7 +476,7 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
       if (/respondió 40[39]|Pausa por bloqueo/.test(e instanceof Error ? e.message : String(e))) break;
     }
     // Pausa al azar entre un PDF y otro.
-    await esperar(azar(1500, 4000));
+    await esperar(azar(PAUSA_PDF_MIN_MS, PAUSA_PDF_MAX_MS));
   }
   return archivos;
 }
