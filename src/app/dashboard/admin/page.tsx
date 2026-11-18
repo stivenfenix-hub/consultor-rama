@@ -212,10 +212,10 @@ export default async function AdminDashboard() {
             />
           </div>
           <p className="small" style={{ marginBottom: 0 }}>
-            Última actividad del VPS: <b>{hora(estados.ultimaActividad)}</b>
+            Última revisión de un juzgado (VPS u Hostinger): <b>{hora(estados.ultimaActividad)}</b>
             <span className="muted"> · {estados.porAvisar} hallazgo(s) por avisar en el próximo resumen</span>
           </p>
-          {estados.detenido && (
+          {estados.detenido && !bloqueos.some((b) => b.salida === "vps") && (
             <div className="error small">
               ⚠️ El servicio de estados del VPS no revisa nada hace más de 20 minutos y hay juzgados pendientes.
               Revisa el VPS (pm2 status estradox-estados).
