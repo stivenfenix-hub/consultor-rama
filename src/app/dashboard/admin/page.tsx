@@ -179,7 +179,7 @@ export default async function AdminDashboard() {
         <section className="card">
           <h2>Estados electrónicos</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Los revisa el servidor VPS (no Hostinger): de 6:00 p.m. a 6:45 a.m. cada juzgado una vez y solo su
+            Los revisa el servidor VPS (no Hostinger): de 6:00 p.m. a 6:45 a.m., los juzgados activos cada noche y los quietos día de por medio (máx. 45 por hora y 450 por noche), solo su
             último estado; de día, los juzgados pedidos. Lo que encuentra sale en el resumen de las 7:00 a.m.{" "}
             {estados.usuarios} usuario(s) con estados · {estados.radicados} radicado(s) vigilado(s).
           </p>

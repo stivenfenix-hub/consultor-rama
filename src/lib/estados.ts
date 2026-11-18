@@ -33,7 +33,15 @@ const DESPACHOS_POR_CORRIDA = Number(process.env.ESTADOS_DESPACHOS_POR_CORRIDA) 
 const PAUSA_MIN_MS = Number(process.env.ESTADOS_PAUSA_MIN_MS) || 20_000;
 const PAUSA_MAX_MS = Math.max(PAUSA_MIN_MS, Number(process.env.ESTADOS_PAUSA_MAX_MS) || 60_000);
 const PRESUPUESTO_MS = 15 * 60 * 1000;
-const MAX_ARCHIVOS = 60; // por publicación
+/** Documentos que se leen por publicación (antes 60; 18 nov 2026: 20, menos carga al portal). */
+const MAX_ARCHIVOS = Number(process.env.ESTADOS_MAX_ARCHIVOS) || 20;
+/**
+ * Topes de la revisión (18 nov 2026, tras el bloqueo del VPS por volumen):
+ * juzgados revisados por hora y por noche, contando los pedidos. Antes del
+ * bloqueo se hacían 60-120 por hora; ahora máximo la mitad.
+ */
+const TOPE_HORA = Number(process.env.ESTADOS_TOPE_HORA) || 45;
+const TOPE_NOCHE = Number(process.env.ESTADOS_TOPE_NOCHE) || 450;
 const MAX_TEXTO_ARCHIVO = 60_000;
 
 // Una sola preparación por proceso, aunque lleguen varias páginas a la vez al arrancar.
@@ -573,6 +581,18 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
     );
     if (Number(p?.n ?? 0) === 0) return { omitido: "fuera del horario nocturno" };
   }
+  // Topes: por hora (siempre) y por noche (solo la revisión nocturna; los pedidos siguen).
+  let nocheLlena = false;
+  if (!opts.forzar) {
+    const [t] = await prisma.$queryRawUnsafe<{ hora: bigint; noche: bigint }[]>(
+      `SELECT count(*) FILTER (WHERE "revisadoAt" > now() - interval '1 hour') AS hora,
+              count(*) FILTER (WHERE "revisadoAt" >= $1) AS noche
+       FROM "EstadoDespacho"`,
+      inicioNoche(),
+    );
+    if (Number(t?.hora ?? 0) >= TOPE_HORA) return { omitido: `tope por hora (${TOPE_HORA} juzgados)` };
+    nocheLlena = Number(t?.noche ?? 0) >= TOPE_NOCHE;
+  }
   if (!(await tomarLock(opts.forzar ? 150 : 20))) return { omitido: "otra corrida en curso" };
   const inicio = Date.now();
   const info: Record<string, unknown>[] = [];
@@ -580,19 +600,27 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
     const segs = await seguimientos();
     const despachos = [...new Set(segs.map((s) => despachoDe(s.radicado)))];
     if (despachos.length === 0) return { despachos: 0 };
+    // Revisión por prioridad (18 nov 2026):
+    //  - Pedidos (radicados nuevos, "Actualizar"): primero, siempre.
+    //  - Nunca revisados, o activos (con publicaciones en su última revisión): cada noche.
+    //  - Quietos (sin publicaciones): día de por medio (si no se revisaron en ~36 h).
     const pendientes = opts.forzar
       ? despachos.map((despacho) => ({ despacho }))
       : await prisma.$queryRawUnsafe<{ despacho: string }[]>(
           `SELECT d.despacho FROM unnest($1::text[]) AS d(despacho)
            LEFT JOIN "EstadoDespacho" e ON e.despacho = d.despacho
-           WHERE (e."pedidoAt" IS NOT NULL OR ($4 AND (e."revisadoAt" IS NULL OR e."revisadoAt" < $2)))
+           WHERE (e."pedidoAt" IS NOT NULL OR ($4 AND (
+                    e."revisadoAt" IS NULL
+                    OR (coalesce(e.publicaciones, 0) > 0 AND e."revisadoAt" < $2)
+                    OR (coalesce(e.publicaciones, 0) = 0 AND e."revisadoAt" < $2::timestamptz - interval '24 hours'))))
              AND (e."errorAt" IS NULL OR e."errorAt" < now() - interval '1 hour')
-           ORDER BY e."pedidoAt" NULLS LAST, e."revisadoAt" NULLS FIRST
+           ORDER BY e."pedidoAt" NULLS LAST, (e."revisadoAt" IS NULL) DESC,
+                    (coalesce(e.publicaciones, 0) > 0) DESC, e."revisadoAt" NULLS FIRST
            LIMIT $3`,
           despachos,
           inicioNoche(),
           probando ? 1 : DESPACHOS_POR_CORRIDA,
-          deNoche,
+          deNoche && !nocheLlena,
         );
     const presupuesto = opts.forzar ? 140 * 60_000 : PRESUPUESTO_MS;
     const cola = [...pendientes];
