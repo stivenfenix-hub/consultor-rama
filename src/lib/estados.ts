@@ -274,6 +274,8 @@ export async function cambiarEstadosActivo(userId: string, valor: boolean) {
 
 /** Desde dónde se consulta el portal: "vps" (servicio de estados) u "hostinger" (la app). */
 export const SALIDA_ESTADOS = process.env.ESTADOS_SALIDA?.trim() || "hostinger";
+/** Primer 403: espera corta (puede ser un error suelto del portal). */
+const ESPERA_CORTA_MIN = 10;
 const PAUSA_BLOQUEO_H = 6;
 const REPRUEBA_H = 3;
 
@@ -298,26 +300,34 @@ async function pausadoHasta(): Promise<Date | null> {
 }
 
 async function registrarBloqueo(status: number) {
-  const [b] = await prisma.$queryRawUnsafe<{ hasta: Date }[]>(
+  // Escalera (18 nov 2026):
+  //  1er 403 (sin bloqueo vigente): espera corta de 10 min y reintenta (puede ser un error suelto).
+  //  2º 403 seguido: bloqueo real -> pausa de 6 h y aviso al root.
+  //  Después: una prueba cada 3 h hasta que responda.
+  const [b] = await prisma.$queryRawUnsafe<{ hasta: Date; intentos: number }[]>(
     `INSERT INTO "EstadoBloqueo" (salida, desde, hasta, intentos, status)
-     VALUES ($1, now(), now() + ($2 || ' hours')::interval, 1, $4)
+     VALUES ($1, now(), now() + ($2 || ' minutes')::interval, 1, $5)
      ON CONFLICT (salida) DO UPDATE SET
-       -- Bloqueo nuevo (el anterior ya se había levantado): 6 h y aviso otra vez.
-       -- Si sigue bloqueado tras la prueba: 1 h más.
        desde = CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN now() ELSE "EstadoBloqueo".desde END,
-       hasta = now() + (CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN $2 ELSE $3 END || ' hours')::interval,
+       hasta = now() + (CASE
+                 WHEN "EstadoBloqueo".levantado IS NOT NULL THEN $2 || ' minutes'
+                 WHEN "EstadoBloqueo".intentos = 1 THEN $3 || ' hours'
+                 ELSE $4 || ' hours' END)::interval,
        intentos = CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN 1 ELSE "EstadoBloqueo".intentos + 1 END,
        "avisadoAt" = CASE WHEN "EstadoBloqueo".levantado IS NOT NULL THEN NULL ELSE "EstadoBloqueo"."avisadoAt" END,
        levantado = NULL,
-       status = $4
-     RETURNING hasta`,
+       status = $5
+     RETURNING hasta, intentos`,
     SALIDA_ESTADOS,
+    String(ESPERA_CORTA_MIN),
     String(PAUSA_BLOQUEO_H),
     String(REPRUEBA_H),
     status,
   );
   cacheBloqueo = { hasta: b ? new Date(b.hasta) : null, hay: true, leido: Date.now() };
-  console.error(`[estados] portal bloqueó la salida ${SALIDA_ESTADOS} (${status}); en pausa hasta ${b?.hasta?.toISOString()}`);
+  console.error(
+    `[estados] portal respondió ${status} a la salida ${SALIDA_ESTADOS} (intento ${b?.intentos}); en pausa hasta ${b?.hasta?.toISOString()}`,
+  );
 }
 
 async function levantarBloqueo() {

@@ -25,7 +25,7 @@ export default async function AdminDashboard() {
   // Bloqueos activos del portal de estados (VPS / Hostinger).
   const bloqueos = (
     await Promise.all(["vps", "hostinger"].map((s) => bloqueoPortal(s).then((b) => (b ? { salida: s, ...b } : null)).catch(() => null)))
-  ).filter((b): b is NonNullable<typeof b> => !!b && !b.levantado);
+  ).filter((b): b is NonNullable<typeof b> => !!b && !b.levantado && b.intentos >= 2);
   const ramaCaida = !!rama && rama.fallas > 0;
   // El cron corre cada 5 minutos: si lleva más de 20 sin correr, nada se está revisando.
   const cronParado =

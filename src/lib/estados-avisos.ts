@@ -11,8 +11,8 @@ import { bloqueoPortal } from "./estados";
 export async function avisarBloqueosEstados() {
   await bloqueoPortal(); // asegura las tablas
   const filas = await prisma.$queryRawUnsafe<
-    { salida: string; hasta: Date; status: number | null; levantado: Date | null; avisadoAt: Date | null }[]
-  >(`SELECT salida, hasta, status, levantado, "avisadoAt" FROM "EstadoBloqueo"`);
+    { salida: string; hasta: Date; status: number | null; intentos: number; levantado: Date | null; avisadoAt: Date | null }[]
+  >(`SELECT salida, hasta, status, intentos, levantado, "avisadoAt" FROM "EstadoBloqueo"`);
   if (!filas.length) return 0;
   const admins = (await prisma.user.findMany({ where: { role: "admin" }, select: { id: true } })).map((u) => u.id);
   if (!admins.length) return 0;
@@ -22,7 +22,8 @@ export async function avisarBloqueosEstados() {
   const nombre = (s: string) => (s === "vps" ? "el VPS" : "Hostinger");
   let n = 0;
   for (const f of filas) {
-    if (!f.levantado && !f.avisadoAt) {
+    // Un 403 suelto (primer intento, espera de 10 min) no se avisa: solo el bloqueo real.
+    if (!f.levantado && !f.avisadoAt && f.intentos >= 2) {
       await sendPushToUsers(admins, {
         title: "⚠️ Estados electrónicos en pausa",
         body: `El portal de Publicaciones Procesales bloqueó ${nombre(f.salida)} (${f.status ?? "403"}). Pausamos las consultas hasta las ${hora(f.hasta)} y luego probamos una consulta cada 3 horas.`,
