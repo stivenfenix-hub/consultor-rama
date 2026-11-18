@@ -37,6 +37,19 @@ export { PLANTILLAS, plantillaPorId, renderizarPlantilla, camposFaltantes } from
  * Si ya firmaron todos, genera el PDF sellado. Es seguro llamarla varias
  * veces o desde dos firmas simultáneas: solo una la ejecuta.
  */
+/** Selfie del firmante -> PNG en escala de grises, recortado 3:4 (tipo foto de notaría). Null si falla. */
+async function fotoNotarial(clave: string): Promise<Uint8Array | null> {
+  try {
+    const { default: sharp } = await import("sharp");
+    const buf = await leerArchivo(clave);
+    const png = await sharp(buf).rotate().resize(240, 320, { fit: "cover", position: "attention" }).grayscale().normalise().png().toBuffer();
+    return new Uint8Array(png);
+  } catch (e) {
+    console.error("[firma] foto del firmante", e);
+    return null;
+  }
+}
+
 export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
   if (!(await tomarParaSellar(documentoId))) return false;
   try {
@@ -71,6 +84,8 @@ export async function sellarSiCompleto(documentoId: string): Promise<boolean> {
         identidad: f.identidad
           ? `${resumenIdentidad(f.identidad)} (${fechaIdentidad(f.identidadAt)}; comparación ${f.identidad.motor === "estradox" ? "automática en el dispositivo del firmante" : `de ${f.identidad.motor}`}).`
           : null,
+        // Foto del firmante (selfie de la verificación) en blanco y negro, como en las notarías.
+        foto: f.selfieUrl ? await fotoNotarial(f.selfieUrl) : null,
       });
     }
 

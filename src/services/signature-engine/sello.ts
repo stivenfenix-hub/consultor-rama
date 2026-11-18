@@ -28,6 +28,8 @@ export type FirmaParaSellar = {
   ip: string | null;
   /** Resumen de la verificación de identidad (cédula / rostro), si el documento la pidió. */
   identidad?: string | null;
+  /** Foto del firmante en blanco y negro (PNG 3:4), si hizo verificación con rostro. */
+  foto?: Uint8Array | null;
 };
 
 export type EventoCertificado = {
@@ -254,12 +256,24 @@ export async function anexarCertificado(doc: PDFDocument, d: DatosCertificado, h
   for (const [i, f] of d.firmas.entries()) {
     // Con verificación de identidad, el resumen va en renglones extra (en morado).
     const ident = f.identidad ? partir(f.identidad, normal, 8, util - 120 - 34).slice(0, 3) : [];
-    const ALTO = 74 + ident.length * 11;
+    // Con foto, la columna derecha lleva la foto (3:4) encima de la firma, como en las notarías.
+    const foto = f.foto ? await doc.embedPng(f.foto).catch(() => null) : null;
+    const FW = 66;
+    const FH = 88;
+    const ALTO = Math.max(74 + ident.length * 11, foto ? FH + 54 + 34 : 0);
     cabe(ALTO + 8);
     pagina.drawRectangle({ x: M, y: y - ALTO + 10, width: util, height: ALTO, color: FONDO, borderColor: LINEA, borderWidth: 0.7 });
     const png = await doc.embedPng(f.imagen);
     const cw = 120;
     const ch = 54;
+    if (foto) {
+      const fx = W - M - cw - 10 + (cw - FW) / 2;
+      const fy = y - ALTO + 20 + ch + 12;
+      pagina.drawRectangle({ x: fx - 2, y: fy - 2, width: FW + 4, height: FH + 4, color: rgb(1, 1, 1), borderColor: LINEA, borderWidth: 0.5 });
+      pagina.drawImage(foto, { x: fx, y: fy, width: FW, height: FH });
+      const lf = "Foto de verificación";
+      pagina.drawText(lf, { x: fx + FW / 2 - normal.widthOfTextAtSize(lf, 6) / 2, y: fy - 9, size: 6, font: normal, color: GRIS });
+    }
     const e = Math.min(cw / png.width, ch / png.height);
     pagina.drawRectangle({ x: W - M - cw - 10, y: y - ALTO + 20, width: cw, height: ch, color: rgb(1, 1, 1), borderColor: LINEA, borderWidth: 0.5 });
     pagina.drawImage(png, {
