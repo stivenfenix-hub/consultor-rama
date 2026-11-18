@@ -44,7 +44,8 @@ const num = (v: string | undefined, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : def;
 };
-const PAUSA_ENTRE_PROCESOS_MS = 20_000; // cola nocturna: un proceso cada 20 s
+// Cola nocturna: un proceso cada 19 s (18 nov 2026: antes 20 s; buscando el punto de equilibrio con la Rama).
+const PAUSA_ENTRE_PROCESOS_MS = num(process.env.SYNC_PAUSA_PROCESOS_MS, 19_000);
 const PAUSA_MIN_MS = num(process.env.SYNC_PAUSE_MIN_MS, 1500);
 const PAUSA_MAX_MS = num(process.env.SYNC_PAUSE_MAX_MS, 3000);
 const PRESUPUESTO_MS = num(process.env.SYNC_BUDGET_MS, 240_000); // por corrida de 5 min
@@ -420,7 +421,7 @@ async function procesarCola(): Promise<ResultadoLote> {
   const pendientes = [...grupos.values()];
 
   // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
-  // vez y 20 s entre uno y otro (~10 por corrida de 5 min, ~120 por hora).
+  // vez y 19 s entre uno y otro (~10 por corrida de 5 min, ~125 por hora).
   const trabajador = async () => {
     while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS - PAUSA_ENTRE_PROCESOS_MS) {
       const grupo = pendientes.shift();
