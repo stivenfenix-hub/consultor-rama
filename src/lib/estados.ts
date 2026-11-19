@@ -401,11 +401,11 @@ async function buscarPublicaciones(
 }
 
 // El 504 lo da el propio portal cuando su servidor interno se demora: esperar
-// más no sirve. Se reintenta enseguida, con una búsqueda más liviana.
-const REINTENTOS_LIVIANOS = [
-  { esperaMs: 45_000, dias: 3, porPagina: 20, timeoutMs: 120_000 },
-  { esperaMs: 60_000, dias: 3, porPagina: 20, timeoutMs: 120_000 },
-];
+// más no sirve. Se reintenta una sola vez, casi enseguida, con una búsqueda más
+// liviana; si vuelve a fallar se pasa al siguiente juzgado (este se reintenta en
+// ~1 hora). 19 nov 2026: antes eran 2 reintentos con 45 y 60 s de espera
+// (hasta ~10 min perdidos por cada 504).
+const REINTENTOS_LIVIANOS = [{ esperaMs: 10_000, dias: 3, porPagina: 20, timeoutMs: 90_000 }];
 
 /** Un 4xx no mejora reintentando; un 5xx, un timeout o un corte de red sí. */
 const vale_reintentar = (e: unknown) => !/respondió 4\d\d/.test(e instanceof Error ? e.message : String(e));
