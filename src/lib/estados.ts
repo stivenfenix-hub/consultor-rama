@@ -29,10 +29,10 @@ const NOCHE_DESDE = 18 * 60; // 6:00 p. m. (minutos, hora de Bogotá): inicio de
 const DESPACHOS_POR_CORRIDA = Number(process.env.ESTADOS_DESPACHOS_POR_CORRIDA) || 2;
 /**
  * Pausa al azar entre un despacho y otro (como una persona, no un robot).
- * Por defecto 15 a 35 s (19 nov 2026; antes 20 a 60 s): se va ajustando para encontrar el equilibrio con el portal.
+ * Por defecto 15 a 25 s (19 nov 2026; antes 15 a 35 y 20 a 60 s): se va ajustando para encontrar el equilibrio con el portal.
  */
 const PAUSA_MIN_MS = Number(process.env.ESTADOS_PAUSA_MIN_MS) || 15_000;
-const PAUSA_MAX_MS = Math.max(PAUSA_MIN_MS, Number(process.env.ESTADOS_PAUSA_MAX_MS) || 35_000);
+const PAUSA_MAX_MS = Math.max(PAUSA_MIN_MS, Number(process.env.ESTADOS_PAUSA_MAX_MS) || 25_000);
 const PRESUPUESTO_MS = 15 * 60 * 1000;
 /** Documentos por publicación: todos (tope de seguridad 300); a cambio, se descargan más despacio (ver PAUSA_PDF). */
 const MAX_ARCHIVOS = Number(process.env.ESTADOS_MAX_ARCHIVOS) || 300;
