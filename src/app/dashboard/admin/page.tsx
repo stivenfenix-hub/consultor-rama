@@ -57,9 +57,10 @@ export default async function AdminDashboard() {
         <StatTile label="Actuaciones totales" value={s.totalActuaciones} />
         <StatTile label="Administradores" value={s.admins} />
         <StatTile
-          label="No verificados"
-          value={s.totalUsuarios - s.verificados}
-          accent={s.totalUsuarios - s.verificados > 0 ? "var(--amber)" : undefined}
+          label="Ingresos por suscripciones"
+          value={`$${s.suscripciones.total.toLocaleString("es-CO")}`}
+          accent="var(--green)"
+          hint={`${s.suscripciones.pagos} pago(s) aprobados por Bold`}
         />
       </section>
 

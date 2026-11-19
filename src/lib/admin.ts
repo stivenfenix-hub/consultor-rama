@@ -14,6 +14,7 @@ export async function getAdminStats() {
     totalProcesos,
     totalActuaciones,
     admins,
+    suscripciones,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { emailVerified: { not: null } } }),
@@ -22,6 +23,14 @@ export async function getAdminStats() {
     prisma.case.count(),
     prisma.actuacion.count(),
     prisma.user.count({ where: { role: "admin" } }),
+    // Total cobrado por suscripciones (planes y procesos adicionales): pagos Bold aprobados, sin las firmas.
+    prisma
+      .$queryRawUnsafe<{ total: bigint | null; pagos: bigint }[]>(
+        `SELECT sum(amount) AS total, count(*) AS pagos FROM "BoldPayment"
+         WHERE status = 'PAID' AND coalesce(tipo, 'plan') <> 'firma' AND coalesce("paymentId", '') <> 'simulado'`,
+      )
+      .then(([r]) => ({ total: Number(r?.total ?? 0), pagos: Number(r?.pagos ?? 0) }))
+      .catch(() => ({ total: 0, pagos: 0 })),
   ]);
 
   return {
@@ -32,6 +41,7 @@ export async function getAdminStats() {
     totalProcesos,
     totalActuaciones,
     admins,
+    suscripciones,
   };
 }
 
