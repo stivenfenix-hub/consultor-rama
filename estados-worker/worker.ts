@@ -1,9 +1,10 @@
 /**
  * Servicio de estados electrónicos de Estradox (corre en el VPS, no en Hostinger).
  *
- * Usa el mismo código de la app (src/lib/estados.ts): de noche revisa cada
- * juzgado una vez y lee su último estado; de día solo atiende los juzgados
- * pedidos (radicados recién agregados o "Revisar ahora" del root). Los
+ * Usa el mismo código de la app (src/lib/estados.ts): revisa las 24 horas, en
+ * ciclos que empiezan a las 6 p. m. de cada día hábil, cada juzgado una vez por
+ * ciclo y su último estado; los pedidos (radicados recién agregados o
+ * "Actualizar") van primero a cualquier hora. Los
  * hallazgos quedan en la base y salen en el resumen de las 7 a. m. (correo,
  * WhatsApp y notificación), que sigue enviando la app.
  *
@@ -36,7 +37,7 @@ while (!parar) {
   try {
     const info = await revisarEstados();
     if ("omitido" in info) {
-      if (info.omitido !== "fuera del horario nocturno") log(`omitido: ${info.omitido}`);
+      if (!String(info.omitido).startsWith("ciclo no hábil")) log(`omitido: ${info.omitido}`);
     } else {
       hubo = (info.revisados?.length ?? 0) > 0;
       if (hubo) log(`revisados ${info.revisados!.length} de ${info.despachos} juzgados`, info.revisados);

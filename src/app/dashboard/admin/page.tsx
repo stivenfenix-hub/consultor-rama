@@ -179,8 +179,10 @@ export default async function AdminDashboard() {
         <section className="card">
           <h2>Estados electrónicos</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
-            Los revisa el servidor VPS (no Hostinger): de 6:00 p.m. a 6:45 a.m., los juzgados activos cada noche y los quietos día de por medio (máx. 45 por hora y 450 por noche), solo su
-            último estado; de día, los juzgados pedidos. Lo que encuentra sale en el resumen de las 7:00 a.m.{" "}
+            Los revisa el servidor VPS (no Hostinger) las 24 horas, en ciclos que empiezan a las 6:00 p.m. de cada día
+            hábil: los juzgados activos cada ciclo y los quietos ciclo de por medio (máx. 45 por hora y 1.080 por
+            ciclo), solo su último estado. Los pedidos («Actualizar», radicados nuevos) van primero, a cualquier hora.
+            Lo que encuentra sale en el resumen de las 7:00 a.m.{" "}
             {estados.usuarios} usuario(s) con estados · {estados.radicados} radicado(s) vigilado(s).
           </p>
           {bloqueos.map((b) => (
@@ -195,8 +197,9 @@ export default async function AdminDashboard() {
           ))}
           <div className="stat-grid">
             <StatTile
-              label="Juzgados revisados esta noche"
+              label="Revisados desde las 6 p.m."
               value={`${estados.revisados} / ${estados.despachos}`}
+              hint={`Faltan ${estados.porRevisar} por revisar en este ciclo (los quietos van ciclo de por medio)`}
               accent="var(--green)"
             />
             <StatTile label="Pedidos por revisar" value={estados.pedidos} />
@@ -206,7 +209,7 @@ export default async function AdminDashboard() {
               accent={estados.conError > 0 ? "var(--amber)" : undefined}
             />
             <StatTile
-              label="Encontrados esta noche"
+              label="Encontrados desde las 6 p.m."
               value={estados.hallazgosNoche}
               accent="var(--accent)"
             />

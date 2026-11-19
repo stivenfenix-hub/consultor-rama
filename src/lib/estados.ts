@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
-import { nocheHabil } from "./dias-habiles";
+import { esDiaHabil } from "./dias-habiles";
 
 // ---------- Estados electrónicos (Publicaciones Procesales) ----------
 // Muchos juzgados publican sus estados solo en publicacionesprocesales.ramajudicial.gov.co,
@@ -12,9 +12,11 @@ import { nocheHabil } from "./dias-habiles";
 //
 // El portal es lento (una búsqueda tarda ~4 min y a veces da 504). Desde el
 // 7 nov 2026 es para TODOS los usuarios (el root puede apagarlo a alguno) y lo
-// corre el VPS (estados-worker), con su propia IP, no Hostinger: de noche
-// (6 p. m. a 6:45 a. m.) cada despacho una vez y solo su último estado; de día
-// solo los despachos pedidos (radicados recién agregados o "Revisar ahora").
+// corre el VPS (estados-worker), con su propia IP, no Hostinger. Desde el 18 nov
+// 2026 revisa las 24 horas en ciclos que empiezan a las 6 p. m. de cada día hábil
+// (y siguen hasta las 6 p. m. del día siguiente): cada despacho una vez por ciclo,
+// solo su último estado, al mismo ritmo pausado y con los mismos topes por hora.
+// Los pedidos (radicados recién agregados, "Actualizar") se atienden siempre.
 
 const BASE = "https://publicacionesprocesales.ramajudicial.gov.co";
 const PORTLET = "co_com_avanti_efectosProcesales_PublicacionesEfectosProcesalesPortletV2_INSTANCE_BIyXQFHVaYaq";
@@ -22,13 +24,12 @@ const NS = `_${PORTLET}`;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
 const DIAS_ATRAS = 7; // ventana de búsqueda (de ahí solo se toma el último estado)
-const NOCHE_DESDE = 18 * 60; // 6:00 p. m. (minutos, hora de Bogotá)
-const NOCHE_HASTA = 6 * 60 + 45; // 6:45 a. m.
+const NOCHE_DESDE = 18 * 60; // 6:00 p. m. (minutos, hora de Bogotá): inicio de cada ciclo
 // En el VPS se ajustan con variables de entorno (ver estados-worker).
 const DESPACHOS_POR_CORRIDA = Number(process.env.ESTADOS_DESPACHOS_POR_CORRIDA) || 2;
 /**
  * Pausa al azar entre un despacho y otro (como una persona, no un robot).
- * Por defecto 20 a 60 s: los ~730 juzgados caben en la noche (6 p. m. a 6:45 a. m.).
+ * Por defecto 20 a 60 s.
  */
 const PAUSA_MIN_MS = Number(process.env.ESTADOS_PAUSA_MIN_MS) || 20_000;
 const PAUSA_MAX_MS = Math.max(PAUSA_MIN_MS, Number(process.env.ESTADOS_PAUSA_MAX_MS) || 60_000);
@@ -40,11 +41,11 @@ const PAUSA_PDF_MIN_MS = Number(process.env.ESTADOS_PAUSA_PDF_MIN_MS) || 4_000;
 const PAUSA_PDF_MAX_MS = Math.max(PAUSA_PDF_MIN_MS, Number(process.env.ESTADOS_PAUSA_PDF_MAX_MS) || 8_000);
 /**
  * Topes de la revisión (18 nov 2026, tras el bloqueo del VPS por volumen):
- * juzgados revisados por hora y por noche, contando los pedidos. Antes del
- * bloqueo se hacían 60-120 por hora; ahora máximo la mitad.
+ * juzgados revisados por hora y por ciclo de 24 h, contando los pedidos. Antes
+ * del bloqueo se hacían 60-120 por hora; ahora máximo la mitad. 45 x 24 = 1.080.
  */
 const TOPE_HORA = Number(process.env.ESTADOS_TOPE_HORA) || 45;
-const TOPE_NOCHE = Number(process.env.ESTADOS_TOPE_NOCHE) || 450;
+const TOPE_CICLO = Number(process.env.ESTADOS_TOPE_DIA) || 1080;
 const MAX_TEXTO_ARCHIVO = 60_000;
 
 // Una sola preparación por proceso, aunque lleguen varias páginas a la vez al arrancar.
@@ -558,7 +559,7 @@ async function soltarLock() {
 }
 
 /** Lo llama el cron cada 5 min: revisa los despachos que ya toca y avisa lo que encuentre. */
-/** Inicio (6 p. m. de Bogotá) de la noche en curso o de la última. */
+/** Inicio (6 p. m. de Bogotá) del ciclo de 24 h en curso. */
 function inicioNoche(): Date {
   const BOG = 5 * 3600_000;
   const local = new Date(Date.now() - BOG);
@@ -568,17 +569,21 @@ function inicioNoche(): Date {
   return new Date(noche + BOG);
 }
 
+/** ¿El ciclo en curso empezó la tarde de un día hábil? (sábado, domingo y festivos los juzgados no publican). */
+function cicloHabil(): boolean {
+  // 6 p. m. de Bogotá expresadas como fecha UTC del mismo día: sirve para esDiaHabil.
+  return esDiaHabil(new Date(inicioNoche().getTime() - 5 * 3600_000));
+}
+
 /**
- * Lo llama el cron cada 5 min: de noche revisa los despachos que aún no se
- * revisaron en esta noche. `forzar` (botón del root) corre ya, a cualquier
+ * Lo llama el cron cada 5 min: revisa (24 h) los despachos que aún no se
+ * revisaron en este ciclo. `forzar` (botón del root) corre ya, a cualquier
  * hora, todos los despachos de una vez (de a 2 en paralelo).
  */
 export async function revisarEstados(opts: { forzar?: boolean } = {}) {
-  const ahora = new Date(Date.now() - 5 * 3600_000); // Bogotá (UTC-5)
-  const m = ahora.getUTCHours() * 60 + ahora.getUTCMinutes();
-  // Sábado, domingo y festivos no hay revisión nocturna (los juzgados no publican);
-  // los pedidos de radicados recién agregados sí se atienden.
-  const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA) && nocheHabil();
+  // Ciclos que empiezan sábado, domingo o festivo no tienen revisión general
+  // (los juzgados no publican); los pedidos de radicados recién agregados sí se atienden.
+  const enCiclo = cicloHabil();
   await asegurarTablas();
   // Freno: si el portal bloqueó esta salida, no se consulta hasta que pase la pausa;
   // después, una sola consulta de prueba por vez hasta que vuelva a responder.
@@ -587,15 +592,15 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
     return { omitido: `portal bloqueado (${bloqueo.status}); en pausa hasta ${new Date(bloqueo.hasta).toISOString()}` };
   }
   const probando = !!bloqueo && !bloqueo.levantado;
-  // De día solo se atienden los pedidos (radicados recién agregados).
-  if (!opts.forzar && !deNoche) {
+  // Fuera de un ciclo hábil solo se atienden los pedidos (radicados recién agregados).
+  if (!opts.forzar && !enCiclo) {
     const [p] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
       `SELECT count(*) AS n FROM "EstadoDespacho" WHERE "pedidoAt" IS NOT NULL`,
     );
-    if (Number(p?.n ?? 0) === 0) return { omitido: "fuera del horario nocturno" };
+    if (Number(p?.n ?? 0) === 0) return { omitido: "ciclo no hábil (fin de semana o festivo)" };
   }
-  // Topes: por hora (siempre) y por noche (solo la revisión nocturna; los pedidos siguen).
-  let nocheLlena = false;
+  // Topes: por hora (siempre) y por ciclo (solo la revisión general; los pedidos siguen).
+  let cicloLleno = false;
   if (!opts.forzar) {
     const [t] = await prisma.$queryRawUnsafe<{ hora: bigint; noche: bigint }[]>(
       `SELECT count(*) FILTER (WHERE "revisadoAt" > now() - interval '1 hour') AS hora,
@@ -604,7 +609,7 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
       inicioNoche(),
     );
     if (Number(t?.hora ?? 0) >= TOPE_HORA) return { omitido: `tope por hora (${TOPE_HORA} juzgados)` };
-    nocheLlena = Number(t?.noche ?? 0) >= TOPE_NOCHE;
+    cicloLleno = Number(t?.noche ?? 0) >= TOPE_CICLO;
   }
   if (!(await tomarLock(opts.forzar ? 150 : 20))) return { omitido: "otra corrida en curso" };
   const inicio = Date.now();
@@ -615,8 +620,8 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
     if (despachos.length === 0) return { despachos: 0 };
     // Revisión por prioridad (18 nov 2026):
     //  - Pedidos (radicados nuevos, "Actualizar"): primero, siempre.
-    //  - Nunca revisados, o activos (con publicaciones en su última revisión): cada noche.
-    //  - Quietos (sin publicaciones): día de por medio (si no se revisaron en ~36 h).
+    //  - Nunca revisados, o activos (con publicaciones en su última revisión): cada ciclo.
+    //  - Quietos (sin publicaciones): ciclo de por medio.
     const pendientes = opts.forzar
       ? despachos.map((despacho) => ({ despacho }))
       : await prisma.$queryRawUnsafe<{ despacho: string }[]>(
@@ -633,7 +638,7 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
           despachos,
           inicioNoche(),
           probando ? 1 : DESPACHOS_POR_CORRIDA,
-          deNoche && !nocheLlena,
+          enCiclo && !cicloLleno,
         );
     const presupuesto = opts.forzar ? 140 * 60_000 : PRESUPUESTO_MS;
     const cola = [...pendientes];
@@ -654,7 +659,7 @@ export async function revisarEstados(opts: { forzar?: boolean } = {}) {
   }
 }
 
-/** Resumen para el Panel admin (sincronización nocturna): cómo va la revisión de estados de esta noche. */
+/** Resumen para el Panel admin: cómo va la revisión de estados del ciclo en curso (desde las 6 p. m.). */
 export async function estadoEstadosNoche() {
   await asegurarTablas();
   const desde = inicioNoche();
@@ -689,16 +694,25 @@ export async function estadoEstadosNoche() {
   const ultimaActividad = [d?.ultima, d?.ultimoError]
     .filter((x): x is Date => !!x)
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
-  // ¿El VPS se detuvo? Hay trabajo (pedidos, o noche hábil sin terminar) y nada
-  // se ha revisado ni fallado en 20 minutos.
-  const bog = new Date(Date.now() - 5 * 3600_000);
-  const m = bog.getUTCHours() * 60 + bog.getUTCMinutes();
-  const deNoche = !(m < NOCHE_DESDE && m >= NOCHE_HASTA) && nocheHabil();
-  const hayTrabajo = Number(d?.pedidos ?? 0) > 0 || (deNoche && Number(d?.revisados ?? 0) < despachos.length);
+  // ¿El VPS se detuvo? Hay trabajo (pedidos, o juzgados que aún tocan en este
+  // ciclo hábil, con el mismo criterio de revisarEstados) y nada se ha revisado
+  // ni fallado en 20 minutos.
+  const [pend] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(*) AS n FROM unnest($1::text[]) AS d(despacho)
+     LEFT JOIN "EstadoDespacho" e ON e.despacho = d.despacho
+     WHERE (e."revisadoAt" IS NULL
+            OR (coalesce(e.publicaciones, 0) > 0 AND e."revisadoAt" < $2)
+            OR (coalesce(e.publicaciones, 0) = 0 AND e."revisadoAt" < $2::timestamptz - interval '24 hours'))
+       AND (e."errorAt" IS NULL OR e."errorAt" < now() - interval '1 hour')`,
+    despachos,
+    desde,
+  );
+  const hayTrabajo = Number(d?.pedidos ?? 0) > 0 || (cicloHabil() && Number(pend?.n ?? 0) > 0);
   const quieto = !ultimaActividad || Date.now() - new Date(ultimaActividad).getTime() > 20 * 60_000;
   return {
     desde,
     detenido: hayTrabajo && quieto,
+    porRevisar: Number(pend?.n ?? 0),
     usuarios: Number(u?.n ?? 0),
     radicados: segs.length,
     despachos: despachos.length,
