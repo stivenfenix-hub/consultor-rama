@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { cookies, headers } from "next/headers";
-import { COOKIE_REGISTRO, META_PIXEL_ID } from "./meta-pixel-config";
+import { COOKIE_REGISTRO, META_PIXEL_ID, nombreCompra } from "./meta-pixel-config";
 
 /**
  * Marca que se acaba de crear una cuenta:
@@ -34,6 +34,84 @@ export async function marcarRegistroNuevo(userId: string) {
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
+
+export type DatosMeta = { fbc?: string; fbp?: string; ip?: string; ua?: string };
+
+/**
+ * Datos de Meta del navegador que hace la petición (cookies _fbc/_fbp, IP y
+ * navegador). Fuera de una petición (cron, webhook) devuelve {}.
+ */
+export async function datosMetaDeLaPeticion(): Promise<DatosMeta> {
+  try {
+    const jar = await cookies();
+    const h = await headers();
+    return {
+      fbc: jar.get("_fbc")?.value,
+      fbp: jar.get("_fbp")?.value,
+      ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || h.get("cf-connecting-ip") || undefined,
+      ua: h.get("user-agent") ?? undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Purchase por Conversions API (20 nov 2026) al acreditarse un pago de Bold, con el
+ * valor real cobrado: así el ROAS de Meta se calcula con plata que entró. El
+ * event_id "compra-<link>" es el mismo que dispara el píxel en /dashboard/suscripcion.
+ * Los datos de Meta se guardaron al crear el link (el webhook de Bold no los trae).
+ */
+export async function enviarCompraCapi(c: {
+  linkId: string;
+  userId: string;
+  valor: number;
+  tipo: string;
+  datos: DatosMeta | null;
+}) {
+  const token = process.env.META_CAPI_ACCESS_TOKEN;
+  const prueba = !!process.env.META_TEST_EVENT_CODE;
+  const etiqueta = `compra ${c.linkId}`;
+  if (!token) return registrarCapi(etiqueta, prueba, false, null, "sin META_CAPI_ACCESS_TOKEN");
+  const d = c.datos ?? {};
+  const evento = {
+    event_name: "Purchase",
+    event_time: Math.floor(Date.now() / 1000),
+    event_id: `compra-${c.linkId}`,
+    action_source: "website",
+    event_source_url: "https://app.estradox.com/dashboard/suscripcion",
+    user_data: {
+      external_id: [sha256(c.userId)],
+      country: [sha256("co")],
+      ...(d.ip && { client_ip_address: d.ip }),
+      ...(d.ua && { client_user_agent: d.ua }),
+      ...(d.fbc && { fbc: d.fbc }),
+      ...(d.fbp && { fbp: d.fbp }),
+    },
+    custom_data: { content_name: nombreCompra(c.tipo), content_type: "product", currency: "COP", value: c.valor },
+  };
+  try {
+    const r = await fetch(`https://graph.facebook.com/v21.0/${META_PIXEL_ID}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: [evento],
+        access_token: token,
+        ...(process.env.META_TEST_EVENT_CODE && { test_event_code: process.env.META_TEST_EVENT_CODE }),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const texto = (await r.text()).slice(0, 500);
+    if (!r.ok) console.error("[meta-capi] Purchase", r.status, texto);
+    await registrarCapi(etiqueta, prueba, true, r.status, texto);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[meta-capi] Purchase", msg);
+    await registrarCapi(etiqueta, prueba, true, null, msg);
+  }
+}
+
+
 
 /**
  * CompleteRegistration por Conversions API. Sin META_CAPI_ACCESS_TOKEN no hace nada.

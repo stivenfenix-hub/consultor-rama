@@ -1,6 +1,16 @@
 import "server-only";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
+import { datosMetaDeLaPeticion, enviarCompraCapi, type DatosMeta } from "./meta-registro";
+
+/** Guarda en el link de pago los datos de Meta del navegador que lo pidió (para Purchase). */
+async function guardarDatosMeta(linkId: string) {
+  const d = await datosMetaDeLaPeticion();
+  if (!Object.values(d).some(Boolean)) return;
+  await prisma
+    .$executeRawUnsafe(`UPDATE "BoldPayment" SET meta = $1::jsonb WHERE id = $2`, JSON.stringify(d), linkId)
+    .catch((e) => console.error("[bold] datos de Meta", e));
+}
 
 // Suscripción: prueba gratis de N días y luego plan mensual pagado con Bold
 // (link de pago: tarjeta, PSE, Nequi, Botón Bancolombia). Bold no cobra
@@ -106,6 +116,8 @@ async function ensureSchema() {
   await ensureColumn("BoldPayment", "recordatorios", "INTEGER NOT NULL DEFAULT 0");
   // Pago de un envío de Firma Electrónica (tipo "firma"): el documento que paga.
   await ensureColumn("BoldPayment", "firmaId", "TEXT");
+  // Datos del navegador para Meta (Purchase por Conversions API), guardados al crear el link.
+  await ensureColumn("BoldPayment", "meta", "JSONB");
   // Un renglón por usuario y corte mensual: los adicionales de ese mes que no
   // cubría su paquete. "paymentId" es el link que los cobra (NULL: aún sin cobrar).
   await prisma.$executeRawUnsafe(`
@@ -782,6 +794,7 @@ export async function crearLinkDePago(user: { id: string; email: string }, meses
     meses,
     uso.adicionales,
   );
+  await guardarDatosMeta(link.id);
   if (atrasados.cortes.length) {
     await prisma.$executeRawUnsafe(
       `UPDATE "AdicionalMes" SET "paymentId" = $2 WHERE "userId" = $1 AND corte = ANY($3::timestamptz[])`,
@@ -826,6 +839,7 @@ export async function crearLinkFirma(
     link.url,
     firma.id,
   );
+  await guardarDatosMeta(link.id);
   return link;
 }
 
@@ -883,8 +897,8 @@ export async function confirmarPago(
 ): Promise<boolean> {
   await ensureSchema();
   const [pago] = await prisma.$queryRawUnsafe<
-    { id: string; userId: string; status: string; amount: number; meses: number; tipo: string }[]
-  >(`SELECT id, "userId", status, amount, meses, tipo FROM "BoldPayment" WHERE id = $1`, linkId);
+    { id: string; userId: string; status: string; amount: number; meses: number; tipo: string; meta: DatosMeta | null }[]
+  >(`SELECT id, "userId", status, amount, meses, tipo, meta FROM "BoldPayment" WHERE id = $1`, linkId);
   if (!pago || pago.status === "PAID") return false;
 
   const j = await bold(`/online/link/v1/${encodeURIComponent(linkId)}`);
@@ -934,6 +948,9 @@ export async function confirmarPago(
   if (pago.tipo === "firma") await alAprobarFirma(linkId);
   else if (pago.tipo !== "adicionales") await extenderAcceso(pago.userId, { meses: pago.meses || 1 });
   console.log(`[bold] pago ${linkId} acreditado a ${pago.userId}`);
+  // Conversión para Meta Ads con el valor cobrado (no en pagos de prueba de Bold).
+  if (!info.is_sandbox && webhook?.firma !== "prueba")
+    void enviarCompraCapi({ linkId, userId: pago.userId, valor: pago.amount, tipo: pago.tipo, datos: pago.meta });
   return true;
 }
 

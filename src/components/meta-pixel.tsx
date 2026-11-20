@@ -95,3 +95,30 @@ fbq('init','${META_PIXEL_ID}');fbq('track','PageView');`}
     </>
   );
 }
+
+/**
+ * Purchase en el navegador al volver de Bold con el pago aprobado. Mismo eventID
+ * que el servidor ("compra-<link>"): Meta cuenta uno. Se recuerda en el navegador
+ * para no repetirlo si recarga la página.
+ */
+export function PixelCompra({ id, valor, nombre }: { id: string; valor: number; nombre: string }) {
+  useEffect(() => {
+    const clave = `estradox_compra_${id}`;
+    try {
+      if (localStorage.getItem(clave)) return;
+      localStorage.setItem(clave, "1");
+    } catch {
+      // sin almacenamiento: Meta igual deduplica por eventID
+    }
+    let intentos = 0;
+    const enviar = () => {
+      if (!(window as unknown as { fbq?: Fbq }).fbq) {
+        if (++intentos < 40) setTimeout(enviar, 250);
+        return;
+      }
+      fbq("track", "Purchase", { content_name: nombre, content_type: "product", currency: "COP", value: valor }, { eventID: `compra-${id}` });
+    };
+    enviar();
+  }, [id, valor, nombre]);
+  return null;
+}

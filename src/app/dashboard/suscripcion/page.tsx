@@ -9,6 +9,8 @@ import {
   verificarPagosPendientes,
 } from "@/lib/subscription";
 import { PricingCards } from "./pay-button";
+import { PixelCompra } from "@/components/meta-pixel";
+import { nombreCompra } from "@/lib/meta-pixel-config";
 
 const TZ = "America/Bogota";
 const fecha = (d: Date | null) =>
@@ -65,6 +67,9 @@ export default async function SuscripcionPage({
         <h1>Suscripción</h1>
       </div>
 
+      {pagoRecienAprobado && ultimoAprobado && (
+        <PixelCompra id={ultimoAprobado.id} valor={ultimoAprobado.amount} nombre={nombreCompra(ultimoAprobado.tipo)} />
+      )}
       {pago && (
         <div className={pagoRecienAprobado ? "ok" : "muted small"} style={{ marginBottom: 12 }}>
           {pagoRecienAprobado
