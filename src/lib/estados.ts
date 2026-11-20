@@ -453,7 +453,7 @@ type Archivo = { nombre: string; url: string; texto: string; imagen?: boolean };
 export type DocEstado = { nombre: string; url: string };
 
 /** Abre una publicación y lee el texto de sus archivos (y de la página misma). */
-async function leerPublicacion(id: string): Promise<Archivo[]> {
+async function leerPublicacion(id: string, rotulo = id): Promise<Archivo[]> {
   const p = new URLSearchParams({
     p_p_id: PORTLET,
     p_p_lifecycle: "0",
@@ -476,11 +476,21 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
 
   const vistos = new Set<string>();
   const re = /<a[^>]*href="((?:\/c\/document_library\/get_file\?[^"]+)|(?:\/documents\/\d+\/\d+\/[^"]+))"[^>]*>([\s\S]*?)<\/a>/g;
+  const enlaces: { ruta: string; m: RegExpMatchArray }[] = [];
   for (const m of html.matchAll(re)) {
     const ruta = decodificar(m[1]);
     if (ruta.startsWith("/documents/20135/") || vistos.has(ruta)) continue; // logos e instructivos del portal
     vistos.add(ruta);
-    if (vistos.size > MAX_ARCHIVOS) break;
+    if (enlaces.length >= MAX_ARCHIVOS) break;
+    enlaces.push({ ruta, m });
+  }
+  // Avance en el log (19 nov 2026): un estado grande puede tardar 20+ min y, sin
+  // esto, el log del VPS no dice nada hasta que termina la corrida.
+  const inicioLectura = Date.now();
+  const grande = enlaces.length >= 10;
+  if (grande) console.log(`[estados] ${rotulo}: leyendo ${enlaces.length} PDFs`);
+  for (const [i, { ruta, m }] of enlaces.entries()) {
+    if (grande && i > 0 && i % 25 === 0) console.log(`[estados] ${rotulo}: ${i} de ${enlaces.length} PDFs`);
     const nombre = decodificar(m[2].replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim() || "Documento";
     const url = BASE + ruta;
     try {
@@ -495,6 +505,10 @@ async function leerPublicacion(id: string): Promise<Archivo[]> {
     // Pausa al azar entre un PDF y otro.
     await esperar(azar(PAUSA_PDF_MIN_MS, PAUSA_PDF_MAX_MS));
   }
+  if (grande)
+    console.log(
+      `[estados] ${rotulo}: ${enlaces.length} PDFs leídos en ${Math.round((Date.now() - inicioLectura) / 60_000)} min`,
+    );
   return archivos;
 }
 
@@ -785,7 +799,7 @@ async function revisarDespacho(despacho: string) {
   let nuevas = 0;
   for (const it of ya || !ultimo ? [] : [ultimo]) {
     try {
-      const archivos = await leerPublicacion(it.id);
+      const archivos = await leerPublicacion(it.id, `juzgado ${despacho}, estado del ${it.fecha ?? "?"}`);
       await prisma.$executeRawUnsafe(
         `INSERT INTO "EstadoPublicacion" (id, despacho, titulo, fecha, archivos) VALUES ($1, $2, $3, $4::date, $5::jsonb)
          ON CONFLICT (id) DO NOTHING`,
