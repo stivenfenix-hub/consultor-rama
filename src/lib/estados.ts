@@ -44,7 +44,8 @@ const PAUSA_PDF_MAX_MS = Math.max(PAUSA_PDF_MIN_MS, Number(process.env.ESTADOS_P
  * juzgados revisados por hora y por ciclo de 24 h, contando los pedidos. Antes
  * del bloqueo se hacían 60-120 por hora; ahora máximo la mitad. 45 x 24 = 1.080.
  */
-const TOPE_HORA = Number(process.env.ESTADOS_TOPE_HORA) || 45;
+/** Tope de juzgados por hora (19 nov 2026: 90; antes 45). Si sale un 403, volver a 45. */
+const TOPE_HORA = Number(process.env.ESTADOS_TOPE_HORA) || 90;
 const TOPE_CICLO = Number(process.env.ESTADOS_TOPE_DIA) || 1080;
 const MAX_TEXTO_ARCHIVO = 60_000;
 

@@ -181,7 +181,7 @@ export default async function AdminDashboard() {
           <h2>Estados electrónicos</h2>
           <p className="muted small" style={{ marginTop: 0 }}>
             Los revisa el servidor VPS (no Hostinger) las 24 horas, en ciclos que empiezan a las 6:00 p.m. de cada día
-            hábil: los juzgados activos cada ciclo y los quietos ciclo de por medio (máx. 45 por hora y 1.080 por
+            hábil: los juzgados activos cada ciclo y los quietos ciclo de por medio (máx. 90 por hora y 1.080 por
             ciclo), solo su último estado. Los pedidos («Actualizar», radicados nuevos) van primero, a cualquier hora.
             Lo que encuentra sale en el resumen de las 7:00 a.m.{" "}
             {estados.usuarios} usuario(s) con estados · {estados.radicados} radicado(s) vigilado(s).
