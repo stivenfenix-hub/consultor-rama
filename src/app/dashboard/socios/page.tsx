@@ -63,11 +63,16 @@ export default async function PortalSocios({
       )}
 
       <section className="stat-grid">
-        <StatTile
-          label="Usuarios registrados"
-          value={usuarios.total.toLocaleString("es-CO")}
-          hint={`${usuarios.nuevosMes} nuevos este mes`}
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <StatTile
+            label="Usuarios registrados"
+            value={usuarios.total.toLocaleString("es-CO")}
+            hint={`${usuarios.nuevosMes} nuevos este mes`}
+          />
+          <Link prefetch={false} href="/dashboard/socios/usuarios" className="btn secondary small">
+            Ver usuarios y vencimiento de la prueba
+          </Link>
+        </div>
         <StatTile label="Total invertido" value={pesos(resumen.invertido)} />
         {/* Ingresos y ganancia / por recuperar: solo los ve el root, no los socios. */}
         {esRoot && (

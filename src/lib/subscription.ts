@@ -686,6 +686,30 @@ export async function suscripcionesDeTodos() {
 }
 
 /**
+ * Usuarios (sin admins ni socios) con el día en que les vence la prueba gratis, para el
+ * Portal socios. Primero los que aún están en prueba (el que vence antes, arriba) y después
+ * los que ya vencieron (el más reciente, arriba).
+ */
+export async function vencimientosDePrueba(): Promise<{ id: string; nombre: string; vence: Date }[]> {
+  const { diasPrueba } = await getPlan();
+  await ensureSchema();
+  const us = await prisma.$queryRawUnsafe<(FilaSub & { nombre: string })[]>(
+    `SELECT id, role, coalesce(socio, false) AS socio, "createdAt", "trialEndsAt", "paidUntil",
+            coalesce(nullif(trim(coalesce("firstName", '') || ' ' || coalesce("lastName", '')), ''), name, 'Sin nombre') AS nombre
+       FROM "User" WHERE role <> 'admin' AND NOT coalesce(socio, false)`,
+  );
+  const ahora = Date.now();
+  return us
+    .map((u) => ({ id: u.id, nombre: u.nombre, vence: calcular(u, diasPrueba).trialEndsAt! }))
+    .sort((a, b) => {
+      const va = a.vence.getTime() > ahora;
+      const vb = b.vence.getTime() > ahora;
+      if (va !== vb) return va ? -1 : 1;
+      return va ? a.vence.getTime() - b.vence.getTime() : b.vence.getTime() - a.vence.getTime();
+    });
+}
+
+/**
  * Suma acceso desde que termina el actual (o desde hoy si ya venció): días
  * (regalo del root) o meses calendario (pago de un paquete).
  */
