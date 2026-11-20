@@ -219,6 +219,19 @@ export default async function AdminDashboard() {
             Última revisión de un juzgado (VPS u Hostinger): <b>{hora(estados.ultimaActividad)}</b>
             <span className="muted"> · {estados.porAvisar} hallazgo(s) por avisar en el próximo resumen</span>
           </p>
+          <p className="small" style={{ margin: "6px 0 0" }}>
+            {estados.ahora ? (
+              <>
+                ⏳ Ahora: juzgado <span style={{ fontFamily: "monospace" }}>{estados.ahora.despacho}</span>
+                {estados.ahora.pdf != null
+                  ? ` · leyendo PDF ${estados.ahora.pdf} de ${estados.ahora.total}${estados.ahora.fecha ? ` del estado del ${estados.ahora.fecha}` : ""}`
+                  : " · buscando sus publicaciones en el portal"}
+                <span className="muted"> (actualizado {hora(estados.ahora.at)})</span>
+              </>
+            ) : (
+              <span className="muted">Ahora: sin actividad en los últimos 10 minutos.</span>
+            )}
+          </p>
           {estados.detenido && !bloqueos.some((b) => b.salida === "vps") && (
             <div className="error small">
               ⚠️ El servicio de estados del VPS no revisa nada hace más de 20 minutos y hay juzgados pendientes.

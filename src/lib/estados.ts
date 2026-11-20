@@ -452,8 +452,38 @@ type Archivo = { nombre: string; url: string; texto: string; imagen?: boolean };
 /** Un documento de un hallazgo (la planilla del estado, un auto, o la página). */
 export type DocEstado = { nombre: string; url: string };
 
+let avanceListo = false;
+/**
+ * Avance en vivo (20 nov 2026): qué juzgado se está revisando y, si está bajando
+ * PDFs, en cuál va. Lo muestra el Panel admin para distinguir "trabajando" de "trabado".
+ */
+async function marcarAvance(despacho: string, pdf?: { i: number; total: number; fecha: string | null }) {
+  try {
+    if (!avanceListo) {
+      await prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "EstadoAvance" (id INTEGER PRIMARY KEY, despacho TEXT, fecha TEXT, pdf INTEGER, total INTEGER, "at" TIMESTAMPTZ)`,
+      );
+      avanceListo = true;
+    }
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "EstadoAvance" (id, despacho, fecha, pdf, total, "at") VALUES (1, $1, $2, $3, $4, now())
+       ON CONFLICT (id) DO UPDATE SET despacho = $1, fecha = $2, pdf = $3, total = $4, "at" = now()`,
+      despacho,
+      pdf?.fecha ?? null,
+      pdf ? pdf.i : null,
+      pdf ? pdf.total : null,
+    );
+  } catch {
+    // Solo informativo: si falla, la revisión sigue igual.
+  }
+}
+
 /** Abre una publicación y lee el texto de sus archivos (y de la página misma). */
-async function leerPublicacion(id: string, rotulo = id): Promise<Archivo[]> {
+async function leerPublicacion(
+  id: string,
+  ctx?: { despacho: string; fecha: string | null },
+): Promise<Archivo[]> {
+  const rotulo = ctx ? `juzgado ${ctx.despacho}, estado del ${ctx.fecha ?? "?"}` : id;
   const p = new URLSearchParams({
     p_p_id: PORTLET,
     p_p_lifecycle: "0",
@@ -491,6 +521,7 @@ async function leerPublicacion(id: string, rotulo = id): Promise<Archivo[]> {
   if (grande) console.log(`[estados] ${rotulo}: leyendo ${enlaces.length} PDFs`);
   for (const [i, { ruta, m }] of enlaces.entries()) {
     if (grande && i > 0 && i % 25 === 0) console.log(`[estados] ${rotulo}: ${i} de ${enlaces.length} PDFs`);
+    if (ctx) await marcarAvance(ctx.despacho, { i: i + 1, total: enlaces.length, fecha: ctx.fecha });
     const nombre = decodificar(m[2].replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim() || "Documento";
     const url = BASE + ruta;
     try {
@@ -739,7 +770,14 @@ export async function estadoEstadosNoche() {
   );
   const hayTrabajo = Number(d?.pedidos ?? 0) > 0 || (cicloHabil() && Number(pend?.n ?? 0) > 0);
   const quieto = !ultimaActividad || Date.now() - new Date(ultimaActividad).getTime() > 20 * 60_000;
+  // Qué está haciendo ahora (solo si lo marcó en los últimos 10 minutos).
+  const [ahora] = await prisma
+    .$queryRawUnsafe<{ despacho: string; fecha: string | null; pdf: number | null; total: number | null; at: Date }[]>(
+      `SELECT despacho, fecha, pdf, total, "at" FROM "EstadoAvance" WHERE id = 1 AND "at" > now() - interval '10 minutes'`,
+    )
+    .catch(() => []);
   return {
+    ahora: ahora ?? null,
     desde,
     detenido: hayTrabajo && quieto,
     porRevisar: Number(pend?.n ?? 0),
@@ -774,6 +812,7 @@ export async function pedirRevisionDeTodos(): Promise<number> {
 
 async function revisarDespacho(despacho: string) {
   let items: Item[];
+  await marcarAvance(despacho);
   try {
     items = await buscarConReintentos(despacho);
   } catch (e) {
@@ -799,7 +838,7 @@ async function revisarDespacho(despacho: string) {
   let nuevas = 0;
   for (const it of ya || !ultimo ? [] : [ultimo]) {
     try {
-      const archivos = await leerPublicacion(it.id, `juzgado ${despacho}, estado del ${it.fecha ?? "?"}`);
+      const archivos = await leerPublicacion(it.id, { despacho, fecha: it.fecha ?? null });
       await prisma.$executeRawUnsafe(
         `INSERT INTO "EstadoPublicacion" (id, despacho, titulo, fecha, archivos) VALUES ($1, $2, $3, $4::date, $5::jsonb)
          ON CONFLICT (id) DO NOTHING`,
