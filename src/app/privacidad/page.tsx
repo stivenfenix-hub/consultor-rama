@@ -123,8 +123,9 @@ export default function PrivacidadPage() {
       <p>
         Usamos cookies necesarias para mantener la sesión iniciada. Además usamos el Píxel de Meta
         (Facebook e Instagram), que guarda cookies en el navegador para medir cuántas personas
-        llegan a {L.marca} desde nuestros anuncios y cuántas crean su cuenta. Meta recibe datos
-        técnicos como la página visitada, el navegador y la dirección IP; no le enviamos el
+        llegan a {L.marca} desde nuestros anuncios y cuántas crean su cuenta. Meta recibe, desde
+        el navegador y desde nuestro servidor, datos técnicos como la página visitada, el
+        navegador, la dirección IP y un código interno cifrado de la cuenta; no le enviamos el
         nombre, el correo, el WhatsApp ni la información de los procesos. El usuario puede borrar
         o bloquear estas cookies desde la configuración de su navegador, y ajustar sus
         preferencias de anuncios en su cuenta de Meta.

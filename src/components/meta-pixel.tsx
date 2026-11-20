@@ -63,6 +63,15 @@ export function MetaPixel() {
   // Registro nuevo con Google: la cookie llega tras la redirección.
   useEffect(() => enviarRegistroPendiente(), [pathname]);
 
+  // Llegó desde un anuncio (?fbclid=…) y el script de Meta no creó _fbc (Safari,
+  // bloqueadores): se crea aquí con el formato de Meta, para que el servidor la
+  // mande en CompleteRegistration (Conversions API) y el registro se atribuya.
+  useEffect(() => {
+    const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+    if (!fbclid || leerCookie("_fbc")) return;
+    document.cookie = `_fbc=fb.1.${Date.now()}.${encodeURIComponent(fbclid)}; Max-Age=${90 * 86400}; path=/; SameSite=Lax`;
+  }, []);
+
   return (
     <>
       <Script id="meta-pixel" strategy="afterInteractive">
