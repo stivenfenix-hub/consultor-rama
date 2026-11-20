@@ -557,9 +557,19 @@ async function tomarLock(minutos: number): Promise<boolean> {
      WHERE id = 1 AND (hasta IS NULL OR hasta < now())`,
     String(minutos),
   );
+  tengoLock = n > 0;
   return n > 0;
 }
+
+/** Este proceso tiene el candado (está en medio de una corrida). */
+let tengoLock = false;
+
+/** Al apagar el servicio (pm2 restart): suelta el candado si es suyo, para que el nuevo no espere 20 min. */
+export async function soltarLockAlApagar() {
+  if (tengoLock) await soltarLock();
+}
 async function soltarLock() {
+  tengoLock = false;
   await prisma.$executeRawUnsafe(`UPDATE "EstadoLock" SET hasta = NULL WHERE id = 1`).catch(() => {});
 }
 

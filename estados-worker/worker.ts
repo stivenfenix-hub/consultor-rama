@@ -11,13 +11,19 @@
  * Variables (.env): DATABASE_URL, ESTRADOX_DB_POOL, ESTADOS_DESPACHOS_POR_CORRIDA,
  * ESTADOS_PAUSA_MS. Ver README.md.
  */
-import { completarDocumentosHallazgos, revisarEstados } from "../src/lib/estados";
+import { completarDocumentosHallazgos, revisarEstados, soltarLockAlApagar } from "../src/lib/estados";
 
 const ESPERA_SIN_TRABAJO_MS = 60_000; // nada pendiente: vuelve a mirar en 1 minuto
 const ESPERA_CON_TRABAJO_MS = 5_000; // hubo juzgados: sigue casi enseguida
 
 let parar = false;
-for (const s of ["SIGINT", "SIGTERM"] as const) process.on(s, () => (parar = true));
+// Al apagar (pm2 restart) se suelta el candado de la corrida en curso; si no, el
+// servicio nuevo esperaría hasta 20 min a que venciera.
+for (const s of ["SIGINT", "SIGTERM"] as const)
+  process.on(s, () => {
+    parar = true;
+    void soltarLockAlApagar().finally(() => process.exit(0));
+  });
 
 const log = (msg: string, extra?: unknown) =>
   console.log(
