@@ -45,7 +45,8 @@ async function enviarRegistroCapi(
   d: { fbc?: string; fbp?: string; ip?: string; ua?: string },
 ) {
   const token = process.env.META_CAPI_ACCESS_TOKEN;
-  if (!token) return;
+  const prueba = !!process.env.META_TEST_EVENT_CODE;
+  if (!token) return registrarCapi(userId, prueba, false, null, "sin META_CAPI_ACCESS_TOKEN");
   const evento = {
     event_name: "CompleteRegistration",
     event_time: Math.floor(Date.now() / 1000),
@@ -74,8 +75,35 @@ async function enviarRegistroCapi(
       }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!r.ok) console.error("[meta-capi] CompleteRegistration", r.status, (await r.text()).slice(0, 300));
+    const texto = (await r.text()).slice(0, 500);
+    if (!r.ok) console.error("[meta-capi] CompleteRegistration", r.status, texto);
+    await registrarCapi(userId, prueba, true, r.status, texto);
   } catch (e) {
-    console.error("[meta-capi] CompleteRegistration", e instanceof Error ? e.message : e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[meta-capi] CompleteRegistration", msg);
+    await registrarCapi(userId, prueba, true, null, msg);
+  }
+}
+
+/**
+ * Resultado de cada envío a Meta (sin el token), para revisar desde la base si
+ * llegó: Hostinger no deja ver los logs de la app fácilmente.
+ */
+async function registrarCapi(userId: string, prueba: boolean, conToken: boolean, status: number | null, respuesta: string) {
+  try {
+    const { prisma } = await import("./db");
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "MetaCapiLog" (id SERIAL PRIMARY KEY, "userId" TEXT, prueba BOOLEAN, "conToken" BOOLEAN, status INTEGER, respuesta TEXT, "at" TIMESTAMPTZ DEFAULT now())`,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "MetaCapiLog" ("userId", prueba, "conToken", status, respuesta) VALUES ($1, $2, $3, $4, $5)`,
+      userId,
+      prueba,
+      conToken,
+      status,
+      respuesta.slice(0, 500),
+    );
+  } catch (e) {
+    console.error("[meta-capi] no se pudo guardar el resultado", e);
   }
 }
