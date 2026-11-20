@@ -408,8 +408,12 @@ async function buscarPublicaciones(
 // 19 nov: el reintento tenía 90 s y el portal, de día, a veces tarda más: 180 s.
 const REINTENTOS_LIVIANOS = [{ esperaMs: 10_000, dias: 3, porPagina: 20, timeoutMs: 180_000 }];
 
-/** Un 4xx no mejora reintentando; un 5xx, un timeout o un corte de red sí. */
-const vale_reintentar = (e: unknown) => !/respondió 4\d\d/.test(e instanceof Error ? e.message : String(e));
+/**
+ * Un 4xx no mejora reintentando; un timeout, un corte de red u otro 5xx sí.
+ * 19 nov 2026: el 504 tampoco se reintenta. Cada reintento costaba ~2 min y casi
+ * nunca salía bien; el juzgado vuelve a la cola en 1 hora (errorAt) y se sigue con otro.
+ */
+const vale_reintentar = (e: unknown) => !/respondió (4\d\d|504)/.test(e instanceof Error ? e.message : String(e));
 
 /** Busca las publicaciones del despacho; si el portal falla, reintenta con menos días y resultados. */
 export async function buscarConReintentos(despacho: string): Promise<Item[]> {
