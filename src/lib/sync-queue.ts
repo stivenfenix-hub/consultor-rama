@@ -13,7 +13,15 @@ import {
   type Documento as RamaDocumento,
 } from "./rama";
 import { usuariosConAcceso } from "./subscription";
-import { completarDocumentosPendientes, completarRegistrosIncompletos, enviarResumen, procesarReintentos } from "./sync";
+import {
+  completarDocumentosPendientes,
+  completarRegistrosIncompletos,
+  correrTurnoRama,
+  enviarResumen,
+  esperaFilaCarga,
+  esperarTurnoRama,
+  procesarReintentos,
+} from "./sync";
 import { sendPushToUser } from "./push";
 import { revisarRama } from "./monitor-rama";
 import { nocheHabil } from "./dias-habiles";
@@ -421,9 +429,16 @@ async function procesarCola(): Promise<ResultadoLote> {
   const pendientes = [...grupos.values()];
 
   // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
-  // vez y 17 s entre uno y otro (~140 por hora).
+  // vez y 17 s entre uno y otro (~140 por hora). Cada proceso pide turno en la
+  // fila única de la Rama (la misma de las cargas de radicados): si un abogado
+  // está cargando, su radicado entra en el turno siguiente y la cola espera.
+  const pausaS = PAUSA_ENTRE_PROCESOS_MS / 1000;
   const trabajador = async () => {
     while (!r.frenado && Date.now() - inicio < PRESUPUESTO_MS - PAUSA_ENTRE_PROCESOS_MS) {
+      if (pendientes.length === 0) return;
+      // Fila larga (varias cargas a la vez): se sigue en la próxima corrida.
+      if ((await esperaFilaCarga()) * 1000 + Date.now() - inicio > PRESUPUESTO_MS - PAUSA_ENTRE_PROCESOS_MS) return;
+      await esperarTurnoRama(pausaS);
       const grupo = pendientes.shift();
       if (!grupo) return;
       try {
@@ -442,7 +457,8 @@ async function procesarCola(): Promise<ResultadoLote> {
         r.fallidos += grupo.length;
         await marcarFallo(grupo, err).catch(() => {});
       }
-      await sleep(PAUSA_ENTRE_PROCESOS_MS);
+      // 17 s desde que terminó este proceso, antes del próximo turno (de la cola o de una carga).
+      await correrTurnoRama(pausaS);
     }
   };
   await trabajador();

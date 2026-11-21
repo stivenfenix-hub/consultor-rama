@@ -85,7 +85,14 @@ export type ResultadoAgregar = {
  */
 const PAUSA_CARGA_S = 20;
 let turnosListos = false;
-async function esperarTurnoCarga() {
+/**
+ * Turno en la fila única de la Rama (21 nov 2026): la cola nocturna también lo
+ * pide antes de cada proceso. Así, si un abogado carga radicados de noche, su
+ * próximo radicado entra en el siguiente turno (intercalado con la cola, no al
+ * final) y nunca se consulta la Rama por las dos vías a la vez: las dos pausas
+ * de 20 min del 20 nov salieron justo mientras un abogado cargaba radicados.
+ */
+export async function esperarTurnoRama(segundos: number) {
   try {
     if (!turnosListos) {
       await prisma.$executeRawUnsafe(
@@ -97,15 +104,28 @@ async function esperarTurnoCarga() {
       `INSERT INTO "CargaTurno" (id, siguiente) VALUES (1, now() + make_interval(secs => $1))
        ON CONFLICT (id) DO UPDATE SET siguiente = GREATEST(now(), "CargaTurno".siguiente) + make_interval(secs => $1)
        RETURNING GREATEST(0, EXTRACT(EPOCH FROM (siguiente - make_interval(secs => $1) - now())) * 1000)::float8 AS espera`,
-      PAUSA_CARGA_S,
+      segundos,
     );
     const espera = Number(t?.espera ?? 0);
     if (espera > 0) await new Promise((r) => setTimeout(r, espera));
   } catch (e) {
-    // Sin base de datos para el turno: al menos se respeta la pausa local.
-    console.error("[carga] turno", e);
-    await new Promise((r) => setTimeout(r, PAUSA_CARGA_S * 1000));
+    console.error("[rama] turno", e);
+    await new Promise((r) => setTimeout(r, segundos * 1000));
   }
+}
+
+/** Al terminar una consulta: el próximo turno no empieza antes de `segundos` desde ahora. */
+export async function correrTurnoRama(segundos: number) {
+  await prisma
+    .$executeRawUnsafe(
+      `UPDATE "CargaTurno" SET siguiente = GREATEST(siguiente, now() + make_interval(secs => $1)) WHERE id = 1`,
+      segundos,
+    )
+    .catch((e) => console.error("[rama] turno", e));
+}
+
+function esperarTurnoCarga() {
+  return esperarTurnoRama(PAUSA_CARGA_S);
 }
 
 /** Cuánto falta para que una carga nueva empiece (segundos). */
@@ -168,6 +188,9 @@ export async function agregarRadicados(
         console.error("[agregar]", rad, err);
       }
     }
+    // Un radicado nuevo trae actuaciones, partes y documentos (varias consultas):
+    // al menos 10 s de respiro antes del próximo turno de la fila de la Rama.
+    if (presupuestoMs === Infinity) await correrTurnoRama(10);
     await alAvanzar?.(i + 1);
   }
   // Lo que la Rama no respondió se reintenta solo (ver procesarReintentos).
