@@ -129,6 +129,17 @@ async function crearTablas() {
       "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY ("userId", radicado)
     )`);
+  // Radicados ya cruzados con TODAS las publicaciones guardadas de su despacho
+  // (21 nov 2026). Al revisar un despacho, los que están aquí solo se cruzan con
+  // la publicación nueva (que ya está en memoria) y no se releen de la base los
+  // textos de 60 días: eso era casi todo el egress de Supabase.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "EstadoCruzado" (
+      "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      radicado TEXT NOT NULL,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY ("userId", radicado)
+    )`);
   // Hallazgos por avisar: salen en el mismo resumen de las actuaciones
   // (correo, WhatsApp y notificación), no en un aviso aparte de noche.
   await ensureColumn("EstadoHallazgo", "porAvisar", "BOOLEAN NOT NULL DEFAULT false");
@@ -198,6 +209,8 @@ export async function dejarDeVigilar(userId: string, radicado: string) {
     radicado,
   );
   await prisma.$executeRawUnsafe(`DELETE FROM "EstadoHallazgo" WHERE "userId" = $1 AND radicado = $2`, userId, radicado);
+  // Si lo vuelve a agregar, se cruza otra vez con todo lo guardado.
+  await prisma.$executeRawUnsafe(`DELETE FROM "EstadoCruzado" WHERE "userId" = $1 AND radicado = $2`, userId, radicado);
 }
 
 /**
@@ -836,9 +849,11 @@ async function revisarDespacho(despacho: string) {
         .length > 0
     : true;
   let nuevas = 0;
+  const leidas: Pub[] = [];
   for (const it of ya || !ultimo ? [] : [ultimo]) {
     try {
       const archivos = await leerPublicacion(it.id, { despacho, fecha: it.fecha ?? null });
+      leidas.push({ id: it.id, titulo: it.titulo, fecha: it.fecha ? new Date(it.fecha) : null, archivos });
       await prisma.$executeRawUnsafe(
         `INSERT INTO "EstadoPublicacion" (id, despacho, titulo, fecha, archivos) VALUES ($1, $2, $3, $4::date, $5::jsonb)
          ON CONFLICT (id) DO NOTHING`,
@@ -866,7 +881,9 @@ async function revisarDespacho(despacho: string) {
      AND NOT EXISTS (SELECT 1 FROM "EstadoHallazgo" h WHERE h."publicacionId" = p.id)`,
     despacho,
   );
-  const hallazgos = await cruzarDespacho(despacho);
+  // Solo la publicación recién leída (en memoria); lo guardado antes, solo para
+  // radicados que aún no se habían cruzado.
+  const hallazgos = await cruzarDespacho(despacho, { nuevas: leidas });
   return { despacho, publicaciones: items.length, nuevas, hallazgos };
 }
 
@@ -885,18 +902,46 @@ export async function completarDocumentosHallazgos() {
   return { despachos: filas.length, nuevos };
 }
 
-/** Busca los radicados vigilados del despacho en sus publicaciones guardadas y avisa los nuevos. */
-async function cruzarDespacho(despacho: string) {
+type Pub = { id: string; titulo: string; fecha: Date | null; archivos: Archivo[] };
+
+/**
+ * Busca los radicados vigilados del despacho en sus publicaciones y deja los hallazgos.
+ *  - Sin opciones (radicado recién agregado, "Actualizar"): todos los radicados
+ *    contra todas las publicaciones guardadas de 60 días.
+ *  - `nuevas` (revisión del VPS): los radicados ya cruzados (tabla EstadoCruzado)
+ *    solo contra la publicación recién leída, sin releer la base. Los que aún no
+ *    se habían cruzado (agregados por otra vía), contra todo lo guardado.
+ */
+async function cruzarDespacho(despacho: string, opts: { nuevas?: Pub[] } = {}) {
   const segs = await seguimientos({ despacho });
   if (segs.length === 0) return 0;
-  const pubs = await prisma.$queryRawUnsafe<{ id: string; titulo: string; fecha: Date | null; archivos: Archivo[] }[]>(
-    `SELECT id, titulo, fecha, archivos FROM "EstadoPublicacion"
-     WHERE despacho = $1 AND "createdAt" > now() - interval '60 days'`,
-    despacho,
-  );
+  const clave = (s: { userId: string; radicado: string }) => `${s.userId}|${s.radicado}`;
+  let cruzados = new Set<string>();
+  if (opts.nuevas) {
+    const filas = await prisma.$queryRawUnsafe<{ userId: string; radicado: string }[]>(
+      `SELECT "userId", radicado FROM "EstadoCruzado" WHERE radicado = ANY($1::text[])`,
+      [...new Set(segs.map((s) => s.radicado))],
+    );
+    cruzados = new Set(filas.map(clave));
+  }
+  const pendientes = segs.filter((s) => !cruzados.has(clave(s)));
+  // Textos guardados: solo si hay radicados sin cruzar con ellos.
+  const guardadas =
+    pendientes.length === 0
+      ? []
+      : await prisma.$queryRawUnsafe<Pub[]>(
+          `SELECT id, titulo, fecha, archivos FROM "EstadoPublicacion"
+           WHERE despacho = $1 AND "createdAt" > now() - interval '60 days'`,
+          despacho,
+        );
+  const nuevasIds = new Set((opts.nuevas ?? []).map((p) => p.id));
+  const pares: { pub: Pub; s: { userId: string; radicado: string } }[] = [];
+  for (const pub of opts.nuevas ?? []) for (const s of segs) pares.push({ pub, s });
+  for (const pub of guardadas) if (!nuevasIds.has(pub.id)) for (const s of pendientes) pares.push({ pub, s });
+
   const nuevosPorUsuario = new Map<string, { radicado: string; titulo: string; extracto: string }[]>();
-  for (const pub of pubs) {
-    for (const s of segs) {
+  {
+    for (const { pub, s } of pares) {
       // TODOS los archivos de la publicación donde está el radicado (la planilla
       // y cada auto), por su texto o por su nombre ("021-2024-00281-NombraCurador.pdf":
       // los autos escaneados no tienen texto). La página solo si ningún archivo lo tiene.
@@ -938,6 +983,14 @@ async function cruzarDespacho(despacho: string) {
         nuevosPorUsuario.set(s.userId, l);
       }
     }
+  }
+  if (pendientes.length > 0) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "EstadoCruzado" ("userId", radicado)
+       SELECT * FROM unnest($1::text[], $2::text[]) ON CONFLICT DO NOTHING`,
+      pendientes.map((s) => s.userId),
+      pendientes.map((s) => s.radicado),
+    );
   }
   // El aviso sale en el resumen de actuaciones (enviarResumenesPendientes):
   // mismo correo, WhatsApp y notificación, de 7 a. m. a 6 p. m.
