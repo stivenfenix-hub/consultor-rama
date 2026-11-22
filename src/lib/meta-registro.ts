@@ -12,8 +12,14 @@ import { COOKIE_REGISTRO, META_PIXEL_ID, nombreCompra } from "./meta-pixel-confi
  *    event_id ("registro-<id>"), para que cuente aunque Safari o un bloqueador
  *    frenen el píxel; si llegan los dos, Meta los deduplica.
  * Solo se llama al CREAR la cuenta, nunca en un login.
+ * Las cuentas de prueba (esPruebaMeta) no envían nada, ni por píxel ni por servidor.
  */
-export async function marcarRegistroNuevo(userId: string) {
+export async function marcarRegistroNuevo(userId: string, email: string) {
+  if (esPruebaMeta(email)) {
+    // Sin cookie el píxel no dispara; queda constancia en MetaCapiLog.
+    after(() => registrarCapi(userId, true, false, null, "omitido: correo de prueba"));
+    return;
+  }
   const jar = await cookies();
   jar.set(COOKIE_REGISTRO, userId, {
     path: "/",
@@ -31,6 +37,24 @@ export async function marcarRegistroNuevo(userId: string) {
     ua: h.get("user-agent") ?? undefined,
   };
   after(() => enviarRegistroCapi(userId, datos));
+}
+
+/**
+ * Correos de prueba que nunca se reportan a Meta (22 nov 2026), para poder probar
+ * el registro en producción sin contaminar las campañas:
+ *  - contienen "+test" (ej. nombre+test1@gmail.com),
+ *  - terminan en "@estradox.test",
+ *  - o están en META_IGNORED_EMAILS (separados por coma).
+ */
+export function esPruebaMeta(email: string | null | undefined) {
+  const e = (email ?? "").trim().toLowerCase();
+  if (!e) return false;
+  if (e.includes("+test") || e.endsWith("@estradox.test")) return true;
+  const lista = (process.env.META_IGNORED_EMAILS ?? "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  return lista.includes(e);
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");

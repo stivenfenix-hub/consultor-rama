@@ -139,7 +139,7 @@ export async function registerAction(
   }
   try {
     const nuevo = await registerUser(parsed.data);
-    await marcarRegistroNuevo(nuevo.id); // conversión para el Píxel de Meta
+    await marcarRegistroNuevo(nuevo.id, parsed.data.email); // conversión para el Píxel de Meta
     after(() => avisarNuevoUsuario(nuevo.id, "correo"));
     // Prueba de la autorización (Ley 1581). No se bloquea el registro si falla.
     await registrarConsentimientoInicial(nuevo.id).catch((e) =>

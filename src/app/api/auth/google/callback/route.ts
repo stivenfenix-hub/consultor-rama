@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       await registrarConsentimientoInicial(user.id).catch((e) => console.error("[consentimiento]", e));
       after(() => enviarBienvenida(user.id));
       after(() => avisarNuevoUsuario(user.id, "Google"));
-      await marcarRegistroNuevo(user.id); // conversión para el Píxel de Meta
+      await marcarRegistroNuevo(user.id, user.email); // conversión para el Píxel de Meta
     }
     // El WhatsApp es obligatorio: si no lo tiene, se le pide antes de entrar.
     destino = (await getWhatsapp(user.id)) ? homePath(user.role) : "/completar-registro";
