@@ -61,8 +61,10 @@ export function asegurarTablasWa() {
     await prisma.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "WaMensaje_pendiente_idx" ON "WaMensaje" (cuenta, id) WHERE estado = 'pendiente'`,
     );
-    // PDF que el servicio envía como documento después del texto (tabla "CampanaAdjunto").
-    await prisma.$executeRawUnsafe(`ALTER TABLE "WaMensaje" ADD COLUMN IF NOT EXISTS "adjuntoId" INTEGER`);
+    // PDF que el servicio envía como documento después del texto: lo descarga una vez
+    // de este enlace (disco de Hostinger) y lo reutiliza.
+    await prisma.$executeRawUnsafe(`ALTER TABLE "WaMensaje" ADD COLUMN IF NOT EXISTS "adjuntoUrl" TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "WaMensaje" ADD COLUMN IF NOT EXISTS "adjuntoNombre" TEXT`);
   })().catch((e) => {
     listo = null;
     throw e;
@@ -144,7 +146,7 @@ async function cuentaActiva(cuenta: CuentaWa) {
 
 /** Deja mensajes en la cola de su WhatsApp (sin repetir el mismo texto al mismo número el mismo día). */
 export async function encolarWhatsapp(
-  mensajes: { tipo: string; telefono: string; mensaje: string; userId?: string | null; adjuntoId?: number | null }[],
+  mensajes: { tipo: string; telefono: string; mensaje: string; userId?: string | null; adjuntoUrl?: string | null; adjuntoNombre?: string | null }[],
 ) {
   let n = 0;
   const activas = new Map<CuentaWa, boolean>();
@@ -155,8 +157,8 @@ export async function encolarWhatsapp(
     if (!activas.has(cuenta)) activas.set(cuenta, await cuentaActiva(cuenta));
     if (!activas.get(cuenta)) continue;
     n += await prisma.$executeRawUnsafe(
-      `INSERT INTO "WaMensaje" (cuenta, "userId", tipo, telefono, mensaje, "adjuntoId")
-       SELECT $1, $2, $3, $4, $5, $6
+      `INSERT INTO "WaMensaje" (cuenta, "userId", tipo, telefono, mensaje, "adjuntoUrl", "adjuntoNombre")
+       SELECT $1, $2, $3, $4, $5, $6, $7
        WHERE NOT EXISTS (
          SELECT 1 FROM "WaMensaje" WHERE cuenta = $1 AND telefono = $4 AND mensaje = $5
            AND "createdAt" > now() - interval '20 hours')`,
@@ -165,7 +167,8 @@ export async function encolarWhatsapp(
       m.tipo,
       telefono,
       m.mensaje,
-      m.adjuntoId ?? null,
+      m.adjuntoUrl ?? null,
+      m.adjuntoNombre ?? null,
     );
   }
   return n;

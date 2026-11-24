@@ -21,6 +21,6 @@ export async function POST(req: Request) {
   if (datos.subarray(0, 5).toString("latin1") !== "%PDF-") {
     return NextResponse.json({ error: "El archivo no es un PDF." }, { status: 400 });
   }
-  const id = await guardarAdjuntoCampana(archivo.name, datos);
-  return NextResponse.json({ id, nombre: archivo.name, bytes: datos.length });
+  const { id, nombre } = await guardarAdjuntoCampana(archivo.name, datos);
+  return NextResponse.json({ id, nombre, bytes: datos.length });
 }

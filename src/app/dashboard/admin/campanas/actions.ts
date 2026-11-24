@@ -13,7 +13,7 @@ export async function enviarCampanaFirmaAction(
   ids: string[],
   canales: { whatsapp: boolean; correo: boolean; notificacion?: boolean },
   textos: { whatsapp: string; asunto: string; correo: string; notiTitulo?: string; notiCuerpo?: string },
-  adjuntoId: number | null = null,
+  adjuntoIn: { id: string; nombre: string } | null = null,
 ): Promise<Resultado> {
   await requireAdmin();
   if (!canales.whatsapp && !canales.correo && !canales.notificacion) {
@@ -29,11 +29,12 @@ export async function enviarCampanaFirmaAction(
   if (canales.whatsapp && wa.length < 20) return { error: "Escribe el mensaje de WhatsApp." };
   if (canales.correo && (asunto.length < 5 || cuerpo.length < 20)) return { error: "Escribe el asunto y el correo." };
   // PDF adjunto (opcional): debe existir (lo sube /api/admin/campana-adjunto).
-  const adjunto = Number.isInteger(adjuntoId) && adjuntoId! > 0 ? adjuntoId! : null;
-  if (adjunto) {
-    const { adjuntoCampana } = await import("@/lib/campanas");
-    if (!(await adjuntoCampana(adjunto))) return { error: "El PDF adjunto ya no está: vuelve a subirlo." };
-  }
+  const { enlaceAdjunto, esIdAdjunto, leerAdjuntoCampana } = await import("@/lib/campanas");
+  const adjunto =
+    adjuntoIn && esIdAdjunto(String(adjuntoIn.id))
+      ? { id: String(adjuntoIn.id), nombre: String(adjuntoIn.nombre ?? "").trim().slice(0, 120) || "documento.pdf" }
+      : null;
+  if (adjunto && !(await leerAdjuntoCampana(adjunto.id))) return { error: "El PDF adjunto ya no está: vuelve a subirlo." };
 
   // Solo a quienes siguen cumpliendo: 1 proceso o más y ninguna firma enviada.
   const { lista } = await destinatariosFirma();
@@ -52,7 +53,7 @@ export async function enviarCampanaFirmaAction(
     if (!comercial?.numero) return { error: "El WhatsApp comercial no está vinculado." };
     const conNumero = usuarios.filter((u) => (u.whatsapp ?? "").replace(/\D/g, "").length >= 10);
     const n = await encolarWhatsapp(
-      conNumero.map((u) => ({ userId: u.id, tipo: "campana", telefono: u.whatsapp!, mensaje: personalizar(wa, u), adjuntoId: adjunto })),
+      conNumero.map((u) => ({ userId: u.id, tipo: "campana", telefono: u.whatsapp!, mensaje: personalizar(wa, u), adjuntoUrl: adjunto ? enlaceAdjunto(adjunto.id) : null, adjuntoNombre: adjunto?.nombre ?? null })),
     );
     partes.push(
       `${n} WhatsApp en cola (salen despacio por el comercial, máximo ${comercial.maxDia} al día)` +

@@ -30,7 +30,7 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
   const [resultado, setResultado] = useState<{ ok?: string; error?: string } | null>(null);
   const [pending, start] = useTransition();
   // PDF que acompaña la campaña (correo y WhatsApp). Se sube apenas se elige.
-  const [adjunto, setAdjunto] = useState<{ id: number; nombre: string; bytes: number } | null>(null);
+  const [adjunto, setAdjunto] = useState<{ id: string; nombre: string; bytes: number } | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [errorAdjunto, setErrorAdjunto] = useState<string | null>(null);
 
@@ -307,7 +307,7 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
               return;
             }
             start(async () => {
-              setResultado(await enviarCampanaFirmaAction([...elegidos], canales, textos, adjunto?.id ?? null));
+              setResultado(await enviarCampanaFirmaAction([...elegidos], canales, textos, adjunto ? { id: adjunto.id, nombre: adjunto.nombre } : null));
               setConfirmando(false);
               setElegidos(new Set());
             });
