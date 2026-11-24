@@ -12,6 +12,7 @@ import {
   ocultarDoc,
   resumenIdentidad,
 } from "@/lib/firmas";
+import { ejemploVerificacion } from "@/lib/firma-ejemplo";
 import { Comparar } from "./comparar";
 
 export const metadata = { title: "Verificar documento · Estradox", robots: { index: false, follow: false } };
@@ -37,7 +38,9 @@ const fechaHora = (d: Date | null) =>
  */
 export default async function Verificar({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const doc = await documentoPorId(id).catch(() => null);
+  // El PDF de muestra de la Firma Electrónica trae un id fijo con datos de ejemplo.
+  const ejemplo = ejemploVerificacion(id);
+  const doc = ejemplo ? ejemplo.doc : await documentoPorId(id).catch(() => null);
   const visible = doc && doc.estado !== "DRAFT" ? doc : null;
 
   return (
@@ -62,11 +65,9 @@ export default async function Verificar({ params }: { params: Promise<{ id: stri
           </div>
         ) : (
           await (async () => {
-            const [firmantes, auditoria, abogado] = await Promise.all([
-              firmantesDe(visible.id),
-              auditoriaDe(visible.id),
-              nombreAbogado(visible.userId),
-            ]);
+            const [firmantes, auditoria, abogado] = ejemplo
+              ? [ejemplo.firmantes, ejemplo.auditoria, ejemplo.abogado]
+              : await Promise.all([firmantesDe(visible.id), auditoriaDe(visible.id), nombreAbogado(visible.userId)]);
             const nombreDe = new Map(firmantes.map((f) => [f.id, f.nombre]));
             const completo = visible.estado === "COMPLETED";
             const sello = (visible.sello ?? {}) as { modo?: string; certificado?: string | null; tsa?: { url?: string; token?: string; huella?: string } | null };
@@ -198,6 +199,11 @@ export default async function Verificar({ params }: { params: Promise<{ id: stri
                   </div>
                 )}
 
+                {ejemplo && (
+                  <p className="muted small" style={{ textAlign: "center", marginBottom: 0 }}>
+                    Documento de muestra de Estradox con datos ficticios.
+                  </p>
+                )}
                 <p className="muted small" style={{ textAlign: "center" }}>
                   Firma electrónica conforme a la Ley 527 de 1999, el Decreto 2364 de 2012 y el artículo 5 de la Ley 2213
                   de 2022. <Link prefetch={false} href="/firma-electronica">Conozca la Firma Electrónica de Estradox</Link>
