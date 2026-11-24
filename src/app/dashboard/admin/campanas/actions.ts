@@ -13,6 +13,7 @@ export async function enviarCampanaFirmaAction(
   ids: string[],
   canales: { whatsapp: boolean; correo: boolean; notificacion?: boolean },
   textos: { whatsapp: string; asunto: string; correo: string; notiTitulo?: string; notiCuerpo?: string },
+  adjuntoId: number | null = null,
 ): Promise<Resultado> {
   await requireAdmin();
   if (!canales.whatsapp && !canales.correo && !canales.notificacion) {
@@ -27,6 +28,12 @@ export async function enviarCampanaFirmaAction(
   const cuerpo = String(textos.correo ?? "").trim().slice(0, 12000);
   if (canales.whatsapp && wa.length < 20) return { error: "Escribe el mensaje de WhatsApp." };
   if (canales.correo && (asunto.length < 5 || cuerpo.length < 20)) return { error: "Escribe el asunto y el correo." };
+  // PDF adjunto (opcional): debe existir (lo sube /api/admin/campana-adjunto).
+  const adjunto = Number.isInteger(adjuntoId) && adjuntoId! > 0 ? adjuntoId! : null;
+  if (adjunto) {
+    const { adjuntoCampana } = await import("@/lib/campanas");
+    if (!(await adjuntoCampana(adjunto))) return { error: "El PDF adjunto ya no está: vuelve a subirlo." };
+  }
 
   // Solo a quienes siguen cumpliendo: 1 proceso o más y ninguna firma enviada.
   const { lista } = await destinatariosFirma();
@@ -45,7 +52,7 @@ export async function enviarCampanaFirmaAction(
     if (!comercial?.numero) return { error: "El WhatsApp comercial no está vinculado." };
     const conNumero = usuarios.filter((u) => (u.whatsapp ?? "").replace(/\D/g, "").length >= 10);
     const n = await encolarWhatsapp(
-      conNumero.map((u) => ({ userId: u.id, tipo: "campana", telefono: u.whatsapp!, mensaje: personalizar(wa, u) })),
+      conNumero.map((u) => ({ userId: u.id, tipo: "campana", telefono: u.whatsapp!, mensaje: personalizar(wa, u), adjuntoId: adjunto })),
     );
     partes.push(
       `${n} WhatsApp en cola (salen despacio por el comercial, máximo ${comercial.maxDia} al día)` +
@@ -53,7 +60,7 @@ export async function enviarCampanaFirmaAction(
     );
   }
   if (canales.correo) {
-    const n = await encolarCorreosFirma(usuarios, asunto, cuerpo);
+    const n = await encolarCorreosFirma(usuarios, asunto, cuerpo, adjunto);
     partes.push(
       `${n} correo(s) en cola (salen de a 1 o 2 cada 5 minutos, de 8 a.m. a 7 p.m.)` +
         (usuarios.length - n ? `; ${usuarios.length - n} ya lo tenían` : ""),
@@ -79,5 +86,5 @@ export async function enviarCampanaFirmaAction(
   }
   revalidatePath("/dashboard/admin/campanas");
   revalidatePath("/dashboard/admin/whatsapp");
-  return { ok: partes.join(". ") + "." };
+  return { ok: partes.join(". ") + "." + (adjunto && (canales.whatsapp || canales.correo) ? " Con el PDF adjunto." : "") };
 }

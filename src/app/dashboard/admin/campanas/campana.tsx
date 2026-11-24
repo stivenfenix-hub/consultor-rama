@@ -29,6 +29,30 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
   const [confirmando, setConfirmando] = useState(false);
   const [resultado, setResultado] = useState<{ ok?: string; error?: string } | null>(null);
   const [pending, start] = useTransition();
+  // PDF que acompaña la campaña (correo y WhatsApp). Se sube apenas se elige.
+  const [adjunto, setAdjunto] = useState<{ id: number; nombre: string; bytes: number } | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [errorAdjunto, setErrorAdjunto] = useState<string | null>(null);
+
+  async function subirPdf(archivo: File | undefined) {
+    setErrorAdjunto(null);
+    setConfirmando(false);
+    if (!archivo) return;
+    if (archivo.size > 5 * 1024 * 1024) return setErrorAdjunto("El PDF pesa más de 5 MB.");
+    setSubiendo(true);
+    try {
+      const fd = new FormData();
+      fd.append("archivo", archivo);
+      const r = await fetch("/api/admin/campana-adjunto", { method: "POST", body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return setErrorAdjunto(j.error ?? "No se pudo subir el PDF.");
+      setAdjunto({ id: j.id, nombre: j.nombre, bytes: j.bytes });
+    } catch {
+      setErrorAdjunto("No se pudo subir el PDF. Revisa la conexión.");
+    } finally {
+      setSubiendo(false);
+    }
+  }
 
   const visibles = useMemo(() => {
     const q = buscar.trim().toLowerCase();
@@ -138,6 +162,7 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
             <div className="campana-previa wa">
               <div className="muted small" style={{ marginBottom: 6 }}>Así le llega a {ejemplo?.nombre ?? "el abogado"}:</div>
               <div className="campana-burbuja">{previa(textos.whatsapp)}</div>
+              {adjunto && <div className="campana-burbuja" style={{ marginTop: 6 }}>📄 <b>{adjunto.nombre}</b></div>}
             </div>
           </div>
         ) : (
@@ -163,6 +188,36 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
             Volver a los textos originales
           </a>
         </div>
+        <div className="row wrap" style={{ gap: 10, alignItems: "center", marginTop: 12 }}>
+          <span className="small"><b>📎 PDF adjunto</b> (opcional, máx. 5 MB):</span>
+          {adjunto ? (
+            <>
+              <span className="small">
+                📄 {adjunto.nombre} · {(adjunto.bytes / 1024 / 1024).toFixed(1)} MB
+              </span>
+              <button type="button" className="btn small secondary" onClick={() => { setAdjunto(null); setConfirmando(false); }}>
+                Quitar
+              </button>
+            </>
+          ) : (
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              disabled={subiendo}
+              onChange={(e) => {
+                void subirPdf(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+          )}
+          {subiendo && <span className="small muted">Subiendo…</span>}
+          {errorAdjunto && <span className="small error">{errorAdjunto}</span>}
+        </div>
+        {adjunto && (
+          <p className="muted small" style={{ margin: "6px 0 0" }}>
+            Va adjunto en el correo y, en WhatsApp, como documento justo después del mensaje.
+          </p>
+        )}
       </div>
 
       <div className="card">
@@ -244,7 +299,7 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
         <button
           type="button"
           className={`btn ${confirmando ? "" : "secondary"}`}
-          disabled={pending || n === 0 || (!canales.whatsapp && !canales.correo && !canales.notificacion)}
+          disabled={pending || subiendo || n === 0 || (!canales.whatsapp && !canales.correo && !canales.notificacion)}
           onClick={() => {
             if (!confirmando) {
               setConfirmando(true);
@@ -252,7 +307,7 @@ export function CampanaFirma({ usuarios, plantillas, waVinculado }: { usuarios: 
               return;
             }
             start(async () => {
-              setResultado(await enviarCampanaFirmaAction([...elegidos], canales, textos));
+              setResultado(await enviarCampanaFirmaAction([...elegidos], canales, textos, adjunto?.id ?? null));
               setConfirmando(false);
               setElegidos(new Set());
             });

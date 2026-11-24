@@ -129,10 +129,46 @@ export const asegurarCola = () =>
     await prisma.$executeRawUnsafe(
       `CREATE INDEX IF NOT EXISTS "CorreoCola_pendiente" ON "CorreoCola" (id) WHERE estado = 'pendiente'`,
     );
+    // PDF adjunto de la campaña (24 nov 2026): va en el correo y, como documento, en el WhatsApp.
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "CampanaAdjunto" (
+        id SERIAL PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        datos BYTEA NOT NULL,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "CorreoCola" ADD COLUMN IF NOT EXISTS "adjuntoId" INTEGER`);
   })().catch((e) => {
     tabla = null;
     throw e;
   }));
+
+// ---------- PDF adjunto ----------
+
+/** Máximo del PDF adjunto: se lee de la base en cada envío (egress) y el SMTP tiene límite. */
+export const ADJUNTO_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Guarda el PDF que acompaña la campaña y devuelve su id. */
+export async function guardarAdjuntoCampana(nombre: string, datos: Buffer): Promise<number> {
+  await asegurarCola();
+  const limpio = (nombre.replace(/[\\/:*?"<>|]+/g, " ").trim() || "documento").slice(0, 120);
+  const conExt = /\.pdf$/i.test(limpio) ? limpio : `${limpio}.pdf`;
+  const [f] = await prisma.$queryRawUnsafe<{ id: number }[]>(
+    `INSERT INTO "CampanaAdjunto" (nombre, datos) VALUES ($1, $2) RETURNING id`,
+    conExt,
+    datos,
+  );
+  return f.id;
+}
+
+export async function adjuntoCampana(id: number): Promise<{ nombre: string; datos: Buffer } | null> {
+  await asegurarCola();
+  const [f] = await prisma.$queryRawUnsafe<{ nombre: string; datos: Buffer }[]>(
+    `SELECT nombre, datos FROM "CampanaAdjunto" WHERE id = $1`,
+    id,
+  );
+  return f ? { nombre: f.nombre, datos: Buffer.from(f.datos) } : null;
+}
 
 const horaBogota = () => {
   const p = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bogota", hour: "numeric", hour12: false }).formatToParts(new Date());
@@ -154,16 +190,25 @@ export async function procesarCorreosCampana(): Promise<number> {
   const quedan = CORREOS_CAMPANA_DIA - Number(hoy?.n ?? 0);
   if (quedan <= 0) return 0;
   const lote = Math.min(quedan, Math.random() < 0.5 ? 1 : 2);
-  const filas = await prisma.$queryRawUnsafe<{ id: number; para: string; asunto: string; html: string; texto: string }[]>(
+  const filas = await prisma.$queryRawUnsafe<
+    { id: number; para: string; asunto: string; html: string; texto: string; adjuntoId: number | null }[]
+  >(
     `UPDATE "CorreoCola" SET estado = 'enviando'
      WHERE id IN (SELECT id FROM "CorreoCola" WHERE estado = 'pendiente' ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED)
-     RETURNING id, para, asunto, html, texto`,
+     RETURNING id, para, asunto, html, texto, "adjuntoId"`,
     lote,
   );
   let enviados = 0;
+  const adjuntos = new Map<number, { nombre: string; datos: Buffer } | null>();
   for (const f of filas) {
     try {
-      await sendMail({ to: f.para, subject: f.asunto, html: f.html, text: f.texto });
+      let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
+      if (f.adjuntoId) {
+        if (!adjuntos.has(f.adjuntoId)) adjuntos.set(f.adjuntoId, await adjuntoCampana(f.adjuntoId));
+        const a = adjuntos.get(f.adjuntoId);
+        if (a) attachments = [{ filename: a.nombre, content: a.datos, contentType: "application/pdf" }];
+      }
+      await sendMail({ to: f.para, subject: f.asunto, html: f.html, text: f.texto, attachments });
       await prisma.$executeRawUnsafe(`UPDATE "CorreoCola" SET estado = 'enviado', "enviadoAt" = now(), error = NULL WHERE id = $1`, f.id);
       enviados++;
     } catch (e) {
@@ -254,14 +299,15 @@ export async function encolarCorreosFirma(
   usuarios: { id: string; email: string; firstName: string | null; lastName: string | null; name: string | null }[],
   asunto: string,
   cuerpo: string,
+  adjuntoId: number | null = null,
 ): Promise<number> {
   await asegurarCola();
   let n = 0;
   for (const u of usuarios) {
     const texto = personalizar(cuerpo, u);
     n += await prisma.$executeRawUnsafe(
-      `INSERT INTO "CorreoCola" (campana, "userId", para, asunto, html, texto)
-       SELECT $1, $2, $3, $4, $5, $6
+      `INSERT INTO "CorreoCola" (campana, "userId", para, asunto, html, texto, "adjuntoId")
+       SELECT $1, $2, $3, $4, $5, $6, $7
        WHERE NOT EXISTS (SELECT 1 FROM "CorreoCola" WHERE campana = $1 AND "userId" = $2 AND estado IN ('pendiente', 'enviando', 'enviado'))`,
       CAMPANA_FIRMA,
       u.id,
@@ -269,6 +315,7 @@ export async function encolarCorreosFirma(
       personalizar(asunto, u),
       correoHtml(texto),
       correoTexto(texto),
+      adjuntoId,
     );
   }
   return n;
