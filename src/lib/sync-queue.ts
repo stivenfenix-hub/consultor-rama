@@ -632,7 +632,12 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     // Radicados que la Rama no respondió al agregarlos: se reintentan solos.
     info.reintentos = await procesarReintentos().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     // Documentos que no llegaron al agregar el proceso (la Rama falló).
-    if ((info.rama as { ok?: boolean } | undefined)?.ok) {
+    // Descanso antes de la cola (24 nov 2026): desde las 5:30 p.m. y durante la
+    // ventana nocturna no se piden registros ni documentos atrasados (la cola los
+    // trae con cada proceso). El 24 nov sus ráfagas de las 5:25-6:15 p.m. dejaron
+    // a la Rama bloqueando justo cuando arrancaba la cola.
+    const descansoRama = m >= 17 * 60 + 30 || enVentanaNocturna();
+    if ((info.rama as { ok?: boolean } | undefined)?.ok && !descansoRama) {
       // Registros que quedaron sin actuaciones (también de día).
       info.registros = await completarRegistrosIncompletos().catch((e) => ({
         error: e instanceof Error ? e.message : String(e),

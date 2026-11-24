@@ -149,6 +149,71 @@ async function turno() {
   const inicio = Math.max(ahora, ultimoInicio + ESPACIO_MS);
   ultimoInicio = inicio;
   if (inicio > ahora) await sleep(inicio - ahora);
+  try {
+    await turnoGlobal();
+  } catch (e) {
+    liberar();
+    throw e;
+  }
+}
+
+/**
+ * Turno GLOBAL por consulta (24 nov 2026), guardado en la base para que valga
+ * entre todos los procesos y servidores: cargas de varios abogados, "Actualizar",
+ * documentos del cron, monitor y cola nocturna. Entre el inicio de una consulta y
+ * la siguiente pasan al menos RAMA_GLOBAL_GAP_MS (2 s: máx. 30 por minuto en
+ * total). El 24 nov la Rama bloqueó tras 45 radicados de un abogado + ráfagas de
+ * documentos del cron (1 por segundo) + la carga de otro abogado a la vez.
+ * Si alguien recibe un bloqueo (403/429), todos frenan 5 min (fila id 3).
+ */
+const ESPACIO_GLOBAL_S = Math.max(0, Number(process.env.RAMA_GLOBAL_GAP_MS ?? 2000) || 0) / 1000;
+let tablaTurno = false;
+async function turnoGlobal() {
+  if (!ESPACIO_GLOBAL_S) return;
+  let espera = 0;
+  let freno = 0;
+  try {
+    const { prisma } = await import("./db");
+    if (!tablaTurno) {
+      await prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "CargaTurno" (id INT PRIMARY KEY, siguiente TIMESTAMPTZ NOT NULL)`,
+      );
+      tablaTurno = true;
+    }
+    const [t] = await prisma.$queryRawUnsafe<{ espera: number; freno: number | null }[]>(
+      `WITH f AS (SELECT GREATEST(0, EXTRACT(EPOCH FROM (siguiente - now())) * 1000)::float8 AS ms FROM "CargaTurno" WHERE id = 3)
+       INSERT INTO "CargaTurno" (id, siguiente) VALUES (2, now() + make_interval(secs => $1))
+       ON CONFLICT (id) DO UPDATE SET siguiente = GREATEST(now(), "CargaTurno".siguiente) + make_interval(secs => $1)
+       RETURNING GREATEST(0, EXTRACT(EPOCH FROM (siguiente - make_interval(secs => $1) - now())) * 1000)::float8 AS espera,
+                 (SELECT ms FROM f) AS freno`,
+      ESPACIO_GLOBAL_S,
+    );
+    espera = Number(t?.espera ?? 0);
+    freno = Number(t?.freno ?? 0);
+  } catch (e) {
+    // Sin base: al menos el espacio local (ya aplicado) y el global en este proceso.
+    console.error("[rama] turno global", e);
+    return;
+  }
+  if (freno > 0) {
+    frenoHasta = Math.max(frenoHasta, Date.now() + freno);
+    throw new RamaError("La Rama Judicial pidió pausar las consultas.", 429, true);
+  }
+  if (espera > 0) await sleep(espera);
+}
+
+/** Tras un bloqueo, todos los procesos frenan 5 min (no solo el que lo recibió). */
+async function frenarGlobal() {
+  try {
+    const { prisma } = await import("./db");
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "CargaTurno" (id, siguiente) VALUES (3, now() + make_interval(secs => $1))
+       ON CONFLICT (id) DO UPDATE SET siguiente = GREATEST("CargaTurno".siguiente, now() + make_interval(secs => $1))`,
+      FRENO_MS / 1000,
+    );
+  } catch (e) {
+    console.error("[rama] freno global", e);
+  }
 }
 function liberar() {
   const siguiente = enEspera.shift();
@@ -218,7 +283,10 @@ async function ramaGet<T>(
         const rateLimit = res.status === 429 || (res.status === 403 && body === null);
         // 400 (criterios), 404 (no encontrado) y bloqueos no se reintentan.
         const noReintentar = res.status === 400 || res.status === 404 || rateLimit;
-        if (rateLimit) frenoHasta = Date.now() + FRENO_MS;
+        if (rateLimit) {
+          frenoHasta = Date.now() + FRENO_MS;
+          await frenarGlobal();
+        }
         if (noReintentar || attempt === maxRetries) {
           throw new RamaError(msg, res.status, rateLimit);
         }
