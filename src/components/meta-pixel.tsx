@@ -67,9 +67,12 @@ export function MetaPixel() {
   // bloqueadores): se crea aquí con el formato de Meta, para que el servidor la
   // mande en CompleteRegistration (Conversions API) y el registro se atribuya.
   useEffect(() => {
-    const fbclid = new URLSearchParams(window.location.search).get("fbclid");
-    if (!fbclid || leerCookie("_fbc")) return;
-    document.cookie = `_fbc=fb.1.${Date.now()}.${encodeURIComponent(fbclid)}; Max-Age=${90 * 86400}; path=/; SameSite=Lax`;
+    // El fbclid va EXACTO (sin codificar ni cambiar mayúsculas): Meta lo compara con
+    // el clic real y marca "fbclid modificado" si difiere. Se toma crudo de la URL;
+    // si trae caracteres raros no se arma la cookie (mejor sin fbc que con uno malo).
+    const crudo = /[?&]fbclid=([^&#]*)/.exec(window.location.search)?.[1];
+    if (!crudo || !/^[A-Za-z0-9_-]+$/.test(crudo) || leerCookie("_fbc")) return;
+    document.cookie = `_fbc=fb.1.${Date.now()}.${crudo}; Max-Age=${90 * 86400}; path=/; SameSite=Lax`;
   }, []);
 
   return (

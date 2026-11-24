@@ -29,14 +29,37 @@ export async function marcarRegistroNuevo(userId: string, email: string) {
     httpOnly: false, // la lee el script del píxel
   });
 
-  const h = await headers();
-  const datos = {
-    fbc: jar.get("_fbc")?.value,
-    fbp: jar.get("_fbp")?.value,
+  const datos = datosDeCabeceras(await headers());
+  after(() => enviarRegistroCapi(userId, datos));
+}
+
+/**
+ * Valor CRUDO de una cookie de Meta (_fbc/_fbp), tal cual la escribió el píxel:
+ * cookies() de Next decodifica los %XX y eso puede alterar el fbclid ("fbclid
+ * modificado" en Meta). Si hay dos (la del dominio estradox.com y la de app.), se
+ * usa la más reciente según su marca de tiempo. Si no tiene el formato de Meta
+ * (fb.<n>.<ms>.<valor>), no se envía: mejor sin fbc que con uno alterado.
+ */
+export function cookieMetaCruda(cabeceraCookie: string | null, nombre: "_fbc" | "_fbp"): string | undefined {
+  if (!cabeceraCookie) return undefined;
+  const valores = cabeceraCookie
+    .split(";")
+    .map((p) => p.trim())
+    .filter((p) => p.startsWith(`${nombre}=`))
+    .map((p) => p.slice(nombre.length + 1))
+    .filter((v) => /^fb\.\d+\.\d+\.\S+$/.test(v));
+  if (!valores.length) return undefined;
+  return valores.sort((a, b) => Number(b.split(".")[2]) - Number(a.split(".")[2]))[0];
+}
+
+function datosDeCabeceras(h: Headers): DatosMeta {
+  const c = h.get("cookie");
+  return {
+    fbc: cookieMetaCruda(c, "_fbc"),
+    fbp: cookieMetaCruda(c, "_fbp"),
     ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || h.get("cf-connecting-ip") || undefined,
     ua: h.get("user-agent") ?? undefined,
   };
-  after(() => enviarRegistroCapi(userId, datos));
 }
 
 /**
@@ -67,14 +90,7 @@ export type DatosMeta = { fbc?: string; fbp?: string; ip?: string; ua?: string }
  */
 export async function datosMetaDeLaPeticion(): Promise<DatosMeta> {
   try {
-    const jar = await cookies();
-    const h = await headers();
-    return {
-      fbc: jar.get("_fbc")?.value,
-      fbp: jar.get("_fbp")?.value,
-      ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || h.get("cf-connecting-ip") || undefined,
-      ua: h.get("user-agent") ?? undefined,
-    };
+    return datosDeCabeceras(await headers());
   } catch {
     return {};
   }
