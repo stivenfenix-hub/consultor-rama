@@ -392,10 +392,8 @@ export async function enviarSegundoSinProcesos() {
     `SELECT "segundoSinProcesosFecha" AS f FROM "SiteSetting" WHERE id = 'site'`,
   );
   if (s?.f === hoy) return { omitido: "ya enviado hoy" };
-  await prisma.$executeRawUnsafe(
-    `UPDATE "SiteSetting" SET "segundoSinProcesosFecha" = $1 WHERE id = 'site'`,
-    hoy,
-  );
+  // El día se marca al final: si algo falla, la siguiente corrida lo reintenta
+  // (no se repite a nadie: cada usuario recibe "sinProcesos2" una sola vez).
   const { asegurarTablasWa, encolarWhatsapp } = await import("./whatsapp");
   await asegurarTablasWa();
   await ensureColumn("User", "marketingOptOut", "BOOLEAN NOT NULL DEFAULT false");
@@ -410,8 +408,8 @@ export async function enviarSegundoSinProcesos() {
      WHERE u.role <> 'admin'
        AND NOT u."marketingOptOut"
        AND coalesce(u."whatsapp", '') <> ''
-       AND pr.f <= now() - make_interval(days => $1)
-       AND pr.f >= now() - make_interval(days => $2)
+       AND pr.f <= now() - make_interval(days => $1::int)
+       AND pr.f >= now() - make_interval(days => $2::int)
        AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
        AND NOT EXISTS (SELECT 1 FROM "WaMensaje" m WHERE m."userId" = u.id AND m.tipo = 'sinProcesos2')
      ORDER BY pr.f DESC`,
@@ -434,6 +432,10 @@ export async function enviarSegundoSinProcesos() {
       ),
     }));
   const encolados = await encolarWhatsapp(filas);
+  await prisma.$executeRawUnsafe(
+    `UPDATE "SiteSetting" SET "segundoSinProcesosFecha" = $1 WHERE id = 'site'`,
+    hoy,
+  );
   return { candidatos: candidatos.length, encolados };
 }
 
