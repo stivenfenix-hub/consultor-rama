@@ -368,7 +368,7 @@ export function textoSegundoSinProcesos(nombre: string, apellido: string) {
 
 Vi que creó su cuenta y aún no tiene procesos cargados. Para no quitarle tiempo: respóndame con un radicado (23 dígitos) o mándeme el Excel o una foto de su listado, y yo se los cargo hoy.
 
-Desde mañana le llega a las 7:00 a. m. un resumen de estados y actuaciones nuevas, sin entrar a la Rama. Solo consultamos información pública.
+Desde mañana le llega a las 7:00 a. m. un resumen de estados y actuaciones nuevas, sin entrar a la Rama. Revisamos tanto la consulta de procesos de la Rama como los estados electrónicos que publica cada juzgado, para que no se le pase ninguna publicación.
 
 Si quiere probar primero, mándeme un proceso que revise a diario y mañana compara lo que le llega con lo que ve en la Rama.
 
