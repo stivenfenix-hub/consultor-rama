@@ -143,11 +143,11 @@ export async function enviarCompraCapi(c: {
     });
     const texto = (await r.text()).slice(0, 500);
     if (!r.ok) console.error("[meta-capi] Purchase", r.status, texto);
-    await registrarCapi(etiqueta, prueba, true, r.status, texto);
+    await registrarCapi(etiqueta, prueba, true, r.status, texto, d);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[meta-capi] Purchase", msg);
-    await registrarCapi(etiqueta, prueba, true, null, msg);
+    await registrarCapi(etiqueta, prueba, true, null, msg, d);
   }
 }
 
@@ -195,11 +195,11 @@ async function enviarRegistroCapi(
     });
     const texto = (await r.text()).slice(0, 500);
     if (!r.ok) console.error("[meta-capi] CompleteRegistration", r.status, texto);
-    await registrarCapi(userId, prueba, true, r.status, texto);
+    await registrarCapi(userId, prueba, true, r.status, texto, d);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[meta-capi] CompleteRegistration", msg);
-    await registrarCapi(userId, prueba, true, null, msg);
+    await registrarCapi(userId, prueba, true, null, msg, d);
   }
 }
 
@@ -207,19 +207,36 @@ async function enviarRegistroCapi(
  * Resultado de cada envío a Meta (sin el token), para revisar desde la base si
  * llegó: Hostinger no deja ver los logs de la app fácilmente.
  */
-async function registrarCapi(userId: string, prueba: boolean, conToken: boolean, status: number | null, respuesta: string) {
+let columnasLog = false;
+async function registrarCapi(
+  userId: string,
+  prueba: boolean,
+  conToken: boolean,
+  status: number | null,
+  respuesta: string,
+  /** Si el evento llevó fbc (clic en anuncio) y fbp: solo sí/no, nunca el valor. */
+  datos?: DatosMeta | null,
+) {
   try {
     const { prisma } = await import("./db");
+    if (!columnasLog) {
+      await prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "MetaCapiLog" (id SERIAL PRIMARY KEY, "userId" TEXT, prueba BOOLEAN, "conToken" BOOLEAN, status INTEGER, respuesta TEXT, "at" TIMESTAMPTZ DEFAULT now())`,
+      );
+      // 25 nov 2026: para ver qué registros/compras vinieron de un clic en anuncio.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "MetaCapiLog" ADD COLUMN IF NOT EXISTS "conFbc" BOOLEAN`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "MetaCapiLog" ADD COLUMN IF NOT EXISTS "conFbp" BOOLEAN`);
+      columnasLog = true;
+    }
     await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "MetaCapiLog" (id SERIAL PRIMARY KEY, "userId" TEXT, prueba BOOLEAN, "conToken" BOOLEAN, status INTEGER, respuesta TEXT, "at" TIMESTAMPTZ DEFAULT now())`,
-    );
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "MetaCapiLog" ("userId", prueba, "conToken", status, respuesta) VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO "MetaCapiLog" ("userId", prueba, "conToken", status, respuesta, "conFbc", "conFbp") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       userId,
       prueba,
       conToken,
       status,
       respuesta.slice(0, 500),
+      datos ? !!datos.fbc : null,
+      datos ? !!datos.fbp : null,
     );
   } catch (e) {
     console.error("[meta-capi] no se pudo guardar el resultado", e);
