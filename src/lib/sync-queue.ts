@@ -623,6 +623,13 @@ export async function tick(opts: { forzar?: boolean } = {}) {
         error: e instanceof Error ? e.message : String(e),
       }));
     }
+    // "Aproveche su prueba": 1 a 4 radicados y 4 a 8 días de prueba (WhatsApp + correo, una vez).
+    if (m >= 9 * 60 && m < 11 * 60) {
+      const { enviarCampanaAprovechar } = await import("./campana-aprovechar");
+      info.campanaAprovechar = await enviarCampanaAprovechar().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
+    }
     // Avisos de WhatsApp: en la misma corrida de las 7:00, en cuanto salieron
     // todos los resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).
     if (m >= REPORTE_WA && m < RESUMEN_HASTA) {
