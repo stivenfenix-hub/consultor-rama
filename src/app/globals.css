@@ -685,6 +685,21 @@ input:-webkit-autofill:focus {
   font-variant-numeric: tabular-nums;
 }
 
+/* Buscador de la lista de procesos */
+.procesos-buscar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.procesos-buscar input[type="search"] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.procesos-buscar .btn {
+  flex: none;
+}
+
 /* Pestañas del proceso: píldoras dentro de una cápsula (como la landing) */
 .tabbar {
   display: flex;

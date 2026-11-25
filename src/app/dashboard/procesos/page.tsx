@@ -53,7 +53,7 @@ export default async function ProcesosPage({
   searchParams,
 }: {
   /** pe: página de la lista "En estados electrónicos" (de a 20). */
-  searchParams: Promise<{ filtro?: string; pagina?: string; pe?: string; agregar?: string }>;
+  searchParams: Promise<{ filtro?: string; pagina?: string; pe?: string; agregar?: string; q?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -72,6 +72,11 @@ export default async function ProcesosPage({
         despacho: true,
         departamento: true,
         lastError: true,
+        // Para el buscador (por palabra).
+        sujetos: true,
+        tipoProceso: true,
+        claseProceso: true,
+        ponente: true,
       },
     }),
     cargasPendientesDeVer(user.id).catch(() => []),
@@ -121,11 +126,16 @@ export default async function ProcesosPage({
       fecha: s.ultimo?.fecha ? new Date(s.ultimo.fecha).getTime() : null,
     }));
   // Todo junto, del más reciente al más viejo (sin fecha al final).
-  const grupos = [...casos, ...soloEstados].sort((a, b) => (b.fecha ?? -Infinity) - (a.fecha ?? -Infinity));
-  const hayProcesos = grupos.length > 0;
+  const todosGrupos = [...casos, ...soloEstados].sort((a, b) => (b.fecha ?? -Infinity) - (a.fecha ?? -Infinity));
+  const hayProcesos = todosGrupos.length > 0;
 
   // Con novedades = tiene actuaciones nuevas que el abogado no ha visto.
-  const { filtro: f, pagina: pg, agregar } = await searchParams;
+  const { filtro: f, pagina: pg, agregar, q: qRaw } = await searchParams;
+  const q = String(qRaw ?? "").trim().slice(0, 100);
+  // Buscador: por radicado (o parte de él) o por palabras (partes, despacho, juzgado,
+  // tipo de proceso y lo que salió en sus estados electrónicos). Incluye los que
+  // solo están en estados.
+  const grupos = q ? await buscarGrupos(user.id, todosGrupos, q) : todosGrupos;
   const filtro: Filtro = f === "novedades" || f === "aldia" ? f : "todos";
   const conNovedades = grupos.filter((g) => g.nuevas > 0);
   const alDia = grupos.filter((g) => g.nuevas === 0);
@@ -153,6 +163,7 @@ export default async function ProcesosPage({
   const hrefPagina = (p: number) => {
     const s = new URLSearchParams();
     if (filtro !== "todos") s.set("filtro", filtro);
+    if (q) s.set("q", q);
     if (p > 1) s.set("pagina", String(p));
     const t = s.toString();
     return `/dashboard/procesos${t ? `?${t}` : ""}`;
@@ -239,11 +250,38 @@ export default async function ProcesosPage({
       {estadosALaVista && tarjetaEstados}
 
       {hayProcesos && (
+        <form method="get" action="/dashboard/procesos" className="procesos-buscar" role="search">
+          {filtro !== "todos" && <input type="hidden" name="filtro" value={filtro} />}
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Buscar por radicado, parte, juzgado o palabra (también en estados electrónicos)"
+            aria-label="Buscar procesos"
+            maxLength={100}
+          />
+          <button type="submit" className="btn">Buscar</button>
+          {q && (
+            <Link prefetch={false} href={filtro === "todos" ? "/dashboard/procesos" : `/dashboard/procesos?filtro=${filtro}`} className="btn secondary">
+              Limpiar
+            </Link>
+          )}
+        </form>
+      )}
+      {q && (
+        <p className="muted small" style={{ margin: "0 0 10px" }}>
+          {grupos.length === 0
+            ? <>No encontramos procesos para «{q}» en la Consulta Nacional ni en estados electrónicos.</>
+            : <>{grupos.length} proceso(s) para «{q}».</>}
+        </p>
+      )}
+
+      {hayProcesos && (
         <nav className="tabbar tabbar-3">
           {pestanas.map((p) => (
             <Link prefetch={false}
               key={p.key}
-              href={p.key === "todos" ? "/dashboard/procesos" : `/dashboard/procesos?filtro=${p.key}`}
+              href={`/dashboard/procesos?${new URLSearchParams({ ...(p.key !== "todos" && { filtro: p.key }), ...(q && { q }) }).toString()}`}
               className={`tab ${filtro === p.key ? "active" : ""}`}
               scroll={false}
             >
@@ -273,7 +311,7 @@ export default async function ProcesosPage({
           </div>
         </div>
       )}
-      {hayProcesos && lista.length === 0 && (
+      {hayProcesos && !q && lista.length === 0 && (
         <p className="muted">
           {filtro === "novedades"
             ? "No hay novedades sin revisar. Todos tus procesos están al día."
@@ -374,6 +412,58 @@ export default async function ProcesosPage({
 
     </div>
   );
+}
+
+/** Minúsculas y sin tildes, para comparar sin importar cómo se escribió. */
+function normalizar(t: string) {
+  return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Filtra las tarjetas por la búsqueda. Números (5 o más dígitos) buscan dentro del
+ * radicado; las palabras deben estar todas en el texto del proceso: radicado,
+ * despacho, departamento, partes, tipo/clase, ponente, juzgado y los extractos de
+ * sus estados electrónicos.
+ */
+async function buscarGrupos<
+  G extends
+    | { tipo: "caso"; principal: { id: string; radicado: string; despacho: string | null; departamento: string | null; sujetos: string | null; tipoProceso: string | null; claseProceso: string | null; ponente: string | null } }
+    | { tipo: "estado"; s: { radicado: string; despacho: string; juzgado: string | null; ultimo: { titulo: string; extracto: string | null } | null } },
+>(userId: string, grupos: G[], q: string): Promise<G[]> {
+  const digitos = q.replace(/\D/g, "");
+  if (digitos.length >= 5 && digitos.length >= q.replace(/[\s-]/g, "").length) {
+    return grupos.filter((g) => (g.tipo === "caso" ? g.principal.radicado : g.s.radicado).includes(digitos));
+  }
+  const palabras = normalizar(q).split(/\s+/).filter(Boolean);
+  if (!palabras.length) return grupos;
+  // Partes de cada proceso y texto de sus estados electrónicos (solo del abogado).
+  const [partes, hallazgos] = await Promise.all([
+    prisma
+      .$queryRawUnsafe<{ caseId: string; nombres: string }[]>(
+        `SELECT p."caseId", string_agg(coalesce(p.nombre, '') || ' ' || coalesce(p.identificacion, ''), ' ') AS nombres
+         FROM "Parte" p JOIN "Case" c ON c.id = p."caseId" WHERE c."userId" = $1 GROUP BY p."caseId"`,
+        userId,
+      )
+      .catch(() => []),
+    prisma
+      .$queryRawUnsafe<{ radicado: string; texto: string }[]>(
+        `SELECT h.radicado, string_agg(left(coalesce(h.extracto, ''), 600) || ' ' || coalesce(p.titulo, ''), ' ') AS texto
+         FROM "EstadoHallazgo" h LEFT JOIN "EstadoPublicacion" p ON p.id = h."publicacionId"
+         WHERE h."userId" = $1 GROUP BY h.radicado`,
+        userId,
+      )
+      .catch(() => []),
+  ]);
+  const partesDe = new Map(partes.map((p) => [p.caseId, p.nombres]));
+  const estadosDe = new Map(hallazgos.map((h) => [h.radicado, h.texto]));
+  return grupos.filter((g) => {
+    const texto =
+      g.tipo === "caso"
+        ? [g.principal.radicado, g.principal.despacho, g.principal.departamento, g.principal.sujetos, g.principal.tipoProceso, g.principal.claseProceso, g.principal.ponente, partesDe.get(g.principal.id), estadosDe.get(g.principal.radicado)]
+        : [g.s.radicado, g.s.despacho, g.s.juzgado, g.s.ultimo?.titulo, g.s.ultimo?.extracto, estadosDe.get(g.s.radicado)];
+    const t = normalizar(texto.filter(Boolean).join(" "));
+    return palabras.every((p) => t.includes(p));
+  });
 }
 
 // Las fechas de los estados se guardan como día (sin hora).
