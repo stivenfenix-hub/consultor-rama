@@ -17,7 +17,7 @@ export const CUENTAS_WA: CuentaWa[] = ["avisos", "comercial"];
 export function cuentaDeTipo(tipo: string): CuentaWa {
   // "firma" (enlace para firmar y código OTP) también va por el comercial.
   // "campana": campañas del root (Panel admin → Campañas).
-  return tipo === "sinProcesos" || tipo === "promo" || tipo === "firma" || tipo === "campana" ? "comercial" : "avisos";
+  return tipo === "sinProcesos" || tipo === "sinProcesos2" || tipo === "promo" || tipo === "firma" || tipo === "campana" ? "comercial" : "avisos";
 }
 
 let listo: Promise<void> | null = null;

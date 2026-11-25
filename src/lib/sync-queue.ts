@@ -27,6 +27,7 @@ import { revisarRama } from "./monitor-rama";
 import { nocheHabil } from "./dias-habiles";
 import {
   avisarReporteSinProcesos,
+  enviarSegundoSinProcesos,
   enviarReporteWhatsapp,
   registrarAvisoWhatsapp,
   textoActuaciones,
@@ -68,6 +69,7 @@ const RESUMEN_HASTA = VENTANA_INICIO; // no se avisa de noche (lo de la noche sa
 // worker del VPS los envía desde las 7:01).
 const REPORTE_WA = RESUMEN_DESDE;
 const REPORTE_SIN_PROCESOS = 7 * 60 + 20; // 7:20 a.m.: registrados ayer sin procesos (root)
+const SEGUNDO_SIN_PROCESOS = 10 * 60; // 10:00 a.m. (días hábiles): segundo mensaje a quienes siguen sin procesos
 
 const MIN = 60_000;
 const HORA = 60 * MIN;
@@ -611,6 +613,13 @@ export async function tick(opts: { forzar?: boolean } = {}) {
     // Registrados ayer que no han cargado procesos: aviso al root para descargar el Excel.
     if (m >= REPORTE_SIN_PROCESOS && m < RESUMEN_HASTA) {
       info.reporteSinProcesos = await avisarReporteSinProcesos().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
+    }
+    // Siguen sin procesos 3+ días después del primer mensaje: el segundo (una vez).
+    // Hasta las 3 p.m.: no se escribe a media tarde ni de noche.
+    if (m >= SEGUNDO_SIN_PROCESOS && m < 15 * 60) {
+      info.segundoSinProcesos = await enviarSegundoSinProcesos().catch((e) => ({
         error: e instanceof Error ? e.message : String(e),
       }));
     }

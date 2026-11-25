@@ -352,6 +352,91 @@ export async function avisarReporteSinProcesos() {
   return { fecha: ayer, usuarios: filas.length, encoladosWhatsapp: encolados };
 }
 
+// ---------- Segundo mensaje a quienes siguen sin procesos (10:00 a.m., días hábiles) ----------
+
+/**
+ * Seguimiento al primer "sin procesos" (redactado con la experta de marketing y
+ * probado con el abogado-usuario): sin enlace ni presión por la prueba; basta con
+ * responder el chat. Saluda por nombre y apellido porque no sabemos si es Dr. o Dra.
+ */
+export function textoSegundoSinProcesos(nombre: string, apellido: string) {
+  const quien = [nombre, apellido].filter(Boolean).join(" ");
+  return `Buenos días${quien ? `, ${quien}` : ""}. Le escribe Manuela, de Estradox.
+
+Vi que creó su cuenta y aún no tiene procesos cargados. Para no quitarle tiempo: respóndame con un radicado (23 dígitos) o mándeme el Excel o una foto de su listado, y yo se los cargo hoy.
+
+Desde mañana le llega a las 7:00 a. m. un resumen de estados y actuaciones nuevas, sin entrar a la Rama. Solo consultamos información pública.
+
+Si quiere probar primero, mándeme un proceso que revise a diario y mañana compara lo que le llega con lo que ve en la Rama.
+
+Si no le interesa, me dice y no le escribo más.`;
+}
+
+/** Días desde el primer mensaje, y hasta cuándo vale la pena el seguimiento. */
+const SEGUNDO_DESDE_DIAS = 3;
+const SEGUNDO_HASTA_DIAS = 21;
+/** Máximo por día: el pendiente acumulado sale en varios días, sin cargar el número. */
+const SEGUNDO_MAX_DIA = 20;
+
+/**
+ * Una sola vez por usuario: recibió el primer "sin procesos" hace 3 a 21 días,
+ * sigue sin radicados (tampoco solo en estados) y no desactivó las ofertas.
+ * Solo lunes a viernes no festivos (y una vez al día).
+ */
+export async function enviarSegundoSinProcesos() {
+  const { esDiaHabil } = await import("./dias-habiles");
+  if (!esDiaHabil(new Date(Date.now() - 5 * 60 * 60 * 1000))) return { omitido: "día no hábil" };
+  await ensureColumn("SiteSetting", "segundoSinProcesosFecha", "TEXT");
+  const hoy = hoyBogota();
+  const [s] = await prisma.$queryRawUnsafe<{ f: string | null }[]>(
+    `SELECT "segundoSinProcesosFecha" AS f FROM "SiteSetting" WHERE id = 'site'`,
+  );
+  if (s?.f === hoy) return { omitido: "ya enviado hoy" };
+  await prisma.$executeRawUnsafe(
+    `UPDATE "SiteSetting" SET "segundoSinProcesosFecha" = $1 WHERE id = 'site'`,
+    hoy,
+  );
+  const { asegurarTablasWa, encolarWhatsapp } = await import("./whatsapp");
+  await asegurarTablasWa();
+  await ensureColumn("User", "marketingOptOut", "BOOLEAN NOT NULL DEFAULT false");
+  const candidatos = await prisma.$queryRawUnsafe<
+    { id: string; firstName: string | null; lastName: string | null; name: string | null; whatsapp: string | null }[]
+  >(
+    `SELECT u.id, u."firstName", u."lastName", u.name, u."whatsapp"
+     FROM "User" u
+     JOIN (SELECT "userId", min("enviadoAt") AS f FROM "WaMensaje"
+           WHERE tipo = 'sinProcesos' AND estado = 'enviado' AND "userId" IS NOT NULL
+           GROUP BY 1) pr ON pr."userId" = u.id
+     WHERE u.role <> 'admin'
+       AND NOT u."marketingOptOut"
+       AND coalesce(u."whatsapp", '') <> ''
+       AND pr.f <= now() - make_interval(days => $1)
+       AND pr.f >= now() - make_interval(days => $2)
+       AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
+       AND NOT EXISTS (SELECT 1 FROM "WaMensaje" m WHERE m."userId" = u.id AND m.tipo = 'sinProcesos2')
+     ORDER BY pr.f DESC`,
+    SEGUNDO_DESDE_DIAS,
+    SEGUNDO_HASTA_DIAS,
+  );
+  // Los vigilados solo en estados ya tienen procesos.
+  const { conteoProcesosPorUsuario } = await import("./estados");
+  const conteo = await conteoProcesosPorUsuario(candidatos.map((u) => u.id));
+  const filas = candidatos
+    .filter((u) => !conteo.get(u.id))
+    .slice(0, SEGUNDO_MAX_DIA)
+    .map((u) => ({
+      tipo: "sinProcesos2",
+      userId: u.id,
+      telefono: (u.whatsapp ?? "").replace(/\D/g, ""),
+      mensaje: textoSegundoSinProcesos(
+        (u.firstName ?? "").trim() ? primerNombre(u.firstName, u.name) : "",
+        primerApellido(u.lastName, u.name),
+      ),
+    }));
+  const encolados = await encolarWhatsapp(filas);
+  return { candidatos: candidatos.length, encolados };
+}
+
 // ---------- Root: todos los que siguen sin radicados (envío manual) ----------
 
 /** El mensaje de "sin procesos" con {apellido} donde va el apellido de cada uno. */
@@ -397,7 +482,7 @@ export async function usuariosSinRadicados(): Promise<UsuarioSinRadicados[]> {
   >(
     `SELECT u.id, u."firstName", u."lastName", u.name, u.email, u."whatsapp", u."createdAt",
             EXISTS (SELECT 1 FROM "CargaProcesos" cp WHERE cp."userId" = u.id) AS intento,
-            (SELECT max(m."createdAt") FROM "WaMensaje" m WHERE m."userId" = u.id AND m.tipo = 'sinProcesos') AS "ultimoWa"
+            (SELECT max(m."createdAt") FROM "WaMensaje" m WHERE m."userId" = u.id AND m.tipo IN ('sinProcesos', 'sinProcesos2')) AS "ultimoWa"
      FROM "User" u
      WHERE u.role <> 'admin'
        AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
