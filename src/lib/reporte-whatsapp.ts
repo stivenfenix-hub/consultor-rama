@@ -361,7 +361,10 @@ export async function avisarReporteSinProcesos() {
  */
 export function textoSegundoSinProcesos(nombre: string, apellido: string) {
   const quien = [nombre, apellido].filter(Boolean).join(" ");
-  return `Buenos días${quien ? `, ${quien}` : ""}. Le escribe Manuela, de Estradox.
+  // Sale de 10 a.m. a 3 p.m.: a partir del mediodía es "Buenas tardes".
+  const hora = Number(new Date().toLocaleString("en-US", { timeZone: "America/Bogota", hour: "numeric", hour12: false }));
+  const saludo = hora >= 12 ? "Buenas tardes" : "Buenos días";
+  return `${saludo}${quien ? `, ${quien}` : ""}. Le escribe Manuela, de Estradox.
 
 Vi que creó su cuenta y aún no tiene procesos cargados. Para no quitarle tiempo: respóndame con un radicado (23 dígitos) o mándeme el Excel o una foto de su listado, y yo se los cargo hoy.
 
@@ -427,7 +430,8 @@ export async function enviarSegundoSinProcesos() {
       userId: u.id,
       telefono: (u.whatsapp ?? "").replace(/\D/g, ""),
       mensaje: textoSegundoSinProcesos(
-        (u.firstName ?? "").trim() ? primerNombre(u.firstName, u.name) : "",
+        // "ERICK" -> "Erick" (primerNombre solo sube la inicial).
+        (u.firstName ?? "").trim() ? primerApellido(u.firstName, null) : "",
         primerApellido(u.lastName, u.name),
       ),
     }));
