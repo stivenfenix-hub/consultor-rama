@@ -276,6 +276,9 @@ export async function enviarBienvenida(userId: string) {
   } catch (e) {
     console.error("[bienvenida] no se pudo enviar", e);
   }
+  // También por WhatsApp (si ya dejó el número; con Google sale al escribirlo).
+  const { enviarBienvenidaWhatsapp } = await import("./reporte-whatsapp");
+  await enviarBienvenidaWhatsapp(userId);
 }
 
 // Solo cuentas activadas desde que existe el recordatorio: los usuarios

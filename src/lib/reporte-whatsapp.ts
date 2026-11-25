@@ -330,6 +330,7 @@ export async function avisarReporteSinProcesos() {
   const ayer = fechaBogotaHace(1);
   const filas = await filasSinProcesosDelDia(ayer);
   // De una vez a la cola del WhatsApp comercial (la misma lista del Excel).
+  // También a quien recibió la bienvenida por WhatsApp: si al otro día sigue en 0, le llega.
   const { encolarWhatsapp } = await import("./whatsapp");
   const encolados = await encolarWhatsapp(filas.map((f) => ({ ...f, tipo: "sinProcesos" }))).catch((e) => {
     console.error("[reporte-sin-procesos] encolar WhatsApp", e);
@@ -350,6 +351,55 @@ export async function avisarReporteSinProcesos() {
     },
   );
   return { fecha: ayer, usuarios: filas.length, encoladosWhatsapp: encolados };
+}
+
+// ---------- Bienvenida por WhatsApp al registrarse ----------
+
+/** "ERICK" -> "Erick". */
+function palabraNombre(s: string | null | undefined) {
+  const p = (s ?? "").trim().split(/\s+/)[0] ?? "";
+  return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : "";
+}
+
+export function textoBienvenidaWhatsapp(quien: string) {
+  return `Hola${quien ? `, ${quien}` : ""}. Le doy la bienvenida a Estradox: soy Manuela y estaré pendiente de su cuenta.
+
+Su mes de prueba gratis ya está activo. Para empezar, agregue sus radicados (23 dígitos) aquí:
+${APP_URL}/dashboard/procesos
+
+Desde la madrugada siguiente le llega a las 7:00 a. m. el resumen de actuaciones y estados electrónicos de sus procesos.
+
+¿Tiene muchos? Envíeme por aquí su listado (Excel o una foto) y yo se los cargo.`;
+}
+
+/**
+ * Bienvenida por la línea comercial, una sola vez, a cuentas creadas hace menos
+ * de 2 días que ya tienen WhatsApp (formulario: al crearla; Google: al escribir
+ * el número). Para el servicio es urgente (como "firma"): sale enseguida, también
+ * de noche, porque quien se acaba de registrar está activo. Nunca rompe el registro.
+ */
+export async function enviarBienvenidaWhatsapp(userId: string) {
+  try {
+    const { encolarWhatsapp, asegurarTablasWa } = await import("./whatsapp");
+    await asegurarTablasWa();
+    const [u] = await prisma.$queryRawUnsafe<
+      { firstName: string | null; lastName: string | null; name: string | null; whatsapp: string | null }[]
+    >(
+      `SELECT u."firstName", u."lastName", u.name, u."whatsapp" FROM "User" u
+       WHERE u.id = $1 AND u.role <> 'admin' AND u."createdAt" > now() - interval '2 days'
+         AND NOT EXISTS (SELECT 1 FROM "WaMensaje" m WHERE m."userId" = u.id AND m.tipo = 'bienvenida')`,
+      userId,
+    );
+    const telefono = (u?.whatsapp ?? "").replace(/\D/g, "");
+    if (!u || !telefono) return 0;
+    const quien = [palabraNombre(u.firstName) || palabraNombre(u.name), primerApellido(u.lastName, u.name)]
+      .filter(Boolean)
+      .join(" ");
+    return await encolarWhatsapp([{ tipo: "bienvenida", userId, telefono, mensaje: textoBienvenidaWhatsapp(quien) }]);
+  } catch (e) {
+    console.error("[bienvenida-wa] no se pudo encolar", e);
+    return 0;
+  }
 }
 
 // ---------- Segundo mensaje a quienes siguen sin procesos (10:00 a.m., días hábiles) ----------

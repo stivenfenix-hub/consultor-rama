@@ -718,6 +718,11 @@ export async function completarRegistroAction(
   } catch {
     return { error: "No se pudo guardar el número. Intenta de nuevo." };
   }
+  // Registro con Google: la bienvenida por WhatsApp sale ahora que hay número.
+  after(async () => {
+    const { enviarBienvenidaWhatsapp } = await import("@/lib/reporte-whatsapp");
+    await enviarBienvenidaWhatsapp(user.id);
+  });
   redirect(homePath(user.role));
 }
 
