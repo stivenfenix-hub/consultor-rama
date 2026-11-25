@@ -52,8 +52,8 @@ const num = (v: string | undefined, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : def;
 };
-// Cola nocturna: un proceso cada 15 s (24 nov 2026; 21 nov: 16 s, ~163/h sin bloqueos; 20 nov: 17 s; 19 nov: 18 s; 18 nov: 19 s; antes 20 s), buscando el punto de equilibrio con la Rama.
-const PAUSA_ENTRE_PROCESOS_MS = num(process.env.SYNC_PAUSA_PROCESOS_MS, 15_000);
+// Cola nocturna: un proceso cada 14 s (25 nov 2026; 24 nov: 15 s, hasta 172/h sin bloqueos; 21 nov: 16 s, ~163/h sin bloqueos; 20 nov: 17 s; 19 nov: 18 s; 18 nov: 19 s; antes 20 s), buscando el punto de equilibrio con la Rama.
+const PAUSA_ENTRE_PROCESOS_MS = num(process.env.SYNC_PAUSA_PROCESOS_MS, 14_000);
 const PAUSA_MIN_MS = num(process.env.SYNC_PAUSE_MIN_MS, 1500);
 const PAUSA_MAX_MS = num(process.env.SYNC_PAUSE_MAX_MS, 3000);
 const PRESUPUESTO_MS = num(process.env.SYNC_BUDGET_MS, 240_000); // por corrida de 5 min
@@ -429,7 +429,7 @@ async function procesarCola(): Promise<ResultadoLote> {
   const pendientes = [...grupos.values()];
 
   // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
-  // vez y 15 s entre uno y otro (~170 por hora). Cada proceso pide turno en la
+  // vez y 14 s entre uno y otro (~180 por hora). Cada proceso pide turno en la
   // fila única de la Rama (la misma de las cargas de radicados): si un abogado
   // está cargando, su radicado entra en el turno siguiente y la cola espera.
   const pausaS = PAUSA_ENTRE_PROCESOS_MS / 1000;
@@ -457,7 +457,7 @@ async function procesarCola(): Promise<ResultadoLote> {
         r.fallidos += grupo.length;
         await marcarFallo(grupo, err).catch(() => {});
       }
-      // 15 s desde que terminó este proceso, antes del próximo turno (de la cola o de una carga).
+      // 14 s desde que terminó este proceso, antes del próximo turno (de la cola o de una carga).
       await correrTurnoRama(pausaS);
     }
   };
