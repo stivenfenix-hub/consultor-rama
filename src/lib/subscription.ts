@@ -737,6 +737,21 @@ export async function extenderAcceso(userId: string, cantidad: { dias?: number; 
   );
 }
 
+/**
+ * El root extiende la prueba gratis: suma días desde que termina la prueba actual
+ * (o desde hoy si ya venció). Sigue como "prueba", no como plan pagado, y el aviso
+ * de vencimiento vuelve a salir para la nueva fecha.
+ */
+export async function extenderPrueba(userId: string, dias: number) {
+  const s = await getSuscripcion(userId);
+  const base = Math.max(Date.now(), s.trialEndsAt?.getTime() ?? 0);
+  await prisma.$executeRawUnsafe(
+    `UPDATE "User" SET "trialEndsAt" = $1 WHERE id = $2`,
+    new Date(base + dias * DIA_MS),
+    userId,
+  );
+}
+
 /** El root termina el acceso de un usuario de inmediato (prueba y plan). */
 export async function terminarAcceso(userId: string) {
   await ensureSchema();

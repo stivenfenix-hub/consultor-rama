@@ -46,6 +46,7 @@ import {
 import {
   crearLinkDePago,
   extenderAcceso,
+  extenderPrueba,
   getPlan,
   getSuscripcion,
   esMesesPaquete,
@@ -669,6 +670,14 @@ export async function regalarDiasAction(userId: string, dias: number) {
   if (!Number.isInteger(dias) || dias < 1 || dias > 366) return;
   await extenderAcceso(userId, { dias });
   revalidatePath("/dashboard/admin/suscripciones");
+}
+
+/** El root extiende 15 días la prueba gratis (Usuarios y Suscripciones). */
+export async function extenderPruebaAction(userId: string) {
+  await requireAdmin();
+  await extenderPrueba(userId, 15);
+  revalidatePath("/dashboard/admin/suscripciones");
+  revalidatePath("/dashboard/admin/usuarios");
 }
 
 /** El root lanza una corrida de la cola nocturna ahora (prueba / ponerse al día). */

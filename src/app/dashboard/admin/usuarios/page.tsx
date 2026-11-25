@@ -6,6 +6,8 @@ import { EliminarUsuario } from "./eliminar-usuario";
 import { motivosSospecha } from "@/lib/sospechoso";
 import { resumenCargasPorUsuario } from "@/lib/sync";
 import { conteoProcesosPorUsuario } from "@/lib/estados";
+import { suscripcionesDeTodos } from "@/lib/subscription";
+import { ExtendTrialButton } from "../suscripciones/gift-days-button";
 
 function fmt(d: Date | null | undefined) {
   if (!d) return "—";
@@ -33,10 +35,11 @@ export default async function UsuariosAdmin({
   ]);
   const users = pagina.users;
   const ids = users.map((u) => u.id);
-  const [whatsapp, cargas, procesos] = await Promise.all([
+  const [whatsapp, cargas, procesos, subs] = await Promise.all([
     getWhatsappPorUsuario(ids),
     resumenCargasPorUsuario(ids).catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
     conteoProcesosPorUsuario(ids).catch(() => new Map<string, number>()),
+    suscripcionesDeTodos().catch(() => null),
   ]);
   const sospechas = new Map<string, string[]>();
   for (const u of todos) {
@@ -141,6 +144,7 @@ export default async function UsuariosAdmin({
                 <th title="Veces que intentó agregar procesos (desde el 28 de oct)">Intentos de carga</th>
                 <th>Último acceso</th>
                 <th>Registro</th>
+                <th>Acceso hasta</th>
                 <th></th>
               </tr>
             </thead>
@@ -193,8 +197,23 @@ export default async function UsuariosAdmin({
                   </td>
                   <td className="muted">{fmt(u.lastLoginAt)}</td>
                   <td className="muted">{fmt(u.createdAt)}</td>
+                  <td className="muted small">
+                    {(() => {
+                      const s = subs?.get(u.id);
+                      if (!s || s.estado === "admin" || s.estado === "socio") return "—";
+                      const f = s.accesoHasta ? s.accesoHasta.toLocaleDateString("es-CO", { timeZone: "America/Bogota" }) : "—";
+                      return `${s.estado === "activa" ? "Plan" : s.estado === "prueba" ? "Prueba" : "Venció"} · ${f}`;
+                    })()}
+                  </td>
                   <td>
-                    {u.role !== "admin" && <EliminarUsuario id={u.id} email={u.email} />}
+                    {u.role !== "admin" && (
+                      <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                        {subs?.get(u.id)?.estado !== "activa" && subs?.get(u.id)?.estado !== "socio" && (
+                          <ExtendTrialButton userId={u.id} nombre={u.name} />
+                        )}
+                        <EliminarUsuario id={u.id} email={u.email} />
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

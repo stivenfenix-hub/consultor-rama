@@ -9,7 +9,7 @@ import {
 } from "@/lib/subscription";
 import { PlanForm } from "./plan-form";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
-import { EndAccessButton, GiftDaysButton } from "./gift-days-button";
+import { EndAccessButton, ExtendTrialButton, GiftDaysButton } from "./gift-days-button";
 
 const fecha = (d: Date | null) =>
   d
@@ -106,6 +106,9 @@ export default async function SuscripcionesAdmin({
                     <td>
                       {u.role !== "admin" && (
                         <div className="row" style={{ gap: 6 }}>
+                          {s?.estado !== "activa" && s?.estado !== "socio" && (
+                            <ExtendTrialButton userId={u.id} nombre={u.name} />
+                          )}
                           <GiftDaysButton userId={u.id} />
                           {s?.estado !== "vencida" && <EndAccessButton userId={u.id} />}
                         </div>
