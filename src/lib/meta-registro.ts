@@ -82,6 +82,64 @@ export function esPruebaMeta(email: string | null | undefined) {
 
 const sha256 = (s: string) => createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
 
+/** Minúsculas, sin tildes y solo letras (formato que pide Meta para fn/ln). */
+const soloLetras = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-zñ]/g, "");
+
+/** WhatsApp en formato internacional de Colombia, solo dígitos (57 + 10 dígitos). */
+export function telefonoMeta(t: string | null | undefined): string | null {
+  const d = String(t ?? "").replace(/\D/g, "");
+  if (d.length === 10 && d.startsWith("3")) return `57${d}`;
+  if (d.length === 12 && d.startsWith("57")) return d;
+  return d.length >= 8 ? d : null;
+}
+
+export type DatosPersonalesMeta = { em?: string[]; ph?: string[]; fn?: string[]; ln?: string[] };
+
+/**
+ * Correo, WhatsApp, nombre y apellido cifrados (SHA-256) para Meta, SOLO si el
+ * usuario aceptó la Política desde la versión que lo autoriza (25 nov 2026,
+ * VERSION_DATOS_META). Los registrados antes no envían nada de esto.
+ */
+/**
+ * Coincidencias avanzadas para el Píxel (fbq init) del usuario con sesión: los
+ * mismos datos cifrados que va por CAPI (vacío si no aceptó la versión que lo
+ * autoriza; external_id siempre, como en CAPI).
+ */
+export async function coincidenciasPixel(userId: string): Promise<Record<string, string>> {
+  const d = await datosPersonalesMeta(userId);
+  const r: Record<string, string> = { external_id: sha256(userId) };
+  for (const k of ["em", "ph", "fn", "ln"] as const) if (d[k]?.[0]) r[k] = d[k]![0];
+  if (d.em) r.country = sha256("co");
+  return r;
+}
+
+export async function datosPersonalesMeta(userId: string): Promise<DatosPersonalesMeta> {
+  try {
+    const { prisma } = await import("./db");
+    const { VERSION_DATOS_META } = await import("./consent");
+    const [u] = await prisma.$queryRawUnsafe<
+      { email: string; firstName: string | null; lastName: string | null; name: string | null; whatsapp: string | null; termsVersion: string | null }[]
+    >(`SELECT email, "firstName", "lastName", name, "whatsapp", "termsVersion" FROM "User" WHERE id = $1`, userId);
+    if (!u || !u.termsVersion || u.termsVersion < VERSION_DATOS_META) return {};
+    const d: DatosPersonalesMeta = {};
+    const correo = u.email.trim().toLowerCase();
+    if (correo.includes("@")) d.em = [sha256(correo)];
+    const tel = telefonoMeta(u.whatsapp);
+    if (tel) d.ph = [sha256(tel)];
+    // Nombre: firstName/lastName; si solo hay "name", la primera palabra es el nombre y el resto el apellido.
+    const partes = (u.name ?? "").trim().split(/\s+/).filter(Boolean);
+    const nombre = soloLetras((u.firstName ?? partes[0] ?? "").trim().split(/\s+/)[0] ?? "");
+    const apellido = soloLetras((u.lastName ?? (partes.length > 1 ? partes[partes.length > 3 ? 2 : 1] : "") ?? "").trim().split(/\s+/)[0] ?? "");
+    if (nombre) d.fn = [sha256(nombre)];
+    if (apellido) d.ln = [sha256(apellido)];
+    return d;
+  } catch (e) {
+    console.error("[meta-capi] datos personales", e);
+    return {};
+  }
+}
+
 export type DatosMeta = { fbc?: string; fbp?: string; ip?: string; ua?: string };
 
 /**
@@ -123,6 +181,7 @@ export async function enviarCompraCapi(c: {
     user_data: {
       external_id: [sha256(c.userId)],
       country: [sha256("co")],
+      ...(await datosPersonalesMeta(c.userId)),
       ...(d.ip && { client_ip_address: d.ip }),
       ...(d.ua && { client_user_agent: d.ua }),
       ...(d.fbc && { fbc: d.fbc }),
@@ -155,8 +214,8 @@ export async function enviarCompraCapi(c: {
 
 /**
  * CompleteRegistration por Conversions API. Sin META_CAPI_ACCESS_TOKEN no hace nada.
- * Solo datos técnicos (IP, navegador, cookies de Meta) y el id interno hasheado:
- * la Política de Datos dice que a Meta no se le envía nombre, correo ni WhatsApp.
+ * Datos técnicos (IP, navegador, cookies de Meta), el id interno hasheado y, si
+ * aceptó la Política desde el 25 nov 2026, correo/WhatsApp/nombre cifrados (SHA-256).
  */
 async function enviarRegistroCapi(
   userId: string,
@@ -174,6 +233,7 @@ async function enviarRegistroCapi(
     user_data: {
       external_id: [sha256(userId)],
       country: [sha256("co")],
+      ...(await datosPersonalesMeta(userId)),
       ...(d.ip && { client_ip_address: d.ip }),
       ...(d.ua && { client_user_agent: d.ua }),
       ...(d.fbc && { fbc: d.fbc }),

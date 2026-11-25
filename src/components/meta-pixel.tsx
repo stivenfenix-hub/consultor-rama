@@ -47,7 +47,12 @@ function leerCookie(nombre: string) {
   return par ? decodeURIComponent(par.slice(nombre.length + 1)) : null;
 }
 
-export function MetaPixel() {
+/**
+ * `am`: coincidencias avanzadas del usuario con sesión (correo, WhatsApp, nombre,
+ * apellido e id, ya cifrados con SHA-256 en el servidor). Solo llegan si aceptó la
+ * Política desde el 25 nov 2026 (ver datosPersonalesMeta).
+ */
+export function MetaPixel({ am }: { am?: Record<string, string> | null }) {
   const pathname = usePathname();
   const primera = useRef(true);
 
@@ -83,7 +88,7 @@ n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
 n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
 t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
 document,'script','https://connect.facebook.net/en_US/fbevents.js');
-fbq('init','${META_PIXEL_ID}');fbq('track','PageView');`}
+fbq('init','${META_PIXEL_ID}'${am && Object.keys(am).length ? `,${JSON.stringify(am)}` : ""});fbq('track','PageView');`}
       </Script>
       <noscript>
         {/* eslint-disable-next-line @next/next/no-img-element */}

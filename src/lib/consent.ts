@@ -12,7 +12,10 @@ import { ensureColumn } from "./runtime-columns";
  */
 
 // Cambiar al publicar una nueva versión de los Términos o la Política.
-export const VERSION_LEGAL = "2026-10-26";
+// 2026-11-25: la Política agrega el envío a Meta de correo, WhatsApp y nombre cifrados (SHA-256).
+export const VERSION_LEGAL = "2026-11-25";
+/** Desde esta versión el usuario aceptó compartir con Meta sus datos cifrados (ver meta-registro.ts). */
+export const VERSION_DATOS_META = "2026-11-25";
 
 let listo: Promise<void> | null = null;
 function asegurar() {

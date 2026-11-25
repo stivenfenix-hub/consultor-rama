@@ -55,6 +55,10 @@ export default function PrivacidadPage() {
         <li>Gestionar la prueba gratis, los planes, los cobros y las facturas.</li>
         <li>Dar soporte y responder solicitudes.</li>
         <li>Mantener la seguridad, prevenir fraudes y mejorar el servicio.</li>
+        <li>
+          Medir la efectividad de nuestros anuncios en Meta (Facebook e Instagram): saber qué
+          anuncios traen a las personas que crean su cuenta o pagan, como se explica en el punto 9.
+        </li>
         <li>Cumplir obligaciones legales y requerimientos de autoridades.</li>
         <li>
           Enviar ofertas, novedades y boletines de {L.marca} por correo, notificaciones o
@@ -123,12 +127,23 @@ export default function PrivacidadPage() {
       <p>
         Usamos cookies necesarias para mantener la sesión iniciada. Además usamos el Píxel de Meta
         (Facebook e Instagram), que guarda cookies en el navegador para medir cuántas personas
-        llegan a {L.marca} desde nuestros anuncios y cuántas crean su cuenta. Meta recibe, desde
-        el navegador y desde nuestro servidor, datos técnicos como la página visitada, el
-        navegador, la dirección IP y un código interno cifrado de la cuenta; no le enviamos el
-        nombre, el correo, el WhatsApp ni la información de los procesos. El usuario puede borrar
-        o bloquear estas cookies desde la configuración de su navegador, y ajustar sus
-        preferencias de anuncios en su cuenta de Meta.
+        llegan a {L.marca} desde nuestros anuncios y cuántas crean su cuenta o pagan. Meta recibe,
+        desde el navegador y desde nuestro servidor, datos técnicos como la página visitada, el
+        navegador, la dirección IP y un código interno de la cuenta.
+      </p>
+      <p>
+        Además, para que Meta pueda reconocer si quien se registró o pagó vio nuestros anuncios, le
+        enviamos el <b>correo electrónico, el número de WhatsApp, el nombre y el apellido</b> del
+        usuario <b>cifrados</b> con un código irreversible (hash SHA-256): Meta no recibe esos datos
+        en texto, solo los compara con los de sus propias cuentas para medir los anuncios, y no
+        puede usarlos para contactar al usuario. Nunca le enviamos la información de los procesos,
+        los radicados, los documentos ni los datos de las partes.
+      </p>
+      <p>
+        El usuario puede pedir en cualquier momento que dejemos de compartir esos datos cifrados
+        con Meta escribiendo a {L.correo}, sin que esto afecte el servicio. También puede borrar o
+        bloquear las cookies desde la configuración de su navegador y ajustar sus preferencias de
+        anuncios en su cuenta de Meta.
       </p>
 
       <h2>10. Vigencia y cambios</h2>

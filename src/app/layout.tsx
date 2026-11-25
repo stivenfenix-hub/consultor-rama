@@ -3,6 +3,8 @@ import { getSiteSettings } from "@/lib/settings";
 import { LOGOS } from "@/lib/marca";
 import { IosInstallBubble } from "@/components/ios-install-bubble";
 import { MetaPixel } from "@/components/meta-pixel";
+import { getCurrentUser } from "@/lib/auth";
+import { coincidenciasPixel } from "@/lib/meta-registro";
 import "./globals.css";
 import "./firma.css";
 
@@ -40,6 +42,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const s = await getSiteSettings();
+  // Coincidencias avanzadas del Píxel para quien tiene sesión (datos ya cifrados).
+  const usuario = await getCurrentUser().catch(() => null);
+  const am = usuario ? await coincidenciasPixel(usuario.id).catch(() => null) : null;
   // Tema configurable por el admin (sobrescribe los tokens de globals.css).
   const theme = `:root{
     --bg:${s.colorBg} !important;
@@ -63,7 +68,7 @@ export default async function RootLayout({
       <body>
         {children}
         <IosInstallBubble />
-        <MetaPixel />
+        <MetaPixel am={am} />
       </body>
     </html>
   );
