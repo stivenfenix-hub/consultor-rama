@@ -13,7 +13,9 @@ import { registrarAvisoWhatsapp, textoAutomatico } from "./reporte-whatsapp";
 //  - "subExpired": la prueba o el mes pagado ya venció.
 // Formato del cuerpo:
 //  - {nombre} se reemplaza por el nombre del abogado; {fecha} por la fecha de
-//    vencimiento, {dias} por los días que faltan y {precio} por el valor del plan.
+//    vencimiento, {dias} por los días que faltan y {precio} por el valor del mes
+//    (plan más sus procesos adicionales). {procesos} dice " para tus N procesos"
+//    solo si pasa de los incluidos, y {acceso} es "tu prueba gratuita" o "tu plan".
 //  - Una línea que solo diga [boton] se convierte en el botón grande.
 //  - **texto** se muestra en negrilla. Una línea en blanco separa párrafos.
 
@@ -30,7 +32,14 @@ const BOTON_DESTINO: Record<EmailKind, string> = {
   subExpired: "/dashboard/suscripcion",
 };
 
-export type EmailVars = { nombre: string; fecha?: string; dias?: string; precio?: string };
+export type EmailVars = {
+  nombre: string;
+  fecha?: string;
+  dias?: string;
+  precio?: string;
+  procesos?: string;
+  acceso?: string;
+};
 export type EmailTemplate = { subject: string; button: string; body: string };
 
 const FIRMA = `Atentamente,
@@ -85,32 +94,32 @@ No dejes que el tiempo corra sin aprovechar tu mes de prueba gratis. ¡Automatiz
 ${FIRMA}`,
   },
   subEnding: {
-    subject: "⏰ Tu acceso a Estradox vence en {dias} día(s)",
-    button: "👉 Renovar mi plan",
+    subject: "⏰ Tu acceso a Estradox vence el {fecha}",
+    button: "👉 Pagar mi plan",
     body: `Hola, {nombre}:
 
-Te escribimos para avisarte que tu acceso a Estradox vence el **{fecha}**.
+Te escribimos para avisarte que {acceso} en Estradox vence el **{fecha}**.
 
-Para que sigamos vigilando tus procesos todos los días y no te pierdas ninguna actuación, renueva tu plan mensual por solo **{precio} COP** (IVA y comisiones incluidas). Puedes pagar con tarjeta, PSE, Nequi o Botón Bancolombia.
+Para que cada mañana te siga llegando el resumen de actuaciones y estados electrónicos de tus procesos, mantén tu plan activo por **{precio} COP al mes**{procesos} (IVA y comisiones incluidas). Puedes pagar con tarjeta, PSE, Nequi o Botón Bancolombia:
 
 [boton]
 
-Si decides no continuar, no tienes que hacer nada: tu cuenta simplemente quedará en pausa y podrás reactivarla cuando quieras.
+Tus procesos y tu historial quedan tal como están. Si ya lo pagaste, no tienes que hacer nada. Si tienes alguna duda con el pago, responde a este correo y te ayudamos.
 
 ${FIRMA}`,
   },
   subExpired: {
-    subject: "Tu acceso a Estradox venció: reactívalo hoy",
-    button: "👉 Reactivar mi plan",
+    subject: "Tu acceso a Estradox venció: tus procesos siguen guardados",
+    button: "👉 Activar mi plan",
     body: `Hola, {nombre}:
 
-Tu acceso a Estradox venció el **{fecha}**, así que dejamos de revisar tus procesos en la Rama Judicial y no recibirás alertas de actuaciones nuevas.
+Te contamos que {acceso} en Estradox terminó el **{fecha}**, así que pausamos la revisión diaria de tus procesos y no recibirás alertas de actuaciones ni estados electrónicos nuevos.
 
-Tus procesos siguen guardados. Reactiva tu plan mensual por **{precio} COP** y retomamos la vigilancia de inmediato:
+Todo sigue guardado: al activar tu plan por **{precio} COP al mes**{procesos}, retomamos la vigilancia.
 
 [boton]
 
-Si tienes alguna duda, responde a este correo y te ayudamos.
+Si tienes alguna duda, responde a este correo y te explicamos las opciones.
 
 ${FIRMA}`,
   },
@@ -197,7 +206,9 @@ function reemplazar(s: string, v: EmailVars) {
     .replace(/\{nombre\}/g, v.nombre)
     .replace(/\{fecha\}/g, v.fecha ?? "")
     .replace(/\{dias\}/g, v.dias ?? "")
-    .replace(/\{precio\}/g, v.precio ?? "");
+    .replace(/\{precio\}/g, v.precio ?? "")
+    .replace(/\{procesos\}/g, v.procesos ?? "")
+    .replace(/\{acceso\}/g, v.acceso ?? "tu acceso");
 }
 
 export function renderEmail(kind: EmailKind, t: EmailTemplate, vars: EmailVars) {
@@ -261,11 +272,11 @@ const AVISO_APP: Record<EmailKind, (v: Omit<EmailVars, "nombre">) => { title: st
   }),
   subEnding: (v) => ({
     title: `Tu acceso vence en ${v.dias} día(s)`,
-    body: `Vence el ${v.fecha}. Renueva por ${v.precio} COP para seguir recibiendo tus actuaciones.`,
+    body: `Vence el ${v.fecha}. Mantén tu plan activo por ${v.precio} COP al mes${v.procesos ?? ""} para seguir recibiendo tus actuaciones.`,
   }),
   subExpired: (v) => ({
     title: "Tu acceso venció",
-    body: `Venció el ${v.fecha}. Tus procesos siguen guardados: reactiva tu plan por ${v.precio} COP.`,
+    body: `Venció el ${v.fecha}. Tus procesos siguen guardados: activa tu plan por ${v.precio} COP al mes${v.procesos ?? ""}.`,
   }),
 };
 
@@ -329,10 +340,14 @@ export async function enviarAvisosDeSuscripcion(): Promise<number> {
   // Valor del mes de cada abogado: el plan más sus procesos adicionales (sobre los incluidos).
   const valorDe = async (userId: string) => {
     const uso = await usoProcesos(userId).catch(() => null);
-    if (!uso?.adicionales) return { precio: pesos(precio), detalle: `${pesos(precio)} COP al mes` };
+    if (!uso?.adicionales) return { precio: pesos(precio), detalle: `${pesos(precio)} COP al mes`, procesos: 0 };
     // Sin desglose (enredaba): solo el total del mes y para cuántos procesos es.
     const total = precio + uso.valorMes;
-    return { precio: pesos(total), detalle: `${pesos(total)} COP al mes para sus ${uso.total} procesos` };
+    return {
+      precio: pesos(total),
+      detalle: `${pesos(total)} COP al mes para sus ${uso.total} procesos`,
+      procesos: uso.total,
+    };
   };
   const fechaTxt = (d: Date) =>
     d.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Bogota" });
@@ -347,11 +362,18 @@ export async function enviarAvisosDeSuscripcion(): Promise<number> {
       const dias = Math.max(1, Math.ceil((hasta.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
       try {
         const valor = await valorDe(id);
-        const vars = { fecha: fechaTxt(hasta), dias: String(dias), precio: valor.precio };
+        // El correo dice lo mismo que el WhatsApp (en "tú"): mismo valor y prueba o plan.
+        const vars = {
+          fecha: fechaTxt(hasta),
+          dias: String(dias),
+          precio: valor.precio,
+          procesos: valor.procesos ? ` para tus ${valor.procesos} procesos` : "",
+          acceso: prueba ? "tu prueba gratuita" : "tu plan",
+        };
         await enviarPlantilla(kind, id, vars);
         const tipoWa = kind === "subEnding" ? "porVencer" : "vencido";
         // WhatsApp comercial (Manuela) con el enlace de suscripción.
-        await registrarAvisoWhatsapp(id, tipoWa, textoAutomatico(tipoWa, { ...vars, nombre, prueba, valor: valor.detalle }));
+        await registrarAvisoWhatsapp(id, tipoWa, textoAutomatico(tipoWa, { fecha: vars.fecha, dias: vars.dias, precio: vars.precio, nombre, prueba, valor: valor.detalle }));
         enviados++;
       } catch (e) {
         console.error(`[${kind}] no se pudo enviar`, id, e);

@@ -36,7 +36,9 @@ export default async function CorreosAdmin() {
         <p className="muted small" style={{ marginTop: 0 }}>
           Se envía una vez cuando faltan 3 días para que venza la prueba gratis o
           el mes pagado. Puedes usar <b>{"{fecha}"}</b>, <b>{"{dias}"}</b> y{" "}
-          <b>{"{precio}"}</b>. El botón lleva a la página de pago.
+          <b>{"{precio}"}</b> (valor del mes con sus adicionales), <b>{"{procesos}"}</b> (&quot; para tus N
+          procesos&quot;, solo si pasa de los incluidos) y <b>{"{acceso}"}</b> (&quot;tu prueba gratuita&quot; o
+          &quot;tu plan&quot;). El botón lleva a la página de pago.
         </p>
         <EmailTemplateForm kind="subEnding" template={subEnding} />
       </div>

@@ -348,7 +348,9 @@ export async function saveEmailTemplateAction(
           nombre,
           fecha: "15 de noviembre de 2026",
           dias: "3",
-          precio: `${(await getPlan()).precio.toLocaleString("es-CO")}`,
+          precio: `$${(await getPlan()).precio.toLocaleString("es-CO")}`,
+          procesos: "",
+          acceso: "tu prueba gratuita",
         }) });
     } catch {
       return { error: "Se guardó, pero no se pudo enviar la prueba." };
