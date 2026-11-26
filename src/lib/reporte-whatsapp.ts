@@ -20,6 +20,9 @@ export type TipoAviso = "actuaciones" | "sinProcesos" | "porVencer" | "vencido";
 // Orden de los avisos dentro del mensaje de cada abogado.
 const ORDEN: TipoAviso[] = ["actuaciones", "porVencer", "vencido", "sinProcesos"];
 
+// Avisos cuyo texto ya trae su propio saludo (no se les antepone "Hola Nombre").
+const YA_SALUDAN = new Set(["sinProcesos", "porVencer", "vencido"]);
+
 let listo: Promise<void> | null = null;
 function asegurarTabla() {
   listo ??= (async () => {
@@ -114,7 +117,7 @@ export function textoActuaciones(
 /** Textos cortos de los correos automáticos (recordatorio y suscripción). */
 export function textoAutomatico(
   tipo: Exclude<TipoAviso, "actuaciones">,
-  v: { fecha?: string; dias?: string; precio?: string; apellido?: string } = {},
+  v: { fecha?: string; dias?: string; precio?: string; apellido?: string; nombre?: string; prueba?: boolean; valor?: string } = {},
 ) {
   switch (tipo) {
     case "sinProcesos":
@@ -127,9 +130,33 @@ Para que no pierda su prueba gratuita y el sistema empiece a trabajar por usted 
 
 Solo pegue los 23 dígitos y nosotros nos encargamos del resto. Si tiene alguna duda o prefiere que yo lo suba por usted, ¡escríbame por aquí! 🤝`;
     case "porVencer":
-      return `Tu acceso a Estradox vence el ${v.fecha} (en ${v.dias} día(s)). Renueva tu plan por ${v.precio} COP para seguir recibiendo las actuaciones de tus procesos: ${APP_URL}/dashboard/suscripcion`;
-    case "vencido":
-      return `Tu acceso a Estradox venció el ${v.fecha} y dejamos de revisar tus procesos. Siguen guardados: reactiva tu plan por ${v.precio} COP y retomamos la vigilancia de inmediato: ${APP_URL}/dashboard/suscripcion`;
+    case "vencido": {
+      // Recordatorio comercial (línea comercial, Manuela) con el enlace de pago.
+      const hola = `Hola${v.nombre ? `, ${palabraNombre(v.nombre)}` : ""}. Le escribe Manuela, de Estradox.`;
+      const url = `${APP_URL}/dashboard/suscripcion`;
+      // Valor del mes con sus adicionales (si pasa de los incluidos).
+      const valor = v.valor ?? `${v.precio} COP al mes`;
+      if (tipo === "porVencer" && v.prueba)
+        return `${hola}
+
+Su prueba gratuita termina el ${v.fecha}. Para que cada mañana le siga llegando el resumen de actuaciones y estados electrónicos de sus procesos, active su plan por ${valor}. Puede pagarlo aquí:
+👉 ${url}
+
+Sus procesos y su historial quedan tal como están. Si tiene alguna duda con el pago, respóndame por aquí y le ayudo.`;
+      if (tipo === "porVencer")
+        return `${hola}
+
+Su plan vence el ${v.fecha}. Para que la vigilancia de sus procesos siga sin interrupciones, renuévelo por ${valor}. Puede pagarlo aquí:
+👉 ${url}
+
+Si ya lo renovó, no tiene que hacer nada. Cualquier duda con el pago, respóndame por aquí.`;
+      return `${hola}
+
+Su ${v.prueba ? "prueba gratuita terminó" : "plan venció"} el ${v.fecha} y por eso pausamos la revisión diaria de sus procesos. Todo sigue guardado: al activar su plan por ${valor}, retomamos la vigilancia. Puede pagarlo aquí:
+👉 ${url}
+
+Si quiere, respóndame por aquí y le explico las opciones.`;
+    }
   }
 }
 
@@ -185,7 +212,7 @@ export function agruparPorAbogado(
       vistos.add(a.mensaje);
       // El de "sin procesos" ya saluda por el apellido: va sin "Nombre - ".
       filas.push({
-        mensaje: a.tipo === "sinProcesos" ? a.mensaje : `${nombre} - ${a.mensaje}`,
+        mensaje: YA_SALUDAN.has(a.tipo) ? a.mensaje : `${nombre} - ${a.mensaje}`,
         telefono,
         tipo: a.tipo,
         userId: a.userId,
@@ -272,7 +299,7 @@ async function encolarAvisos(filas: ReturnType<typeof agruparPorAbogado>) {
         tipo: f.tipo,
         userId: f.userId,
         telefono: f.telefono,
-        mensaje: f.tipo === "sinProcesos" ? f.texto : `Hola ${f.nombre} 👋\n\n${f.texto}`,
+        mensaje: YA_SALUDAN.has(f.tipo) ? f.texto : `Hola ${f.nombre} 👋\n\n${f.texto}`,
       })),
   );
 }

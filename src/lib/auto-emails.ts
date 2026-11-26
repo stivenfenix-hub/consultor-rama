@@ -322,10 +322,18 @@ export async function enviarRecordatoriosPendientes(): Promise<number> {
 
 /** Avisos de "tu acceso vence pronto" y "tu acceso venció" (una vez por fecha). */
 export async function enviarAvisosDeSuscripcion(): Promise<number> {
-  const { avisosDeVencimientoPendientes, marcarAviso, getPlan } = await import("./subscription");
+  const { avisosDeVencimientoPendientes, marcarAviso, getPlan, usoProcesos } = await import("./subscription");
   const { porVencer, vencidos } = await avisosDeVencimientoPendientes();
   const { precio } = await getPlan();
-  const precioTxt = `$${precio.toLocaleString("es-CO")}`;
+  const pesos = (n: number) => `$${n.toLocaleString("es-CO")}`;
+  // Valor del mes de cada abogado: el plan más sus procesos adicionales (sobre los incluidos).
+  const valorDe = async (userId: string) => {
+    const uso = await usoProcesos(userId).catch(() => null);
+    if (!uso?.adicionales) return { precio: pesos(precio), detalle: `${pesos(precio)} COP al mes` };
+    // Sin desglose (enredaba): solo el total del mes y para cuántos procesos es.
+    const total = precio + uso.valorMes;
+    return { precio: pesos(total), detalle: `${pesos(total)} COP al mes para sus ${uso.total} procesos` };
+  };
   const fechaTxt = (d: Date) =>
     d.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Bogota" });
   let enviados = 0;
@@ -333,15 +341,17 @@ export async function enviarAvisosDeSuscripcion(): Promise<number> {
     [porVencer, "subEnding", "porVencer"],
     [vencidos, "subExpired", "vencida"],
   ] as const) {
-    for (const { id, hasta } of lista) {
+    for (const { id, hasta, prueba, nombre } of lista) {
       // Se marca antes de enviar: si el correo falla no se reintenta en bucle.
       await marcarAviso(id, tipo, hasta);
       const dias = Math.max(1, Math.ceil((hasta.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
       try {
-        const vars = { fecha: fechaTxt(hasta), dias: String(dias), precio: precioTxt };
+        const valor = await valorDe(id);
+        const vars = { fecha: fechaTxt(hasta), dias: String(dias), precio: valor.precio };
         await enviarPlantilla(kind, id, vars);
         const tipoWa = kind === "subEnding" ? "porVencer" : "vencido";
-        await registrarAvisoWhatsapp(id, tipoWa, textoAutomatico(tipoWa, vars));
+        // WhatsApp comercial (Manuela) con el enlace de suscripción.
+        await registrarAvisoWhatsapp(id, tipoWa, textoAutomatico(tipoWa, { ...vars, nombre, prueba, valor: valor.detalle }));
         enviados++;
       } catch (e) {
         console.error(`[${kind}] no se pudo enviar`, id, e);

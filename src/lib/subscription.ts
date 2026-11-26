@@ -1033,26 +1033,30 @@ export async function avisosDeVencimientoPendientes() {
   const { diasPrueba } = await getPlan();
   await ensureSchema();
   const us = await prisma.$queryRawUnsafe<
-    (FilaSub & { subNoticeFor: Date | null; subExpiredFor: Date | null })[]
+    (FilaSub & { subNoticeFor: Date | null; subExpiredFor: Date | null; firstName: string | null; name: string | null })[]
   >(
-    `SELECT id, role, "createdAt", "trialEndsAt", "paidUntil", "subNoticeFor", "subExpiredFor"
+    `SELECT id, role, "createdAt", "trialEndsAt", "paidUntil", "subNoticeFor", "subExpiredFor", "firstName", name
      FROM "User" WHERE role <> 'admin' AND "emailVerified" IS NOT NULL`,
   );
-  const porVencer: { id: string; hasta: Date }[] = [];
-  const vencidos: { id: string; hasta: Date }[] = [];
+  // prueba: el acceso que vence es la prueba gratis (no un plan pagado).
+  type Aviso = { id: string; hasta: Date; prueba: boolean; nombre: string };
+  const porVencer: Aviso[] = [];
+  const vencidos: Aviso[] = [];
   const ahora = Date.now();
   for (const u of us) {
     const s = calcular(u, diasPrueba);
     if (!s.accesoHasta) continue;
     const hasta = s.accesoHasta;
     const iguales = (d: Date | null) => !!d && Math.abs(new Date(d).getTime() - hasta.getTime()) < 60_000;
+    const prueba = !s.paidUntil || s.paidUntil.getTime() < hasta.getTime();
+    const nombre = (u.firstName || u.name || "").trim().split(/\s+/)[0] ?? "";
     if (s.estado === "vencida") {
       // Solo avisa vencimientos recientes (no a cuentas abandonadas hace meses).
       if (!iguales(u.subExpiredFor) && ahora - hasta.getTime() < 7 * DIA_MS) {
-        vencidos.push({ id: u.id, hasta });
+        vencidos.push({ id: u.id, hasta, prueba, nombre });
       }
     } else if (hasta.getTime() - ahora <= 3 * DIA_MS && !iguales(u.subNoticeFor)) {
-      porVencer.push({ id: u.id, hasta });
+      porVencer.push({ id: u.id, hasta, prueba, nombre });
     }
   }
   return { porVencer, vencidos };
