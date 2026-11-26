@@ -630,6 +630,13 @@ export async function tick(opts: { forzar?: boolean } = {}) {
         error: e instanceof Error ? e.message : String(e),
       }));
     }
+    // Regalo de la Firma Electrónica: día hábil siguiente al primer radicado (WhatsApp + correo, una vez).
+    if (m >= 11 * 60 && m < 14 * 60) {
+      const { enviarCampanaFirmaRegalo } = await import("./campana-firma-regalo");
+      info.campanaFirmaRegalo = await enviarCampanaFirmaRegalo().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
+    }
     // Avisos de WhatsApp: en la misma corrida de las 7:00, en cuanto salieron
     // todos los resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).
     if (m >= REPORTE_WA && m < RESUMEN_HASTA) {

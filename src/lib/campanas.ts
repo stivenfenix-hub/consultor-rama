@@ -23,6 +23,12 @@ export const CAMPANA_FIRMA = "firma-gratis";
 export const CORREOS_CAMPANA_DIA = 40;
 const APP_URL = process.env.APP_URL ?? "https://app.estradox.com";
 export const ENLACE_FIRMAS = `${APP_URL}/dashboard/firmas`;
+/**
+ * Ejemplo de firma en UNA imagen (poder firmado + certificado, lado a lado): los
+ * abogados desconfían de abrir PDF adjuntos (virus), una imagen se ve sin abrir nada.
+ * Vive en public/campanas (la sirve la app). El WhatsApp la manda con el texto de pie.
+ */
+export const IMAGEN_EJEMPLO_FIRMA = `${APP_URL}/campanas/firma-ejemplo.jpg`;
 
 export const PLANTILLA_WA_FIRMA = `Hola Dr(a). {apellido}, ¿sus clientes todavía tienen que ir a la notaría para firmar un poder? 📄🏃‍♂️
 
@@ -89,6 +95,9 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 /** Texto del correo → HTML sencillo: párrafos, **negrilla**, {boton} y enlaces. */
 export function correoHtml(texto: string) {
   const parrafos = texto.split(/\n{2,}/).map((p) => {
+    if (p.trim() === "{imagen}") {
+      return `<p style="margin:18px 0"><a href="${IMAGEN_EJEMPLO_FIRMA}"><img src="${IMAGEN_EJEMPLO_FIRMA}" width="580" alt="Ejemplo: poder firmado electrónicamente y su certificado de auditoría" style="display:block;width:100%;max-width:580px;height:auto;border:1px solid #ddd6fe;border-radius:8px"></a></p>`;
+    }
     if (p.trim() === "{boton}") {
       return `<p style="text-align:center;margin:26px 0"><a href="${ENLACE_FIRMAS}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;padding:14px 26px;border-radius:10px;font-size:16px">${BOTON_CORREO}</a></p>`;
     }
@@ -106,7 +115,10 @@ export function correoHtml(texto: string) {
 }
 
 export function correoTexto(texto: string) {
-  return texto.replace(/\*\*(.+?)\*\*/g, "$1").replace("{boton}", `${BOTON_CORREO} ${ENLACE_FIRMAS}`);
+  return texto
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace("{boton}", `${BOTON_CORREO} ${ENLACE_FIRMAS}`)
+    .replace("{imagen}", `Vea el ejemplo: ${IMAGEN_EJEMPLO_FIRMA}`);
 }
 
 // ---------- Cola de correos ----------
