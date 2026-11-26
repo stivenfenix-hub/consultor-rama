@@ -101,6 +101,12 @@ export function correoHtml(texto: string) {
     if (p.trim() === "{boton}") {
       return `<p style="text-align:center;margin:26px 0"><a href="${ENLACE_FIRMAS}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;padding:14px 26px;border-radius:10px;font-size:16px">${BOTON_CORREO}</a></p>`;
     }
+    // Botón con su propio texto y enlace: {boton:Texto|https://...} (p. ej. el de WhatsApp, en verde).
+    const b = p.trim().match(/^\{boton:(.+?)\|(https?:\/\/\S+?)\}$/);
+    if (b) {
+      const color = /^https:\/\/wa\.me\//.test(b[2]) ? "#16a34a" : "#7c3aed";
+      return `<p style="text-align:center;margin:26px 0"><a href="${esc(b[2])}" style="display:inline-block;background:${color};color:#fff;text-decoration:none;font-weight:700;padding:14px 26px;border-radius:10px;font-size:16px">${esc(b[1])}</a></p>`;
+    }
     const html = esc(p)
       .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
       .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#7c3aed">$1</a>')
@@ -118,6 +124,7 @@ export function correoTexto(texto: string) {
   return texto
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace("{boton}", `${BOTON_CORREO} ${ENLACE_FIRMAS}`)
+    .replace(/\{boton:(.+?)\|(https?:\/\/\S+?)\}/g, "$1: $2")
     .replace("{imagen}", `Vea el ejemplo: ${IMAGEN_EJEMPLO_FIRMA}`);
 }
 

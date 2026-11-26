@@ -637,6 +637,13 @@ export async function tick(opts: { forzar?: boolean } = {}) {
         error: e instanceof Error ? e.message : String(e),
       }));
     }
+    // "¿Qué pasó?": vencidos sin ningún radicado, 3 a 10 días después (WhatsApp + correo, una vez).
+    if (m >= 14 * 60 && m < 16 * 60) {
+      const { enviarCampanaVencidoSinProcesos } = await import("./campana-vencido-sin-procesos");
+      info.campanaVencidoSinProcesos = await enviarCampanaVencidoSinProcesos().catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
+    }
     // Avisos de WhatsApp: en la misma corrida de las 7:00, en cuanto salieron
     // todos los resúmenes (si alguno sigue pendiente, a más tardar a las 9:00 a.m.).
     if (m >= REPORTE_WA && m < RESUMEN_HASTA) {

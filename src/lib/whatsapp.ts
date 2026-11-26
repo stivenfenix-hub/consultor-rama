@@ -18,7 +18,7 @@ export function cuentaDeTipo(tipo: string): CuentaWa {
   // "firma" (enlace para firmar y código OTP) también va por el comercial.
   // "campana": campañas del root (Panel admin → Campañas).
   // "porVencer"/"vencido": recordatorio comercial de pago con el enlace de suscripción.
-  return tipo === "sinProcesos" || tipo === "sinProcesos2" || tipo === "aprovechar" || tipo === "bienvenida" || tipo === "promo" || tipo === "firma" || tipo === "campana" || tipo === "porVencer" || tipo === "vencido" || tipo === "firmaRegalo" ? "comercial" : "avisos";
+  return tipo === "sinProcesos" || tipo === "sinProcesos2" || tipo === "aprovechar" || tipo === "bienvenida" || tipo === "promo" || tipo === "firma" || tipo === "campana" || tipo === "porVencer" || tipo === "vencido" || tipo === "firmaRegalo" || tipo === "vencidoSinProcesos" ? "comercial" : "avisos";
 }
 
 let listo: Promise<void> | null = null;
