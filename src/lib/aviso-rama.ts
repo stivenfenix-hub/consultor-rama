@@ -14,8 +14,13 @@ export const MSG_RAMA_CAIDA =
 export const MSG_RAMA_ACTUALIZAR =
   "Estamos actualizando tu proceso en segundo plano. En unos momentos te notificamos cuando esté listo.";
 
+/**
+ * Previsualizar o descargar un documento cuando la Rama no lo entrega (26 nov 2026):
+ * explica que se trae en vivo de la Rama y que su plataforma se congestiona, sin
+ * que parezca falla de Estradox.
+ */
 export const MSG_RAMA_DOCUMENTO =
-  "Este documento no está disponible por ahora. Intenta de nuevo más tarde.";
+  "Este documento se trae en vivo desde la Rama Judicial, y en este momento su plataforma no lo está entregando: pasa con frecuencia cuando hay mucha congestión. No es un problema de tu cuenta y tus procesos siguen vigilados con normalidad. Inténtalo de nuevo en unos minutos.";
 
 /** Ya no se muestra a los abogados. */
 export const MSG_RAMA_REVISION = "";
