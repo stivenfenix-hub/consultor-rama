@@ -321,6 +321,8 @@ export async function enviarRecordatoriosPendientes(): Promise<number> {
       id,
     );
     if (marcado !== 1) continue;
+    const { esCuentaVaciaDuplicada } = await import("./whatsapp");
+    if (await esCuentaVaciaDuplicada(id).catch(() => false)) continue;
     try {
       await enviarPlantilla("reminder", id);
       enviados++;
@@ -359,6 +361,9 @@ export async function enviarAvisosDeSuscripcion(): Promise<number> {
     for (const { id, hasta, prueba, nombre } of lista) {
       // Se marca antes de enviar: si el correo falla no se reintenta en bucle.
       await marcarAviso(id, tipo, hasta);
+      // Cuenta vacía duplicada (el mismo celular tiene otra cuenta con procesos): no se avisa.
+      const { esCuentaVaciaDuplicada } = await import("./whatsapp");
+      if (await esCuentaVaciaDuplicada(id).catch(() => false)) continue;
       const dias = Math.max(1, Math.ceil((hasta.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
       try {
         const valor = await valorDe(id);

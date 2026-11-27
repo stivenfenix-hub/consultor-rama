@@ -12,7 +12,11 @@ const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const VERIFY_TTL = 1000 * 60 * 60 * 24; // 24h
 const RESET_TTL = 1000 * 60 * 60; // 1h
 
-export class AccountError extends Error {}
+export class AccountError extends Error {
+  constructor(message: string, readonly field?: string) {
+    super(message);
+  }
+}
 
 function sha256(s: string) {
   return crypto.createHash("sha256").update(s).digest("hex");
@@ -83,8 +87,28 @@ export async function getWhatsapp(userId: string): Promise<string | null> {
   }
 }
 
+/** Una sola cuenta por WhatsApp (27 nov 2026): quien se registraba dos veces recibía avisos de la vacía. */
+export const MSG_WHATSAPP_EN_USO =
+  "Este número de WhatsApp ya está registrado en otra cuenta de Estradox. Inicia sesión con esa cuenta o escríbenos si necesitas ayuda.";
+
+/** ¿Otra cuenta ya tiene este WhatsApp? Compara los últimos 10 dígitos (con o sin +57). */
+export async function whatsappEnUso(whatsapp: string, exceptoUserId?: string): Promise<boolean> {
+  const diez = whatsapp.replace(/\D/g, "").slice(-10);
+  if (diez.length < 10) return false;
+  await ensureWhatsappColumn();
+  const [r] = await prisma.$queryRawUnsafe<{ x: boolean }[]>(
+    `SELECT EXISTS (SELECT 1 FROM "User"
+       WHERE right(regexp_replace(coalesce("whatsapp", ''), '\\D', '', 'g'), 10) = $1
+         AND id <> coalesce($2, '')) AS x`,
+    diez,
+    exceptoUserId ?? null,
+  );
+  return !!r?.x;
+}
+
 export async function setWhatsapp(userId: string, whatsapp: string) {
   await ensureWhatsappColumn();
+  if (await whatsappEnUso(whatsapp, userId)) throw new AccountError(MSG_WHATSAPP_EN_USO, "whatsapp");
   await prisma.$executeRawUnsafe(
     `UPDATE "User" SET "whatsapp" = $1 WHERE id = $2`,
     whatsapp,
@@ -120,8 +144,9 @@ export async function registerUser(input: {
   const email = input.email.trim().toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new AccountError("Ya existe una cuenta con ese correo.");
+    throw new AccountError("Ya existe una cuenta con ese correo.", "email");
   }
+  if (await whatsappEnUso(input.whatsapp)) throw new AccountError(MSG_WHATSAPP_EN_USO, "whatsapp");
   const user = await prisma.user.create({
     data: {
       email,

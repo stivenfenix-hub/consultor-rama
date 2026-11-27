@@ -150,7 +150,7 @@ export async function registerAction(
     await createSession(nuevo.id);
   } catch (err) {
     // El único error de cuenta al registrar es el correo ya registrado.
-    if (err instanceof AccountError) return { error: err.message, field: "email" };
+    if (err instanceof AccountError) return { error: err.message, field: err.field ?? "email" };
     return { error: "No se pudo crear la cuenta. Intenta de nuevo." };
   }
   redirect(homePath("user"));
@@ -254,7 +254,8 @@ export async function updateWhatsappAction(
   if (!n) return { error: "Ingresa un número de WhatsApp válido (ej. 300 123 4567)." };
   try {
     await setWhatsapp(user.id, n);
-  } catch {
+  } catch (e) {
+    if (e instanceof AccountError) return { error: e.message };
     return { error: "No se pudo guardar el número." };
   }
   revalidatePath("/dashboard/configuracion");
@@ -717,7 +718,8 @@ export async function completarRegistroAction(
   if (!n) return { error: "Ingresa un número de WhatsApp válido (ej. 300 123 4567)." };
   try {
     await setWhatsapp(user.id, n);
-  } catch {
+  } catch (e) {
+    if (e instanceof AccountError) return { error: e.message };
     return { error: "No se pudo guardar el número. Intenta de nuevo." };
   }
   // Registro con Google: la bienvenida por WhatsApp sale ahora que hay número.

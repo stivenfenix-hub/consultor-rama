@@ -21,6 +21,32 @@ export function cuentaDeTipo(tipo: string): CuentaWa {
   return tipo === "sinProcesos" || tipo === "sinProcesos2" || tipo === "aprovechar" || tipo === "bienvenida" || tipo === "promo" || tipo === "firma" || tipo === "campana" || tipo === "porVencer" || tipo === "vencido" || tipo === "firmaRegalo" || tipo === "vencidoSinProcesos" ? "comercial" : "avisos";
 }
 
+/** Mensajes que solo tienen sentido para la cuenta en sí (sin procesos, pago, bienvenida). */
+const TIPOS_DE_LA_CUENTA = new Set(["sinProcesos", "sinProcesos2", "vencidoSinProcesos", "porVencer", "vencido", "aprovechar", "bienvenida"]);
+
+/**
+ * ¿Es una cuenta vacía (0 procesos) cuyo celular también es de OTRA cuenta que sí
+ * tiene procesos? (27 nov 2026: abogados que se registraron dos veces, p. ej. con
+ * otro correo o con Google, recibían "aún no tiene procesos" y avisos de pago de
+ * la cuenta vacía en el mismo WhatsApp donde les llega el resumen de la buena.)
+ */
+export async function esCuentaVaciaDuplicada(userId: string): Promise<boolean> {
+  const [r] = await prisma.$queryRawUnsafe<{ dup: boolean }[]>(
+    `SELECT EXISTS (
+       SELECT 1 FROM "User" u JOIN "User" o
+         ON o.id <> u.id
+        AND length(right(regexp_replace(coalesce(u."whatsapp", ''), '\\D', '', 'g'), 10)) = 10
+        AND right(regexp_replace(coalesce(o."whatsapp", ''), '\\D', '', 'g'), 10)
+          = right(regexp_replace(coalesce(u."whatsapp", ''), '\\D', '', 'g'), 10)
+       WHERE u.id = $1
+         AND NOT EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = u.id)
+         AND EXISTS (SELECT 1 FROM "Case" c WHERE c."userId" = o.id)
+     ) AS dup`,
+    userId,
+  );
+  return !!r?.dup;
+}
+
 let listo: Promise<void> | null = null;
 export function asegurarTablasWa() {
   listo ??= (async () => {
@@ -157,6 +183,7 @@ export async function encolarWhatsapp(
     const cuenta = cuentaDeTipo(m.tipo);
     if (!activas.has(cuenta)) activas.set(cuenta, await cuentaActiva(cuenta));
     if (!activas.get(cuenta)) continue;
+    if (m.userId && TIPOS_DE_LA_CUENTA.has(m.tipo) && (await esCuentaVaciaDuplicada(m.userId).catch(() => false))) continue;
     n += await prisma.$executeRawUnsafe(
       `INSERT INTO "WaMensaje" (cuenta, "userId", tipo, telefono, mensaje, "adjuntoUrl", "adjuntoNombre")
        SELECT $1, $2, $3, $4, $5, $6, $7

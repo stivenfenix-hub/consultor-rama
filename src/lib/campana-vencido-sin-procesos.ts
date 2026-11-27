@@ -130,7 +130,10 @@ export async function enviarCampanaVencidoSinProcesos() {
   const enlaceWa = await enlaceWhatsappComercial();
   let whatsapp = 0;
   let correos = 0;
+  const { esCuentaVaciaDuplicada } = await import("./whatsapp");
   for (const u of elegidos) {
+    // Se registró dos veces y la otra cuenta (mismo celular) sí tiene procesos.
+    if (await esCuentaVaciaDuplicada(u.id).catch(() => false)) continue;
     const nombre = palabra(u.firstName) || palabra(u.name);
     const telefono = (u.whatsapp ?? "").replace(/\D/g, "");
     if (telefono) {

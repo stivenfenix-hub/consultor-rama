@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       const nuevo = await registerUser(parsed.data);
       after(() => avisarNuevoUsuario(nuevo.id, "la app Android"));
     } catch (err) {
-      if (err instanceof AccountError) return jsonError(err.message, 409, { field: "email" });
+      if (err instanceof AccountError) return jsonError(err.message, 409, { field: err.field ?? "email" });
       throw err;
     }
     return NextResponse.json({
