@@ -58,6 +58,14 @@ export default async function CargasUsuario({
     ? await Promise.all([hallazgosDelUsuario(userId, POR_PAGINA, pagH.desde), vigiladosDelUsuario(userId)])
     : [[], []];
   const despachos = [...new Map(vigilados.map((v) => [v.despacho, v])).values()];
+  // Radicados que la Rama no tiene y solo se vigilan en estados electrónicos:
+  // también son procesos de su lista (como en Usuarios → Procesos).
+  const enRama = new Set(
+    (
+      await prisma.case.findMany({ where: { userId }, select: { radicado: true }, distinct: ["radicado"] })
+    ).map((c) => c.radicado),
+  );
+  const soloEstados = [...new Map(vigilados.filter((v) => !enRama.has(v.radicado)).map((v) => [v.radicado, v])).values()];
   const pagD = paginaDe(sp.pd, despachos.length);
 
   // Enlace a otra página de una lista, sin perder la página de las demás.
@@ -164,10 +172,13 @@ export default async function CargasUsuario({
       )}
 
       <div className="card">
-        <h2>Procesos en su lista ({totales.procesos})</h2>
-        {procesos.length === 0 ? (
+        <h2>Procesos en su lista ({enRama.size + soloEstados.length})</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          {enRama.size} en la Rama (Consulta Nacional) · {soloEstados.length} solo en estados electrónicos
+        </p>
+        {procesos.length === 0 && soloEstados.length === 0 ? (
           <p className="muted small">No tiene procesos.</p>
-        ) : (
+        ) : procesos.length === 0 ? null : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Radicado</th><th>Sistema</th><th>Actuaciones</th><th>Error</th></tr></thead>
@@ -185,6 +196,28 @@ export default async function CargasUsuario({
           </div>
         )}
         <Paginador pagina={pagP.pagina} paginas={pagP.paginas} hrefDe={(p) => href("pp", p)} />
+        {soloEstados.length > 0 && (
+          <>
+            <h3 style={{ marginTop: 16 }}>Solo en estados electrónicos ({soloEstados.length})</h3>
+            <p className="muted small" style={{ marginTop: 0 }}>
+              La Consulta Nacional no los tiene (privados o el juzgado no sube actuaciones): se vigilan en las publicaciones del juzgado.
+            </p>
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Radicado</th><th>Juzgado</th><th>Última revisión</th></tr></thead>
+                <tbody>
+                  {soloEstados.map((v) => (
+                    <tr key={v.radicado}>
+                      <td className="radicado">{v.radicado}</td>
+                      <td className="small">{v.juzgado ?? v.despacho}</td>
+                      <td className="small muted">{hora(v.revisadoAt ?? null)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="card">
