@@ -17,13 +17,14 @@ type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean; 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/dashboard/procesos", label: "Procesos", icon: "scale" },
+  // Firma electrónica va antes que Notificaciones certificadas (ya funciona; la otra es "próximamente").
+  { href: "/dashboard/firmas", label: "Firma electrónica", icon: "firma", nuevo: true },
   {
     href: "/dashboard/notificaciones-certificadas",
     label: "Notificaciones certificadas",
     icon: "certificado",
     pronto: true,
   },
-  { href: "/dashboard/firmas", label: "Firma electrónica", icon: "firma", nuevo: true },
   { href: "/dashboard/suscripcion", label: "Suscripción", icon: "card" },
   { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
   { href: "/dashboard/soporte", label: "Soporte y PQRS", icon: "chat" },

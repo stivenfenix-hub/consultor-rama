@@ -7,7 +7,7 @@ import { proximaActualizacionProceso, proximoActualizarUsuario, sinLimiteManual 
 import { CaseTabs, type Datos, type FilaLinea } from "./case-tabs";
 import { Icon } from "@/components/icon";
 import { avisoProceso } from "@/lib/aviso-rama";
-import { extraerGrabaciones, parsePartes } from "@/lib/case-detail";
+import { extraerGrabaciones, parsePartes, tituloPartes } from "@/lib/case-detail";
 import { estadosActivo, estadosDelRadicado } from "@/lib/estados";
 import { POR_PAGINA, paginaDe } from "@/components/paginador";
 
@@ -243,6 +243,10 @@ export default async function CaseDetail({
           <Link prefetch={false} href="/dashboard/procesos" className="small muted">
             <Icon name="arrowLeft" size={14} /> Procesos
           </Link>
+          {(() => {
+            const t = tituloPartes(caso.sujetos);
+            return t ? <div className="case-titulo case-titulo-grande" style={{ marginTop: 6 }}>{t}</div> : null;
+          })()}
           <h1 className="radicado" style={{ marginTop: 4 }}>
             {caso.radicado}
           </h1>

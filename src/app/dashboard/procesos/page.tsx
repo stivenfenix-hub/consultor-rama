@@ -9,6 +9,7 @@ import { cargasPendientesDeVer, reintentosDelUsuario } from "@/lib/sync";
 import { CargaAviso } from "./carga-aviso";
 import { DesplegarAgregar } from "./desplegar-agregar";
 import { avisoProceso } from "@/lib/aviso-rama";
+import { tituloPartes } from "@/lib/case-detail";
 import { estadosActivo, hallazgosSinVer, soloEnEstados } from "@/lib/estados";
 import { usoProcesos } from "@/lib/subscription";
 import { Paginador, POR_PAGINA, paginaDe } from "@/components/paginador";
@@ -366,6 +367,11 @@ export default async function ProcesosPage({
         return (
         <Link prefetch={false} key={c.id} href={`/dashboard/procesos/${c.id}`} className="case case-con-ultima">
           <div className="case-info">
+            {/* Título: "Demandante vs Demandado" encima del radicado. */}
+            {(() => {
+              const t = tituloPartes(c.sujetos);
+              return t ? <div className="case-titulo" title={t}>{t}</div> : null;
+            })()}
             <div className="row wrap">
               <span className="radicado">{c.radicado}</span>
               {nuevas > 0 && <span className="badge new">{nuevas} nuevas</span>}
