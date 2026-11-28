@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export type Tema = "oscuro" | "claro";
 export const CLAVE_TEMA = "estradox-tema";
 const COLOR_BARRA: Record<Tema, string> = { oscuro: "#0a0820", claro: "#f3f2fa" };
+const EVENTO = "estradox-tema";
 
 /** Aplica el tema en <html> y en la barra del navegador del celular. */
 export function aplicarTema(t: Tema) {
@@ -13,15 +14,15 @@ export function aplicarTema(t: Tema) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", COLOR_BARRA[t]);
 }
 
-/**
- * Apariencia de la plataforma: "Día" (claro) o "Noche" (oscuro, el de siempre).
- * Se guarda en este dispositivo.
- */
-export function TemaToggle() {
+/** Estado del tema compartido: si se cambia en un selector, el otro se entera. */
+function useTema() {
   const [tema, setTema] = useState<Tema>("oscuro");
 
   useEffect(() => {
-    setTema(document.documentElement.dataset.tema === "claro" ? "claro" : "oscuro");
+    const leer = () => setTema(document.documentElement.dataset.tema === "claro" ? "claro" : "oscuro");
+    leer();
+    window.addEventListener(EVENTO, leer);
+    return () => window.removeEventListener(EVENTO, leer);
   }, []);
 
   const elegir = (t: Tema) => {
@@ -32,7 +33,18 @@ export function TemaToggle() {
     } catch {
       /* sin almacenamiento: solo dura esta visita */
     }
+    window.dispatchEvent(new Event(EVENTO));
   };
+
+  return { tema, elegir };
+}
+
+/**
+ * Apariencia de la plataforma: "Día" (claro) o "Noche" (oscuro, el de siempre).
+ * Se guarda en este dispositivo.
+ */
+export function TemaToggle() {
+  const { tema, elegir } = useTema();
 
   return (
     <div>
@@ -57,6 +69,36 @@ export function TemaToggle() {
           🌙 Noche
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Versión compacta (solo íconos) para la barra de arriba del celular, junto a la campana. */
+export function TemaIconos() {
+  const { tema, elegir } = useTema();
+
+  return (
+    <div className="tema-toggle tema-iconos" role="group" aria-label="Apariencia: día o noche">
+      <button
+        type="button"
+        className={tema === "claro" ? "on" : ""}
+        aria-pressed={tema === "claro"}
+        aria-label="Día (fondo claro)"
+        title="Día"
+        onClick={() => elegir("claro")}
+      >
+        ☀️
+      </button>
+      <button
+        type="button"
+        className={tema === "oscuro" ? "on" : ""}
+        aria-pressed={tema === "oscuro"}
+        aria-label="Noche (fondo oscuro)"
+        title="Noche"
+        onClick={() => elegir("oscuro")}
+      >
+        🌙
+      </button>
     </div>
   );
 }

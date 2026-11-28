@@ -9,7 +9,7 @@ import { CargaToast } from "@/components/carga-toast";
 import { NotificationBell } from "@/components/notification-bell";
 import { WhatsappPrompt } from "@/components/whatsapp-prompt";
 import { Icon, type IconName } from "@/components/icon";
-import { TemaToggle } from "@/components/tema-toggle";
+import { TemaIconos, TemaToggle } from "@/components/tema-toggle";
 import { LOGOS } from "@/lib/marca";
 
 type NavItem = { href: string; label: string; icon: IconName; pronto?: boolean; nuevo?: boolean; contador?: number };
@@ -196,6 +196,8 @@ export function AppShell({
             <img src={LOGOS.correo} alt="logo" className="brand-logo logo-dia" />
           </span>
           <div className="spacer" />
+          {/* Día / noche al lado de la campana (celular). */}
+          <TemaIconos />
           {!soloPago && <NotificationBell />}
         </header>
         {/* Escritorio: la campana arriba a la derecha. */}
