@@ -1089,24 +1089,6 @@ export async function estadoCargaAction(id: number) {
   return estadoCarga(user.id, id);
 }
 
-/** Root: envía por WhatsApp (cola comercial) a los registrados ese día sin radicados. */
-export async function enviarSinProcesosWaAction(fecha: string): Promise<ActionState> {
-  await requireAdmin();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { error: "Fecha no válida." };
-  const { filasSinProcesosDelDia } = await import("@/lib/reporte-whatsapp");
-  const { encolarWhatsapp } = await import("@/lib/whatsapp");
-  const filas = await filasSinProcesosDelDia(fecha);
-  // encolarWhatsapp no repite el mismo mensaje al mismo número en 20 horas.
-  const n = await encolarWhatsapp(filas.map((f) => ({ ...f, tipo: "sinProcesos" })));
-  revalidatePath("/dashboard/admin/whatsapp");
-  return {
-    ok:
-      n === filas.length
-        ? `${n} en cola de WhatsApp.`
-        : `${n} en cola de WhatsApp; ${filas.length - n} ya lo habían recibido hoy.`,
-  };
-}
-
 /** Root: WhatsApp (cola comercial) con mensaje editable a los elegidos que siguen con 0 radicados. */
 export async function enviarWaSinRadicadosAction(ids: string[], plantilla: string): Promise<ActionState> {
   await requireAdmin();

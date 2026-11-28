@@ -1,8 +1,6 @@
 import "server-only";
-import ExcelJS from "exceljs";
 import { prisma } from "./db";
 import { ensureColumn } from "./runtime-columns";
-import { sendMail } from "./mailer";
 
 /**
  * Reporte diario para enviar los avisos por WhatsApp desde una plataforma de
@@ -175,21 +173,6 @@ export async function registrarAvisoWhatsapp(userId: string, tipo: TipoAviso, me
   }
 }
 
-/** Arma el Excel (sin encabezado): A = mensaje, B = teléfono. */
-export async function excelReporte(filas: { mensaje: string; telefono: string }[]) {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Avisos");
-  ws.getColumn(1).width = 90;
-  ws.getColumn(2).width = 16;
-  for (const f of filas) {
-    const row = ws.addRow([f.mensaje, f.telefono]);
-    row.getCell(1).alignment = { wrapText: true, vertical: "top" };
-    row.getCell(2).numFmt = "@"; // texto: que Excel no lo vuelva notación científica
-    row.getCell(2).alignment = { vertical: "top" };
-  }
-  return Buffer.from(await wb.xlsx.writeBuffer());
-}
-
 /**
  * Una fila por aviso ("Nombre - aviso"): cada uno se envía como mensaje aparte.
  * Las filas de un mismo abogado quedan juntas (actuaciones primero).
@@ -268,23 +251,7 @@ export async function enviarReporteWhatsapp(opts: { forzar?: boolean } = {}) {
     return 0;
   });
 
-  const admins = await prisma.user.findMany({ where: { role: "admin" }, select: { email: true } });
-  const excel = await excelReporte(filas);
-  for (const a of admins) {
-    await sendMail({
-      to: a.email,
-      subject: `Reporte WhatsApp ${hoy}: ${filas.length} aviso(s)`,
-      text: `Adjunto el Excel con ${filas.length} aviso(s) para enviar por WhatsApp (una fila por mensaje).`,
-      html: `<div style="font-family:system-ui,sans-serif"><p>Adjunto el Excel con <b>${filas.length}</b> aviso(s) para enviar por WhatsApp, uno por fila (actuaciones nuevas y pagos por vencer o vencidos).</p><p style="color:#777;font-size:13px">Columna A: nombre y aviso. Columna B: teléfono.</p></div>`,
-      attachments: [
-        {
-          filename: `avisos-whatsapp-${hoy}.xlsx`,
-          content: excel,
-          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        },
-      ],
-    });
-  }
+  // Ya no se manda al root el correo con el Excel (28 nov 2026): los avisos salen solos por WhatsApp.
   await marcar();
   return { enviados: filas.length, encoladosWhatsapp: encolados };
 }
@@ -371,9 +338,9 @@ export async function avisarReporteSinProcesos() {
       title: "📋 Registrados ayer sin procesos",
       body:
         filas.length > 0
-          ? `${filas.length} usuario(s) se registraron ayer y no ingresaron radicados; ${encolados} mensaje(s) enviados a la cola de WhatsApp. Toca para ver el Excel.`
+          ? `${filas.length} usuario(s) se registraron ayer y no ingresaron radicados; ${encolados} mensaje(s) enviados a la cola de WhatsApp. Toca para verlos.`
           : "Todos los que se registraron ayer ya ingresaron radicados (o no hubo registros).",
-      url: `/dashboard/admin/reportes?fecha=${ayer}`,
+      url: "/dashboard/admin/usuarios/sin-radicados",
       tag: "reporte-sin-procesos",
     },
   );
