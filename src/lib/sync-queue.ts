@@ -645,8 +645,9 @@ export async function tick(opts: { forzar?: boolean } = {}) {
         error: e instanceof Error ? e.message : String(e),
       }));
     }
-    // "¿Qué pasó?": vencidos sin ningún radicado, 3 a 10 días después (WhatsApp + correo, una vez).
-    if (m >= 14 * 60 && m < 16 * 60) {
+    // Al vencer la prueba (el mismo día): "¿qué pasó?" a los de 0 procesos y
+    // "esto vigilamos" a los que tenían procesos (WhatsApp + correo, una vez). Cada hora de 8 a.m. a 7 p.m.
+    if (m >= 8 * 60 && m < 19 * 60) {
       const { enviarCampanaVencidoSinProcesos } = await import("./campana-vencido-sin-procesos");
       info.campanaVencidoSinProcesos = await enviarCampanaVencidoSinProcesos().catch((e) => ({
         error: e instanceof Error ? e.message : String(e),
