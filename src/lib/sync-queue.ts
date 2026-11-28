@@ -53,8 +53,8 @@ const num = (v: string | undefined, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : def;
 };
-// Cola nocturna: un proceso cada 12 s (27 nov 2026; 26 nov: 13 s, 960 hasta las 11:06 p. m., 160-200/h sin bloqueos; 25 nov: 14 s, ~172-180/h, 1 bloqueo solo por carga de 25 procesos a las 6:13 p. m.; 24 nov: 15 s, hasta 172/h sin bloqueos; 21 nov: 16 s, ~163/h sin bloqueos; 20 nov: 17 s; 19 nov: 18 s; 18 nov: 19 s; antes 20 s), buscando el punto de equilibrio con la Rama.
-const PAUSA_ENTRE_PROCESOS_MS = num(process.env.SYNC_PAUSA_PROCESOS_MS, 12_000);
+// Cola nocturna: un proceso cada 11 s (28 nov 2026; 27 nov: 12 s, 1.222 hasta las 12:20 a. m., 161-213/h sin bloqueos; 26 nov: 13 s, 960 hasta las 11:06 p. m., 160-200/h sin bloqueos; 25 nov: 14 s, ~172-180/h, 1 bloqueo solo por carga de 25 procesos a las 6:13 p. m.; 24 nov: 15 s, hasta 172/h sin bloqueos; 21 nov: 16 s, ~163/h sin bloqueos; 20 nov: 17 s; 19 nov: 18 s; 18 nov: 19 s; antes 20 s), buscando el punto de equilibrio con la Rama.
+const PAUSA_ENTRE_PROCESOS_MS = num(process.env.SYNC_PAUSA_PROCESOS_MS, 11_000);
 const PAUSA_MIN_MS = num(process.env.SYNC_PAUSE_MIN_MS, 1500);
 const PAUSA_MAX_MS = num(process.env.SYNC_PAUSE_MAX_MS, 3000);
 const PRESUPUESTO_MS = num(process.env.SYNC_BUDGET_MS, 240_000); // por corrida de 5 min
@@ -431,7 +431,7 @@ async function procesarCola(): Promise<ResultadoLote> {
   const pendientes = [...grupos.values()];
 
   // La Rama bloqueaba con 2 consultas a la vez: toda la noche, un proceso a la
-  // vez y 12 s entre uno y otro (~210 por hora). Cada proceso pide turno en la
+  // vez y 11 s entre uno y otro (~230 por hora). Cada proceso pide turno en la
   // fila única de la Rama (la misma de las cargas de radicados): si un abogado
   // está cargando, su radicado entra en el turno siguiente y la cola espera.
   const pausaS = PAUSA_ENTRE_PROCESOS_MS / 1000;
@@ -459,7 +459,7 @@ async function procesarCola(): Promise<ResultadoLote> {
         r.fallidos += grupo.length;
         await marcarFallo(grupo, err).catch(() => {});
       }
-      // 12 s desde que terminó este proceso, antes del próximo turno (de la cola o de una carga).
+      // 11 s desde que terminó este proceso, antes del próximo turno (de la cola o de una carga).
       await correrTurnoRama(pausaS);
     }
   };
