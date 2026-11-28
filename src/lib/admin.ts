@@ -57,7 +57,9 @@ export async function usuariosRegistrados() {
 }
 
 /** Usuarios para la tabla del root, por páginas y con búsqueda opcional (nombre o correo). */
-export async function listUsers(opts: { pagina?: number; porPagina?: number; q?: string } = {}) {
+export async function listUsers(
+  opts: { pagina?: number; porPagina?: number; q?: string; /** Solo estos ids (filtro por estado). */ ids?: string[] } = {},
+) {
   const porPagina = opts.porPagina ?? 20;
   const pagina = Math.max(1, opts.pagina ?? 1);
   const q = opts.q?.trim();
@@ -73,7 +75,7 @@ export async function listUsers(opts: { pagina?: number; porPagina?: number; q?:
           ).catch(() => [])
         ).map((r) => r.id)
       : [];
-  const where = q
+  const porTexto = q
     ? {
         OR: [
           { email: { contains: q, mode: "insensitive" as const } },
@@ -84,6 +86,7 @@ export async function listUsers(opts: { pagina?: number; porPagina?: number; q?:
         ],
       }
     : {};
+  const where = opts.ids ? { AND: [porTexto, { id: { in: opts.ids } }] } : porTexto;
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({

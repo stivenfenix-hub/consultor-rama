@@ -23,25 +23,40 @@ function fmt(d: Date | null | undefined) {
 
 const POR_PAGINA = 20;
 
+/** Botones para ver solo un tipo de usuario (28 nov 2026). */
+const FILTROS = [
+  { clave: "membresia", estado: "activa", texto: "💳 Membresía", clase: "new" },
+  { clave: "prueba", estado: "prueba", texto: "Prueba", clase: "reciente" },
+  { clave: "vencio", estado: "vencida", texto: "Venció", clase: "warn" },
+] as const;
+
 export default async function UsuariosAdmin({
   searchParams,
 }: {
-  searchParams: Promise<{ pagina?: string; q?: string }>;
+  searchParams: Promise<{ pagina?: string; q?: string; estado?: string }>;
 }) {
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
+  const filtro = FILTROS.find((f) => f.clave === sp.estado) ?? null;
+  // El estado de todos se calcula una vez: sirve para los botones, sus conteos y la etiqueta.
+  const subs = await suscripcionesDeTodos().catch(() => null);
+  const idsDe = (estado: string) => [...(subs ?? new Map())].filter(([, s]) => s.estado === estado).map(([id]) => id);
   // La tabla va de a 20 (solo se cargan esos); totales y sospechosos miran a todos.
   const [todos, pagina] = await Promise.all([
     resumenUsuarios(),
-    listUsers({ pagina: Number(sp.pagina) || 1, porPagina: POR_PAGINA, q }),
+    listUsers({
+      pagina: Number(sp.pagina) || 1,
+      porPagina: POR_PAGINA,
+      q,
+      ids: filtro && subs ? idsDe(filtro.estado) : undefined,
+    }),
   ]);
   const users = pagina.users;
   const ids = users.map((u) => u.id);
-  const [whatsapp, cargas, procesos, subs, desactivados] = await Promise.all([
+  const [whatsapp, cargas, procesos, desactivados] = await Promise.all([
     getWhatsappPorUsuario(ids),
     resumenCargasPorUsuario(ids).catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
     conteoProcesosPorUsuario(ids).catch(() => new Map<string, number>()),
-    suscripcionesDeTodos().catch(() => null),
     idsDesactivados(ids),
   ]);
   const sospechas = new Map<string, string[]>();
@@ -54,6 +69,7 @@ export default async function UsuariosAdmin({
     const s = new URLSearchParams();
     if (p > 1) s.set("pagina", String(p));
     if (q) s.set("q", q);
+    if (filtro) s.set("estado", filtro.clave);
     const t = s.toString();
     return `/dashboard/admin/usuarios${t ? `?${t}` : ""}`;
   };
@@ -111,7 +127,28 @@ export default async function UsuariosAdmin({
       )}
 
       <div className="card">
+        <div className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
+          {[{ clave: "", texto: "Todos", clase: "", n: todos.length }, ...FILTROS.map((f) => ({ ...f, n: idsDe(f.estado).length }))].map((f) => {
+            const activo = (filtro?.clave ?? "") === f.clave;
+            const s = new URLSearchParams();
+            if (f.clave) s.set("estado", f.clave);
+            if (q) s.set("q", q);
+            const t = s.toString();
+            return (
+              <Link
+                key={f.clave || "todos"}
+                prefetch={false}
+                href={`/dashboard/admin/usuarios${t ? `?${t}` : ""}`}
+                className={`btn small ${activo ? "" : "secondary"}`}
+                aria-current={activo ? "page" : undefined}
+              >
+                {f.texto} <span className={`badge ${f.clase}`} style={{ marginLeft: 6 }}>{f.n}</span>
+              </Link>
+            );
+          })}
+        </div>
         <form method="get" className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
+          {filtro && <input type="hidden" name="estado" value={filtro.clave} />}
           <input
             name="q"
             defaultValue={q}
@@ -119,7 +156,11 @@ export default async function UsuariosAdmin({
             style={{ flex: 1, minWidth: 200 }}
           />
           <button className="btn secondary" type="submit">Buscar</button>
-          {q && <Link prefetch={false} className="btn secondary" href="/dashboard/admin/usuarios">Limpiar</Link>}
+          {q && (
+            <Link prefetch={false} className="btn secondary" href={`/dashboard/admin/usuarios${filtro ? `?estado=${filtro.clave}` : ""}`}>
+              Limpiar
+            </Link>
+          )}
           {/* Siempre descarga todos los usuarios, aunque haya una búsqueda. */}
           <a className="btn" href="/api/admin/usuarios-excel" download>
             Descargar todos (Excel)
@@ -128,7 +169,7 @@ export default async function UsuariosAdmin({
         <div className="muted small" style={{ marginBottom: 8 }}>
           {pagina.total === 0
             ? "Ningún usuario coincide."
-            : `Mostrando ${(pagina.pagina - 1) * POR_PAGINA + 1}–${Math.min(pagina.pagina * POR_PAGINA, pagina.total)} de ${pagina.total}${q ? ` que coinciden con “${q}”` : ""}`}
+            : `Mostrando ${(pagina.pagina - 1) * POR_PAGINA + 1}–${Math.min(pagina.pagina * POR_PAGINA, pagina.total)} de ${pagina.total}${filtro ? ` · ${filtro.texto}` : ""}${q ? ` que coinciden con “${q}”` : ""}`}
         </div>
         <div className="table-wrap">
           <table className="table">
