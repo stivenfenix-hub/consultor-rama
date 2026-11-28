@@ -73,13 +73,9 @@ export default async function UsuariosAdmin({
         </Link>
       </div>
 
-      <section className="stat-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <section className="stat-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
         <StatTile label="Total" value={todos.length} />
         <StatTile label="Activos (30 días)" value={activos} accent="var(--green)" />
-        <StatTile
-          label="Verificados"
-          value={todos.filter((u) => u.emailVerified).length}
-        />
       </section>
 
       {sospechosos.length > 0 && (
@@ -119,7 +115,7 @@ export default async function UsuariosAdmin({
           <input
             name="q"
             defaultValue={q}
-            placeholder="Buscar por nombre o correo"
+            placeholder="Buscar por nombre, correo o WhatsApp"
             style={{ flex: 1, minWidth: 200 }}
           />
           <button className="btn secondary" type="submit">Buscar</button>
@@ -142,7 +138,6 @@ export default async function UsuariosAdmin({
                 <th>Correo</th>
                 <th>WhatsApp</th>
                 <th>Rol</th>
-                <th>Verificado</th>
                 <th>Procesos</th>
                 <th title="Veces que intentó agregar procesos (desde el 28 de oct)">Intentos de carga</th>
                 <th>Último acceso</th>
@@ -188,7 +183,6 @@ export default async function UsuariosAdmin({
                       <span className="badge">usuario</span>
                     )}
                   </td>
-                  <td>{u.emailVerified ? "✓" : "—"}</td>
                   <td>{procesos.get(u.id) ?? 0}</td>
                   <td className="small">
                     {(() => {

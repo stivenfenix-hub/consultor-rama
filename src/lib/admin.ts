@@ -61,6 +61,18 @@ export async function listUsers(opts: { pagina?: number; porPagina?: number; q?:
   const porPagina = opts.porPagina ?? 20;
   const pagina = Math.max(1, opts.pagina ?? 1);
   const q = opts.q?.trim();
+  // También por WhatsApp (28 nov 2026): con 4+ dígitos busca el número sin importar
+  // espacios, guiones ni el +57 ("300 123 4567", "3001234567" y "+573001234567").
+  const digitos = (q ?? "").replace(/\D/g, "");
+  const porWhatsapp =
+    digitos.length >= 4
+      ? (
+          await prisma.$queryRawUnsafe<{ id: string }[]>(
+            `SELECT id FROM "User" WHERE regexp_replace(coalesce("whatsapp", ''), '\\D', '', 'g') LIKE '%' || $1 || '%'`,
+            digitos,
+          ).catch(() => [])
+        ).map((r) => r.id)
+      : [];
   const where = q
     ? {
         OR: [
@@ -68,6 +80,7 @@ export async function listUsers(opts: { pagina?: number; porPagina?: number; q?:
           { name: { contains: q, mode: "insensitive" as const } },
           { firstName: { contains: q, mode: "insensitive" as const } },
           { lastName: { contains: q, mode: "insensitive" as const } },
+          ...(porWhatsapp.length ? [{ id: { in: porWhatsapp } }] : []),
         ],
       }
     : {};
