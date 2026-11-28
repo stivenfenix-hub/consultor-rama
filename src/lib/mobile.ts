@@ -74,6 +74,8 @@ async function userFromRequest(req: NextRequest): Promise<User | null> {
   if (inactivo > 60 * 60 * 1000) {
     await prisma.$executeRawUnsafe(`UPDATE "MobileSession" SET "lastUsedAt" = now() WHERE id = $1`, s.id);
   }
+  const { estaDesactivado } = await import("./cuenta-desactivada");
+  if (await estaDesactivado(s.userId)) return null;
   return prisma.user.findUnique({ where: { id: s.userId } });
 }
 

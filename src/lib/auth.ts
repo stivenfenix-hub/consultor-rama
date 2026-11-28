@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
+import { estaDesactivado } from "./cuenta-desactivada";
 
 /**
  * Sesion por cookie firmada (HMAC) + autenticacion por contrasena (bcrypt).
@@ -54,6 +55,8 @@ export async function getCurrentUser() {
   const jar = await cookies();
   const userId = verify(jar.get(COOKIE)?.value);
   if (!userId) return null;
+  // Cuenta desactivada por el root: su sesión deja de valer.
+  if (await estaDesactivado(userId)) return null;
   return prisma.user.findUnique({ where: { id: userId } });
 }
 
@@ -90,7 +93,8 @@ export async function hashPassword(plain: string) {
  */
 export type LoginResult =
   | { status: "ok"; role: string }
-  | { status: "invalid" };
+  | { status: "invalid" }
+  | { status: "desactivada" };
 
 /**
  * Valida correo y contraseña sin crear sesión (la web crea la cookie; la app
@@ -104,6 +108,7 @@ export async function checkPassword(emailRaw: string, password: string) {
     user?.passwordHash ?? "$2a$10$invalidinvalidinvalidinvalidinvalidinvalidin";
   const okPass = await bcrypt.compare(password, hash);
   if (!user || !user.passwordHash || !okPass) return { status: "invalid" as const };
+  if (await estaDesactivado(user.id)) return { status: "desactivada" as const };
   // Por ahora no se exige verificar el correo: las cuentas que quedaron
   // pendientes (de antes de quitar la verificación) se activan al entrar.
   await prisma.user.update({

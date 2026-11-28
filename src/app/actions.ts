@@ -69,6 +69,7 @@ import { prisma } from "@/lib/db";
 import { esProcesoPrivado, MSG_PRIVADO, revisarProcesoManual, tick } from "@/lib/sync-queue";
 import { marcarRegistroNuevo } from "@/lib/meta-registro";
 import { MSG_RAMA_ACTUALIZAR } from "@/lib/aviso-rama";
+import { desactivarCuenta, MSG_CUENTA_DESACTIVADA, reactivarCuenta } from "@/lib/cuenta-desactivada";
 import { textoPrivado } from "@/lib/textos-estados";
 import { avisarNuevoUsuario } from "@/lib/aviso-admin";
 import { registrarConsentimientoInicial, setOfertas, usuariosParaAvisos } from "@/lib/consent";
@@ -105,6 +106,7 @@ export async function loginAction(
 
   const res = await loginWithPassword(email, password);
   if (res.status === "invalid") return { error: "Correo o contraseña incorrectos." };
+  if (res.status === "desactivada") return { error: MSG_CUENTA_DESACTIVADA };
   redirect(homePath(res.role));
 }
 
@@ -746,6 +748,31 @@ export async function eliminarUsuarioAction(userId: string): Promise<ActionState
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/usuarios");
   return { ok: `Usuario ${user.email} eliminado.` };
+}
+
+/**
+ * Root: desactiva una cuenta en vez de eliminarla. Deja de vigilar y de escribirle
+ * y no puede entrar, pero se conservan procesos, pagos, firmas y autorización de datos.
+ */
+export async function desactivarUsuarioAction(userId: string): Promise<ActionState> {
+  const admin = await requireAdmin();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return { error: "El usuario ya no existe." };
+  if (user.id === admin.id || user.role === "admin") {
+    return { error: "No se puede desactivar una cuenta de administrador." };
+  }
+  await desactivarCuenta(userId);
+  revalidatePath("/dashboard/admin/usuarios");
+  return { ok: `Cuenta de ${user.email} desactivada.` };
+}
+
+export async function reactivarUsuarioAction(userId: string): Promise<ActionState> {
+  await requireAdmin();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return { error: "El usuario ya no existe." };
+  await reactivarCuenta(userId);
+  revalidatePath("/dashboard/admin/usuarios");
+  return { ok: `Cuenta de ${user.email} reactivada.` };
 }
 
 /** Root: quita o devuelve el límite de actualizaciones manuales a un usuario. */

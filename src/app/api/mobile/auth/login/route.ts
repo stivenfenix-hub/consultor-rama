@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkPassword } from "@/lib/auth";
+import { MSG_CUENTA_DESACTIVADA } from "@/lib/cuenta-desactivada";
 import { body, createMobileSession, jsonError, perfil, publicMobile, str } from "@/lib/mobile";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
     if (!email || !password) return jsonError("Ingresa correo y contraseña.", 400);
     const res = await checkPassword(email, password);
     if (res.status === "invalid") return jsonError("Correo o contraseña incorrectos.", 401);
+    if (res.status === "desactivada") return jsonError(MSG_CUENTA_DESACTIVADA, 403);
     const token = await createMobileSession(res.user.id, str(b.device) || null);
     return NextResponse.json({ token, ...(await perfil(res.user)) });
   });

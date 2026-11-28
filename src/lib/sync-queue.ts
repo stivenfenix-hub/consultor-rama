@@ -508,13 +508,15 @@ type FilaAviso = {
 /** Envía un resumen por abogado con las actuaciones (y estados electrónicos) pendientes de avisar. */
 export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
   const inicio = Date.now();
+  const { asegurarColumnaDesactivado } = await import("./cuenta-desactivada");
+  await asegurarColumnaDesactivado();
   const filas = await prisma.$queryRawUnsafe<FilaAviso[]>(
     `SELECT a.id, a."caseId", c.radicado, c."userId", u.email, u.name,
             a.actuacion, a.anotacion, a."fechaActuacion", a."seenAt"
      FROM "Actuacion" a
      JOIN "Case" c ON c.id = a."caseId"
      JOIN "User" u ON u.id = c."userId"
-     WHERE a."pendingNotify"
+     WHERE a."pendingNotify" AND u."desactivadoAt" IS NULL
      ORDER BY c."userId", c.radicado, a."fechaActuacion" DESC NULLS LAST`,
   );
   const porUsuario = new Map<string, FilaAviso[]>();
@@ -530,7 +532,13 @@ export async function enviarResumenesPendientes(presupuestoMs = 200_000) {
     return [];
   });
   const estadosDe = new Map<string, typeof estadosPend>();
-  for (const e of estadosPend) estadosDe.set(e.userId, [...(estadosDe.get(e.userId) ?? []), e]);
+  // Cuentas desactivadas: no se les avisa (el VPS de estados puede seguir hallándolos).
+  const { idsDesactivados } = await import("./cuenta-desactivada");
+  const desactivados = await idsDesactivados(estadosPend.map((e) => e.userId));
+  for (const e of estadosPend) {
+    if (desactivados.has(e.userId)) continue;
+    estadosDe.set(e.userId, [...(estadosDe.get(e.userId) ?? []), e]);
+  }
   const usuarios = [...new Set([...porUsuario.keys(), ...estadosDe.keys()])];
   const soloEstados = usuarios.filter((u) => !porUsuario.has(u));
   const contacto = new Map<string, { email: string; name: string | null }>();

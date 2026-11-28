@@ -14,7 +14,7 @@ export function EliminarUsuario({ id, email }: { id: string; email: string }) {
         disabled={pending}
         onClick={() => {
           const ok = confirm(
-            `¿Eliminar a ${email}?\n\nSe borran su cuenta, sus procesos y todo su historial. No se puede deshacer.`,
+            `¿Eliminar a ${email}?\n\nSe borran su cuenta, sus procesos, sus pagos, sus documentos de Firma Electrónica (PDF sellado y certificado) y el registro de su autorización de datos. No se puede deshacer.\n\nSi solo ya no quiere el servicio, usa "Desactivar": conserva todo.`,
           );
           if (!ok) return;
           setError(null);

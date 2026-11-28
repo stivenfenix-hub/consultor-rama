@@ -61,6 +61,8 @@ function asegurarTablas() {
 
 async function crearTablas() {
   await ensureColumn("User", "estadosActivo", "BOOLEAN NOT NULL DEFAULT true");
+  // Cuentas desactivadas por el root: no se vigilan (ver cuenta-desactivada.ts).
+  await ensureColumn("User", "desactivadoAt", "TIMESTAMPTZ");
   // Estados para todos (7 nov 2026): los nuevos usuarios lo tienen activo y,
   // una sola vez, se activa a todos los que ya existían. El ALTER va aquí
   // dentro porque bloquea la tabla User: no debe correr en cada arranque.
@@ -185,11 +187,11 @@ async function seguimientos(filtro: { despacho?: string; userId?: string } = {})
   const deUsuario = filtro.userId ? `AND u.id = $1` : "";
   const filas = await prisma.$queryRawUnsafe<{ userId: string; radicado: string }[]>(
     `SELECT DISTINCT r."userId", r.radicado FROM (
-       SELECT c."userId", c.radicado FROM "Case" c JOIN "User" u ON u.id = c."userId" WHERE u."estadosActivo" ${deUsuario}
+       SELECT c."userId", c.radicado FROM "Case" c JOIN "User" u ON u.id = c."userId" WHERE u."estadosActivo" AND u."desactivadoAt" IS NULL ${deUsuario}
        UNION
        SELECT cp."userId", (regexp_matches(
          coalesce(cp.radicados, '') || ' ' || coalesce(cp.error, '') || ' ' || coalesce(cp.ok, ''), '\\d{23}', 'g'))[1]
-       FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId" WHERE u."estadosActivo" ${deUsuario}
+       FROM "CargaProcesos" cp JOIN "User" u ON u.id = cp."userId" WHERE u."estadosActivo" AND u."desactivadoAt" IS NULL ${deUsuario}
      ) r
      WHERE NOT EXISTS (SELECT 1 FROM "EstadoQuitado" q WHERE q."userId" = r."userId" AND q.radicado = r.radicado)`,
     ...(filtro.userId ? [filtro.userId] : []),

@@ -177,7 +177,11 @@ export async function encolarWhatsapp(
 ) {
   let n = 0;
   const activas = new Map<CuentaWa, boolean>();
+  // A las cuentas desactivadas no se les escribe (ni avisos ni campañas).
+  const { idsDesactivados } = await import("./cuenta-desactivada");
+  const fuera = await idsDesactivados(mensajes.map((m) => m.userId).filter((x): x is string => !!x));
   for (const m of mensajes) {
+    if (m.userId && fuera.has(m.userId)) continue;
     const telefono = m.telefono.replace(/\D/g, "");
     if (!telefono) continue;
     const cuenta = cuentaDeTipo(m.tipo);

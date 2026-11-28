@@ -123,6 +123,10 @@ export async function ensureMobileNoticeTable() {
 /** Guarda el aviso en la app (campana y app Android) sin enviar push. Devuelve su id. */
 export async function guardarAviso(userId: string | null, payload: PushPayload) {
   try {
+    if (userId) {
+      const { estaDesactivado } = await import("./cuenta-desactivada");
+      if (await estaDesactivado(userId)) return null;
+    }
     await ensureMobileNoticeTable();
     const [r] = await prisma.$queryRawUnsafe<{ id: number }[]>(
       `INSERT INTO "MobileNotice" ("userId", title, body, url, tag) VALUES ($1, $2, $3, $4, $5)

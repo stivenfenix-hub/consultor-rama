@@ -5,10 +5,12 @@ import { LOGOS } from "@/lib/marca";
 import { BrandLogo } from "@/components/brand-logo";
 import { LoginForm } from "./login-form";
 import { GoogleButton } from "@/components/google-button";
+import { MSG_CUENTA_DESACTIVADA } from "@/lib/cuenta-desactivada";
 
 const ERROR_GOOGLE: Record<string, string> = {
   error: "No pudimos ingresar con Google. Intenta de nuevo o usa tu correo y contraseña.",
   cancelado: "Se canceló el ingreso con Google.",
+  desactivada: MSG_CUENTA_DESACTIVADA,
 };
 
 export default async function LoginPage({

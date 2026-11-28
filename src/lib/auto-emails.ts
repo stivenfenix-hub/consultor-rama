@@ -250,6 +250,8 @@ export async function enviarPlantilla(
 ) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
+  const { estaDesactivado } = await import("./cuenta-desactivada");
+  if (await estaDesactivado(userId)) return;
   const nombre = user.firstName || user.name || "";
   await sendMail({
     to: user.email,

@@ -3,6 +3,8 @@ import { listUsers, resumenUsuarios } from "@/lib/admin";
 import { getWhatsappPorUsuario } from "@/lib/accounts";
 import { StatTile } from "@/components/charts";
 import { EliminarUsuario } from "./eliminar-usuario";
+import { DesactivarUsuario } from "./desactivar-usuario";
+import { idsDesactivados } from "@/lib/cuenta-desactivada";
 import { motivosSospecha } from "@/lib/sospechoso";
 import { resumenCargasPorUsuario } from "@/lib/sync";
 import { conteoProcesosPorUsuario } from "@/lib/estados";
@@ -35,11 +37,12 @@ export default async function UsuariosAdmin({
   ]);
   const users = pagina.users;
   const ids = users.map((u) => u.id);
-  const [whatsapp, cargas, procesos, subs] = await Promise.all([
+  const [whatsapp, cargas, procesos, subs, desactivados] = await Promise.all([
     getWhatsappPorUsuario(ids),
     resumenCargasPorUsuario(ids).catch(() => new Map<string, { cargas: number; conError: number; reintentos: number }>()),
     conteoProcesosPorUsuario(ids).catch(() => new Map<string, number>()),
     suscripcionesDeTodos().catch(() => null),
+    idsDesactivados(ids),
   ]);
   const sospechas = new Map<string, string[]>();
   for (const u of todos) {
@@ -153,6 +156,11 @@ export default async function UsuariosAdmin({
                 <tr key={u.id}>
                   <td>
                     <Link prefetch={false} href={`/dashboard/admin/usuarios/${u.id}`}>{u.name ?? "—"}</Link>
+                    {desactivados.has(u.id) && (
+                      <div className="badge" title="No se vigila, no se le escribe y no puede entrar" style={{ marginTop: 4 }}>
+                        ⏸ Desactivada
+                      </div>
+                    )}
                     {sospechas.has(u.id) && (
                       <div className="badge warn" title={sospechas.get(u.id)!.join("; ")} style={{ marginTop: 4 }}>
                         ⚠️ Sospechoso
@@ -208,9 +216,10 @@ export default async function UsuariosAdmin({
                   <td>
                     {u.role !== "admin" && (
                       <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                        {subs?.get(u.id)?.estado !== "activa" && subs?.get(u.id)?.estado !== "socio" && (
+                        {!desactivados.has(u.id) && subs?.get(u.id)?.estado !== "activa" && subs?.get(u.id)?.estado !== "socio" && (
                           <ExtendTrialButton userId={u.id} nombre={u.name} />
                         )}
+                        <DesactivarUsuario id={u.id} email={u.email} desactivada={desactivados.has(u.id)} />
                         <EliminarUsuario id={u.id} email={u.email} />
                       </div>
                     )}

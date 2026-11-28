@@ -687,7 +687,10 @@ export function tieneAcceso(s: Suscripcion) {
 export async function usuariosConAcceso(): Promise<Set<string>> {
   const { diasPrueba } = await getPlan();
   const us = await filas("", []);
-  return new Set(us.filter((u) => calcular(u, diasPrueba).estado !== "vencida").map((u) => u.id));
+  // Las cuentas desactivadas no se vigilan (aunque tengan plan o prueba vigente).
+  const { idsDesactivados } = await import("./cuenta-desactivada");
+  const fuera = await idsDesactivados();
+  return new Set(us.filter((u) => !fuera.has(u.id) && calcular(u, diasPrueba).estado !== "vencida").map((u) => u.id));
 }
 
 /** Todos los usuarios con su estado (reporte del root). */
@@ -1038,12 +1041,16 @@ export async function avisosDeVencimientoPendientes() {
     `SELECT id, role, "createdAt", "trialEndsAt", "paidUntil", "subNoticeFor", "subExpiredFor", "firstName", name
      FROM "User" WHERE role <> 'admin' AND "emailVerified" IS NOT NULL`,
   );
+  // Cuentas desactivadas: sin avisos de vencimiento.
+  const { idsDesactivados } = await import("./cuenta-desactivada");
+  const fuera = await idsDesactivados();
   // prueba: el acceso que vence es la prueba gratis (no un plan pagado).
   type Aviso = { id: string; hasta: Date; prueba: boolean; nombre: string };
   const porVencer: Aviso[] = [];
   const vencidos: Aviso[] = [];
   const ahora = Date.now();
   for (const u of us) {
+    if (fuera.has(u.id)) continue;
     const s = calcular(u, diasPrueba);
     if (!s.accesoHasta) continue;
     const hasta = s.accesoHasta;

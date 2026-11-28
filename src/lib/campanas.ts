@@ -209,6 +209,8 @@ export async function procesarCorreosCampana(): Promise<number> {
   const h = horaBogota();
   if (h < 8 || h >= 19) return 0;
   await asegurarCola();
+  const { asegurarColumnaDesactivado } = await import("./cuenta-desactivada");
+  await asegurarColumnaDesactivado();
   const [hoy] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
     `SELECT count(*) AS n FROM "CorreoCola" WHERE estado = 'enviado'
        AND ("enviadoAt" AT TIME ZONE 'America/Bogota')::date = (now() AT TIME ZONE 'America/Bogota')::date`,
@@ -220,7 +222,9 @@ export async function procesarCorreosCampana(): Promise<number> {
     { id: number; para: string; asunto: string; html: string; texto: string; adjunto: string | null; adjuntoNombre: string | null }[]
   >(
     `UPDATE "CorreoCola" SET estado = 'enviando'
-     WHERE id IN (SELECT id FROM "CorreoCola" WHERE estado = 'pendiente' ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED)
+     WHERE id IN (SELECT q.id FROM "CorreoCola" q WHERE q.estado = 'pendiente'
+                    AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u.id = q."userId" AND u."desactivadoAt" IS NOT NULL)
+                  ORDER BY q.id LIMIT $1 FOR UPDATE SKIP LOCKED)
      RETURNING id, para, asunto, html, texto, adjunto, "adjuntoNombre"`,
     lote,
   );

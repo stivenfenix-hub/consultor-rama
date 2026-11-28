@@ -26,6 +26,11 @@ export async function GET(req: NextRequest) {
   try {
     const perfil = await perfilDesdeCodigo(code, verifier);
     const { user, nueva } = await cuentaGoogle(perfil);
+    const { estaDesactivado } = await import("@/lib/cuenta-desactivada");
+    // Cuenta desactivada por el root: no entra (el redirect va fuera del try).
+    if (await estaDesactivado(user.id)) {
+      destino = "/login?google=desactivada";
+    } else {
     await createSession(user.id);
     if (nueva) {
       // Al crear la cuenta con Google acepta Términos y Política (texto bajo el botón).
@@ -36,6 +41,7 @@ export async function GET(req: NextRequest) {
     }
     // El WhatsApp es obligatorio: si no lo tiene, se le pide antes de entrar.
     destino = (await getWhatsapp(user.id)) ? homePath(user.role) : "/completar-registro";
+    }
   } catch (e) {
     console.error("[google] error", e);
     destino = "/login?google=error";
