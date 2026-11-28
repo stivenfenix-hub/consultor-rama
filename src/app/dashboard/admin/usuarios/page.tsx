@@ -151,6 +151,21 @@ export default async function UsuariosAdmin({
                 <tr key={u.id}>
                   <td>
                     <Link prefetch={false} href={`/dashboard/admin/usuarios/${u.id}`}>{u.name ?? "—"}</Link>
+                    {(() => {
+                      // Al lado del nombre: si paga membresía, está de prueba, venció o es socio.
+                      const e = subs?.get(u.id)?.estado;
+                      const et =
+                        e === "activa" ? { c: "new", t: "💳 Membresía", d: "Tiene un plan pagado vigente" }
+                        : e === "prueba" ? { c: "reciente", t: "Prueba", d: "En prueba gratis" }
+                        : e === "vencida" ? { c: "warn", t: "Venció", d: "Sin acceso: venció la prueba o el plan" }
+                        : e === "socio" ? { c: "", t: "Socio", d: "Socio de Estradox (sin cobro)" }
+                        : null;
+                      return et ? (
+                        <span className={`badge ${et.c}`} title={et.d} style={{ marginLeft: 6, whiteSpace: "nowrap" }}>
+                          {et.t}
+                        </span>
+                      ) : null;
+                    })()}
                     {desactivados.has(u.id) && (
                       <div className="badge" title="No se vigila, no se le escribe y no puede entrar" style={{ marginTop: 4 }}>
                         ⏸ Desactivada
